@@ -44,11 +44,12 @@ public static class TextReportRenderer
         AppendReferences(builder, report.References, report.EvidenceDocuments);
         AppendLinks(builder, report.Links);
         AppendBudget(builder, report.Budget, report.EvidenceDocuments);
+        AppendVersions(builder, report.VersionConsistency);
         AppendFeatures(builder, report.Features);
         AppendTests(builder, report.Tests);
 
         builder.AppendLine();
-        builder.AppendLine(report.ReferencesAndBudgetPassed
+        builder.AppendLine(report.AllCheckedPassed
             ? "结果：通过"
             : $"结果：未通过（退出码 {report.ExitCode}）");
         builder.AppendLine(DocCheckReport.ExitCodeLegend);
@@ -148,6 +149,38 @@ public static class TextReportRenderer
         builder.AppendLine();
     }
 
+    private static void AppendVersions(StringBuilder builder, VersionConsistencyReport versions)
+    {
+        builder.AppendLine("【版本口径】");
+        if (!versions.Checked)
+        {
+            builder.AppendLine(
+                CultureInfo.InvariantCulture,
+                $"- 未检查（根目录既没有 {VersionConsistencyChecker.BuildPropsPath}，也没有解决方案文件）");
+            builder.AppendLine();
+            return;
+        }
+
+        builder.AppendLine(
+            CultureInfo.InvariantCulture,
+            $"- 版本号：{OrMissing(versions.Version)}（来源：{VersionConsistencyChecker.BuildPropsPath}）");
+        builder.AppendLine(
+            CultureInfo.InvariantCulture,
+            $"- 发布 tag：{OrMissing(versions.ReleaseTag)}（来源：{VersionConsistencyChecker.ConventionsPath}）");
+
+        foreach (var failure in versions.Failures)
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture, $"- {failure}");
+        }
+
+        if (versions.Passed)
+        {
+            builder.AppendLine("- 三处一致，release notes 四节齐全，无旧口径残留");
+        }
+
+        builder.AppendLine();
+    }
+
     private static void AppendFeatures(StringBuilder builder, FeatureScanReport features)
     {
         var implemented = features.Blocks.Count(block => block.State == FeatureState.Implemented);
@@ -186,4 +219,7 @@ public static class TextReportRenderer
 
     private static string SymbolSuffix(CodeProbe probe)
         => string.IsNullOrEmpty(probe.Symbol) ? string.Empty : $" {probe.Symbol}";
+
+    private static string OrMissing(string value)
+        => string.IsNullOrEmpty(value) ? "读不到" : value;
 }

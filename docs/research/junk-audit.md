@@ -325,7 +325,7 @@ MD5 实测：
 | `tools/TestRunner/` | 135 | **是** | `build.ps1:306`；`CONVENTIONS.md:108,118,119`；`HANDOVER.md:59` | 进程内 xunit 运行器。注释写明存在理由：本机沙箱拒绝 testhost 启动（`OpenProcess` → `Win32Exception 5`），`dotnet test` / `dotnet vstest` 都在启动阶段中止，故反射测试程序集+复用 xunit 断言 | **保留（构建路径的一部分）** |
 | `tools/InstallProbe/` | 138 | 否 | `HANDOVER.md:134,135,644,1206,1401,1424`；`PCL2-PORTING.md:254,615,779`；tests/.../CoreInstalling_NeoForgeTests.cs:11 | 端到端安装回归：`InstallProbe <数据目录> <MC版本> <加载器>`，真网络装原版/Fabric/Forge/NeoForge | **保留**（真装验证的唯一入口，9 处文档依赖） |
 | `tools/NeoForgeProbe/` | 271 | 否 | **仅 1 处**：`tests/NebulaLauncher.Tests/CoreInstalling_NeoForgeTests.cs:11`（注释里的取证出处） | NeoForge 反射取证：`types`（打印类型签名）/ `fetch`（端点可达性）/ `catalog <mc>`（桥接逻辑走一遍） | **待用户裁决**：NeoForge 已真装通过（`HANDOVER.md:1206`），探针使命结束；但它是那 271 行桥接逻辑的唯一独立复现器 |
-| `tools/ApiDump/` | 45 | 否 | **仅 1 处**：`HANDOVER.md:196` 的目录清单提到名字 | 反射打印 `CmlLib.Core*` / `XboxAuthNet.Game` 六个程序集的公开 API 签名（依赖调研用） | **待用户裁决 / 可删**：45 行一次性工具，调研结论已落进 `PCL2-PORTING.md`，无复现需求 |
+| tools/ApiDump/ | 45 | 否 | **仅 1 处**：`HANDOVER.md:196` 的目录清单提到名字 | 反射打印 `CmlLib.Core*` / `XboxAuthNet.Game` 六个程序集的公开 API 签名（依赖调研用） | **待用户裁决 / 可删**：45 行一次性工具，调研结论已落进 `PCL2-PORTING.md`，无复现需求 |
 
 `tools/` 的 138 MB 全部来自 tools/TestRunner/bin（138 M）+ `obj`（462 K），源码部分 4 个工程合计仅 45 KB。
 
@@ -354,7 +354,7 @@ MD5 实测：
 | 6 | 仓外 `pub/r61` 与 `pub/r60` 逐字节相同 | 25 MB 重复 | ① 删 `r61` ② 删 `r60` ③ 都留 | **①** | 3 个文件 MD5 全同 |
 | 7 | 仓外 `.probe` 截图有重复、运行期数据可重生 | 9.2 MB | ① 归档 2 张 PNG 进 docs/evidence/ 并删其余 ② 全留 ③ 全删（含丢掉唯一视觉证据） | **①** | `r59-home.png` 与 `r59-home-final.png` MD5 相同；`data-r59` 可由 `seed-demo-data.ps1` 重生 |
 | 8 | `AGENTS.md` + `docs/agents/` 4 文件未跟踪 | 5 个 / 8.2 KB | ① 提交 ② 不提交 | **①** | 这是仓库规范文件，且被 `AGENTS.md` 互相引用 |
-| 9 | `tools/ApiDump`（45 行）与 `tools/NeoForgeProbe`（271 行）不在 `.sln`、几乎无引用 | 2 个工程 / 33 KB | ① 都删 ② 都留 ③ 只留 `NeoForgeProbe` | **③**（`NeoForgeProbe` 是 271 行桥接逻辑的唯一复现器；`ApiDump` 是一次性调研工具） | 引用数分别 1 / 1，且都是「目录清单」或「注释」级 |
+| 9 | tools/ApiDump（45 行）与 `tools/NeoForgeProbe`（271 行）不在 `.sln`、几乎无引用 | 2 个工程 / 33 KB | ① 都删 ② 都留 ③ 只留 `NeoForgeProbe` | **③**（`NeoForgeProbe` 是 271 行桥接逻辑的唯一复现器；`ApiDump` 是一次性调研工具） | 引用数分别 1 / 1，且都是「目录清单」或「注释」级 |
 | 10 | `REVIEW-R43-R51-CODE.md` 被引用但从未落盘（原文自述「本轮结束时仍在进行」） | 2 处 | ① 补档 ② 删引用 ③ 声明历史 | **②** | `AUDIT-2026-10-23.md:261` 自己承认未完成 |
 
 ---

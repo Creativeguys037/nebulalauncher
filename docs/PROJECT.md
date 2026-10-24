@@ -114,10 +114,10 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 ```bash
 dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 # 报告末尾那行就是本次口径，例如：
-# 【测试数】Fact 1673 + InlineData 757 = 2430
+# 【测试数】Fact 1691 + InlineData 757 = 2448
 ```
 
-2026-10-24 快照：xUnit 用例数 = `[Fact]` 1673 + `[InlineData]` 757 = **2430**。每个 `[InlineData]` 是一条独立用例，所以 `[Theory]` 本身不另计。测试框架是 xUnit（`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj xunit（:12）`）。
+2026-10-24 快照：xUnit 用例数 = `[Fact]` 1691 + `[InlineData]` 757 = **2448**。每个 `[InlineData]` 是一条独立用例，所以 `[Theory]` 本身不另计。测试框架是 xUnit（`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj xunit（:12）`）。
 
 本机沙箱拒绝 `dotnet test` 启动 testhost，仓库因此带 `tools/TestRunner` 作为等价入口；它反射测试程序集跑 xunit 用例，报出的条数比上面的属性计数少几条（不可实例化的测试类不计），判通过看它的输出，判文档规模看 `tools/DocsCheck`。
 
@@ -140,9 +140,11 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ### 已发布版本的口径
 
-仓库没有产品语义版本号：App 与 Core 的 csproj、`Directory.Build.props` 都没有 `<Version>`，也没有 git tag。关于页显示的 `AppVersion` 读程序集的 `AssemblyInformationalVersionAttribute`，有 `+hash` 后缀时把它剥掉（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
+版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.0</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它走 `DiagnosticsSnapshot.DisplayVersionOf`：读程序集的 `AssemblyInformationalVersionAttribute`、在 `+` 处截断构建哈希、再补 `v` 前缀（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2119）`）。
 
-实际发布按开发轮次标识：产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里），交接文档用 `pub-rNN` 指代，当前最新一轮是 R59。因此对外描述版本时，引用轮次号而不是编一个「v1.x」。
+对外描述版本一律用发布号 `v1.0.0`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
+
+历史轮次记录没有删：`docs/research/` 下的旧审计与验收记录、以及 git 历史里的 R59 / `pub-rNN` 提交，都按原文留在原处，不回头改写。它们只作开发过程标识，不再是任何对外口径，也不参与版本号校验。
 
 ## 明确不做的事：12 条逐条复核
 
@@ -220,7 +222,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ## 已知边界
 
-- 微软账户的真实登录需要一次人工授权才能在实机验收；代码侧只覆盖到设备码流程与令牌持久化（`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth（:45）`）。
+- 微软账户的真实登录于 2026-10-24 用户实机验证通过（按裁决不复跑、仓内不留证据）；代码侧覆盖设备码流程与令牌持久化（`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth（:45）`）。
 - macOS 没有发布物与实机验收，见第 1 条。
 - `portable` 形态依赖 `%TEMP%\.net\<app>` 可写；该路径被安防软件拦截时启动失败，改用 `fdd` / `folder`。
 - 仓内仍有旧口径：已删的最终范围清单里的测试数 2235、页面名「实例/存档/关于」，README 的静态能力矩阵停在早期轮次。本文与上面的测试命令是当前口径；发现冲突时以代码与本文为准。

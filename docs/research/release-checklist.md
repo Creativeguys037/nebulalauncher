@@ -231,9 +231,9 @@ CompanyName   = NebulaLauncher
 
 | 消费者 | 位置 | 读取方式 | 是否需改动 |
 |---|---|---|---|
-| 设置页「关于」分区 | `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs:2114-2129`（`AppVersion`）→ `src/NebulaLauncher.App/Views/SettingsView.axaml:1507` `Text="{Binding AppVersion}"` | `AssemblyInformationalVersionAttribute`，剥 `+hash` | **不需要**，改 `<Version>` 后自动变 |
+| 设置页「关于」分区 | `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs:2119`（`AppVersion`）→ `src/NebulaLauncher.App/Views/SettingsView.axaml:1507` `Text="{Binding AppVersion}"` | `AssemblyInformationalVersionAttribute`，剥 `+hash` 后补 `v` 前缀 | **不需要**，改 `<Version>` 后自动变 |
 | 诊断信息 / 崩溃报告导出 | `src/NebulaLauncher.Core/Diagnostics/DiagnosticsSnapshot.cs:136-148`（`LauncherVersionOf`） | 同上 | 不需要 |
-| 配置包 manifest | `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs:913-924`（`ResolveLauncherVersion`） | `assembly.GetName().Version` → 得 `1.0.0.0` | 不需要 |
+| 配置包 manifest | `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs:922-933`（`ResolveLauncherVersion`） | 同 `DiagnosticsSnapshot.LauncherVersionOf`，得裸版本 `1.0.0`（机器读的数据字段，不带 `v`） | 不需要 |
 | 启动日志里的 `GameLauncherVersion` | `src/NebulaLauncher.Core/Launching/GameLauncher.cs:979` | `GetName().Version?.ToString(3) ?? "1.0.0"` → 得 `1.0.0` | 不需要 |
 | Win32 应用清单 | `src/NebulaLauncher.App/app.manifest:3` `<assemblyIdentity version="1.0.0.0" …>` | 原生 SxS manifest，**不参与**托管程序集版本 | **可不动**（现值恰好一致；改了也不会影响上面四处） |
 

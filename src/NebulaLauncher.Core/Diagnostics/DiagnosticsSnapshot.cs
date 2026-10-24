@@ -75,6 +75,9 @@ public static class DiagnosticsSnapshot
     /// <summary>没指定标题时的首行。</summary>
     public const string DefaultTitle = "Nebula Launcher 诊断信息";
 
+    /// <summary>程序集里读不出版本号时的占位值。展示层不会给它加 <c>v</c> 前缀。</summary>
+    public const string UnknownVersion = "未知";
+
     /// <summary>把输入压成多行文本。空字段整行省略，不会出现「平台: 」这种半截行。</summary>
     public static string Create(DiagnosticsInput input)
     {
@@ -88,7 +91,7 @@ public static class DiagnosticsSnapshot
             $"时间: {(input.GeneratedAt ?? DateTimeOffset.Now):yyyy-MM-dd HH:mm:ss zzz}",
         };
 
-        AppendIfPresent(lines, "版本", input.LauncherVersion);
+        AppendIfPresent(lines, "版本", DisplayVersion(input.LauncherVersion));
         AppendIfPresent(lines, ".NET", input.DotNetVersion);
         AppendIfPresent(lines, "平台", input.PlatformName);
         AppendIfPresent(lines, "数据目录", input.DataDirectory);
@@ -136,15 +139,54 @@ public static class DiagnosticsSnapshot
     public static string LauncherVersionOf(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
+        return FormatLauncherVersion(
+            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+            assembly.GetName().Version);
+    }
 
-        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        if (!string.IsNullOrWhiteSpace(informational))
+    /// <summary>
+    /// 程序集 → 对外展示版本（<c>v1.0.0</c>）。设置页「关于」用的就是它；
+    /// 崩溃导出与诊断文本走同一条链，三处因此不会各显示一套。
+    /// </summary>
+    public static string DisplayVersionOf(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        return DisplayVersion(LauncherVersionOf(assembly)) ?? UnknownVersion;
+    }
+
+    /// <summary>
+    /// 版本号的解析规则本体。抽成纯函数是为了能直接测「带 <c>+hash</c>」这类只有 CI 才产出的输入：
+    /// <see cref="LauncherVersionOf"/> 只能读当前进程里的程序集，喂不进构造出来的字符串。
+    ///
+    /// 规则：优先用 InformationalVersion 并剥掉 <c>+</c> 之后的部分；取不到退回程序集版本；
+    /// 两者都没有才给「未知」。返回值不带 <c>v</c> 前缀——前缀属于展示层。
+    /// </summary>
+    public static string FormatLauncherVersion(string? informationalVersion, Version? assemblyVersion)
+    {
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
         {
-            var plus = informational.IndexOf('+', StringComparison.Ordinal);
-            return plus > 0 ? informational[..plus] : informational;
+            var plus = informationalVersion.IndexOf('+', StringComparison.Ordinal);
+            return plus > 0 ? informationalVersion[..plus] : informationalVersion;
         }
 
-        return assembly.GetName().Version?.ToString() ?? "未知";
+        return assemblyVersion?.ToString() ?? UnknownVersion;
+    }
+
+    /// <summary>
+    /// 对外展示的版本号：给语义版本补 <c>v</c> 前缀。展示规则只在这里定义一次，
+    /// 设置页「关于」、诊断文本与崩溃导出因此不会出现「一处 v1.0.0、一处 1.0.0」。
+    ///
+    /// 幂等：已经带前缀的串原样返回，所以调用方传裸版本还是传展示串都安全。
+    /// 空值与 <see cref="UnknownVersion"/> 原样返回——前者让诊断文本整行省略，后者不是版本号。
+    /// </summary>
+    public static string? DisplayVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version) || version == UnknownVersion)
+        {
+            return version;
+        }
+
+        return version[0] is 'v' or 'V' ? version : "v" + version;
     }
 
     private static void AppendIfPresent(List<string> lines, string label, string? value)

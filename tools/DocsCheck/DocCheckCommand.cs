@@ -3,7 +3,7 @@ using System.Globalization;
 namespace NebulaLauncher.DocsCheck;
 
 /// <summary>
-/// 命令行编排：读文档 → 跑引用/链接/预算/三态四个 checker → 渲染。
+/// 命令行编排：读文档 → 跑引用/链接/预算/三态/版本口径五个 checker → 渲染。
 /// 参数解析在 <see cref="DocCheckOptions"/>，文本与 JSON 渲染在
 /// <see cref="TextReportRenderer"/> / <see cref="JsonReportRenderer"/>。
 /// </summary>
@@ -16,7 +16,7 @@ public static class DocCheckCommand
     /// <param name="args">命令行参数。</param>
     /// <param name="currentDirectory">当前目录，用于解析相对路径。</param>
     /// <param name="writer">报告输出目标。</param>
-    /// <returns>退出码：0 全过；1 引用/链接/必需文档有问题；2 行数预算越界；3 两者都有。</returns>
+    /// <returns>退出码：0 全过；1 引用/链接/必需文档/版本口径有问题；2 行数预算越界；3 两者都有。</returns>
     public static int Execute(IReadOnlyList<string> args, string currentDirectory, TextWriter writer)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -48,7 +48,7 @@ public static class DocCheckCommand
         return report.ExitCode;
     }
 
-    /// <summary>跑四个 checker 并汇总；不做渲染、不落盘。</summary>
+    /// <summary>跑五个 checker 并汇总；不做渲染、不落盘。</summary>
     /// <param name="options">解析好的参数。</param>
     public static DocCheckReport Analyze(DocCheckOptions options)
     {
@@ -63,7 +63,21 @@ public static class DocCheckCommand
             DocBudgetChecker.Check(options.Root, options.Documents),
             FeatureStateScanner.Scan(options.Root, blocks),
             TestCountScanner.Scan(RepoPaths.Resolve(options.Root, TestCountScanner.DefaultRelativePath)),
-            options.EvidenceDocuments);
+            options.EvidenceDocuments,
+            CheckVersions(options.Root));
+    }
+
+    /// <summary>
+    /// 版本口径检查（票 #25）。只在本仓库跑：根目录有 <c>Directory.Build.props</c> 或解决方案
+    /// 文件才算「这是一个仓库」。临时文档树（单测、<c>--root</c> 指向任意文档集）两样都没有，
+    /// 跑起来只会把「不适用」报成「失败」，所以跳过并返回空结果。
+    /// </summary>
+    private static VersionConsistencyReport CheckVersions(string root)
+    {
+        var applies =
+            File.Exists(RepoPaths.Resolve(root, VersionConsistencyChecker.BuildPropsPath)) ||
+            File.Exists(Path.Combine(root, "NebulaLauncher.sln"));
+        return applies ? VersionConsistencyChecker.Check(root) : VersionConsistencyChecker.Empty;
     }
 
     /// <summary>重新生成功能三态文档；越界或数据缺失时不写盘并返回 1。</summary>
