@@ -1991,7 +1991,7 @@ public partial class HomeViewModel : PageViewModelBase
 
         return new DiagnosticsInput
         {
-            LauncherVersion = DiagnosticsSnapshot.LauncherVersionOf(typeof(HomeViewModel).Assembly),
+            LauncherVersion = DiagnosticsSnapshot.DisplayVersionOf(typeof(HomeViewModel).Assembly),
             DotNetVersion = RuntimeInformation.FrameworkDescription,
             PlatformName = _platform?.PlatformName ?? "未知",
             DataDirectory = _paths?.RootDirectory,
