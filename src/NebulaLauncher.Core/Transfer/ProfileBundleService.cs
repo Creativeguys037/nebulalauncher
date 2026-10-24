@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using NebulaLauncher.Core.Abstractions;
+using NebulaLauncher.Core.Diagnostics;
 using NebulaLauncher.Core.Models;
 
 namespace NebulaLauncher.Core.Transfer;
@@ -907,15 +908,23 @@ public sealed class ProfileBundleService : IProfileBundleService
     private static string ServerKey(ServerEntry entry) => $"{entry.Host.Trim()}:{entry.Port}";
 
     /// <summary>
-    /// 启动器版本号。截图/测试里入口程序集可能不是 NebulaLauncher，读不到就退回 Core 的版本——
-    /// manifest 里这个字段只用于诊断，缺一个精确值不影响导入。
+    /// 启动器版本号，写进 manifest 的 <c>launcherVersion</c>。
+    ///
+    /// 值来自仓库级构建属性（<c>Directory.Build.props</c> 的 <c>&lt;Version&gt;</c>），
+    /// 由 <see cref="DiagnosticsSnapshot.LauncherVersionOf"/> 解析成**裸语义版本**（<c>1.0.0</c>）：
+    /// 不带 <c>v</c> 前缀（这个字段是机器读的数据，不是展示串），也不再是
+    /// <c>GetName().Version</c> 那种四段形态（<c>1.0.0.0</c>）。
+    /// 这样 manifest 与诊断文本、关于页报的是同一个版本号。
+    ///
+    /// 截图/测试里入口程序集可能不是 NebulaLauncher，取不到就退回 Core 的程序集；
+    /// 两者都读不出来才给 <c>unknown</c>——manifest 里这个字段只用于诊断，缺一个精确值不影响导入。
     /// </summary>
     private static string ResolveLauncherVersion()
     {
         try
         {
             var assembly = Assembly.GetEntryAssembly() ?? typeof(ProfileBundleService).Assembly;
-            return assembly.GetName().Version?.ToString() ?? "unknown";
+            return DiagnosticsSnapshot.LauncherVersionOf(assembly);
         }
         catch (Exception)
         {

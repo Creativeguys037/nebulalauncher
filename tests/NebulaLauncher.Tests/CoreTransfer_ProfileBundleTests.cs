@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using NebulaLauncher.Core.Abstractions;
+using NebulaLauncher.Core.Diagnostics;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Servers;
 using NebulaLauncher.Core.Settings;
@@ -138,7 +139,14 @@ public class CoreTransfer_ProfileBundleTests
 
         Assert.Contains("\"bundleVersion\": 1", manifest, StringComparison.Ordinal);
         Assert.Contains("\"kind\": \"nebula-profile\"", manifest, StringComparison.Ordinal);
-        Assert.Contains("\"launcherVersion\"", manifest, StringComparison.Ordinal);
+
+        // launcherVersion 与诊断文本、关于页同源：仓库级构建属性（Directory.Build.props 的 <Version>）
+        // 解析出的裸版本，不带 v 前缀、不是 GetName().Version 的四段形态。
+        // 期望值用同源调用算出来，改版本时不用动这条断言。
+        Assert.Contains(
+            $"\"launcherVersion\": \"{DiagnosticsSnapshot.LauncherVersionOf(typeof(ProfileBundleService).Assembly)}\"",
+            manifest,
+            StringComparison.Ordinal);
         Assert.Contains("\"exportedAt\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"files\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"redactedFields\"", manifest, StringComparison.Ordinal);
