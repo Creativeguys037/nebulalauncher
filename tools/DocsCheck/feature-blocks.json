@@ -2,6 +2,14 @@
   "blocks": [
     {
       "id": "装得上",
+      "title": "安装与修复",
+      "summary": "从零装到能启动，坏了能就地修复",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/VersionsView.axaml VersionsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Installing/InstallService.cs InstallService.InstallAsync`",
+        "storage": "`src/NebulaLauncher.Core/Installing/InstallManifest.cs McInstallManifest.RelativePath`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallAsync" },
         { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallLoaderAsync" },
@@ -18,6 +26,14 @@
     },
     {
       "id": "下得动",
+      "title": "下载与换源",
+      "summary": "多源并发下载，卡住自动换源",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/DownloadView.axaml DownloadView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/DownloadViewModel.cs DownloadViewModel`",
+        "core": "`src/NebulaLauncher.Core/Downloads/DownloadQueue.cs DownloadQueue.DownloadAsync`",
+        "storage": "`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Downloads/DownloadQueue.cs", "symbol": "DownloadQueue.DownloadAsync" },
         { "path": "src/NebulaLauncher.Core/Downloads/DownloadQueue.cs", "symbol": "DownloadQueue.DownloadFileAsync" },
@@ -35,6 +51,14 @@
     },
     {
       "id": "开得起来",
+      "title": "启动与运行时",
+      "summary": "点一下就把游戏带起来，参数与内存自动算",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/HomeView.axaml HomeView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel`",
+        "core": "`src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.LaunchAsync`",
+        "storage": "`src/NebulaLauncher.Core/Instances/InstanceLockService.cs InstanceLockService.LockFileName`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Launching/GameLauncher.cs", "symbol": "GameLauncher.LaunchAsync" },
         { "path": "src/NebulaLauncher.Core/Launching/GameLauncher.cs", "symbol": "GameLauncher.BuildMinecraftPath" },
@@ -50,6 +74,14 @@
     },
     {
       "id": "管得住内容",
+      "title": "模组与整合包",
+      "summary": "模组、整合包、资源包按实例归类管理",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/ModsView.axaml ModsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/ModsViewModel.cs ModsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.DirectoryNameFor`",
+        "storage": "`src/NebulaLauncher.Core/Mods/ModFingerprint.cs ModFingerprint.CacheFileName`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Mods/ContentService.cs", "symbol": "ContentService" },
         { "path": "src/NebulaLauncher.Core/Mods/ModrinthService.cs", "symbol": "ModrinthService" },
@@ -66,6 +98,14 @@
     },
     {
       "id": "存得下",
+      "title": "实例与世界",
+      "summary": "实例、世界与备份都落在磁盘上，删了能捞回来",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/WorldsView.axaml WorldsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/WorldsViewModel.cs WorldsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Backups/BackupService.cs BackupService`",
+        "storage": "`src/NebulaLauncher.Core/Instances/InstanceService.cs InstanceService`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Settings/SettingsService.cs", "symbol": "SettingsService" },
         { "path": "src/NebulaLauncher.Core/Accounts/AccountService.cs", "symbol": "AccountService" },
@@ -81,6 +121,14 @@
     },
     {
       "id": "连得上",
+      "title": "账户与服务器",
+      "summary": "微软账户登录与服务器状态查询",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth`",
+        "storage": "`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Net/NetworkProbe.cs", "symbol": "NetworkProbe" },
         { "path": "src/NebulaLauncher.Core/Net/ProxyConfigurator.cs", "symbol": "ProxyConfigurator" },
@@ -95,6 +143,14 @@
     },
     {
       "id": "看得见",
+      "title": "日志与崩溃",
+      "summary": "日志实时看，崩溃能导出成可分享的包",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/LogsView.axaml LogsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/LogsViewModel.cs LogsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Logging/LauncherLogReader.cs LauncherLogReader`",
+        "storage": "`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.LogsDirectory`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.App/App.axaml.cs", "symbol": "App.BuildServices" },
         { "path": "src/NebulaLauncher.App/ViewModels/HomeViewModel.cs", "symbol": "HomeViewModel" },
@@ -111,6 +167,14 @@
     },
     {
       "id": "改得动",
+      "title": "设置与数据",
+      "summary": "设置可回退，实例可换加载器、可从回收站捞回",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs InstanceService.SwitchLoaderAsync`",
+        "storage": "`src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync`"
+      },
       "code": [
         { "path": "src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs", "symbol": "InstanceService.SwitchLoaderAsync" },
         { "path": "src/NebulaLauncher.Core/Instances/InstanceService.Trash.cs", "symbol": "InstanceService.RestoreFromTrashAsync" },

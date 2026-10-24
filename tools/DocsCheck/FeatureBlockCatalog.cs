@@ -33,10 +33,27 @@ public static class FeatureBlockCatalog
             blocks.Add(new FeatureBlock(
                 block.Id ?? string.Empty,
                 ToProbes(block.Code),
-                ToProbes(block.Tests)));
+                ToProbes(block.Tests),
+                block.Title ?? string.Empty,
+                block.Summary ?? string.Empty,
+                ToColumns(block.Columns)));
         }
 
         return blocks;
+    }
+
+    private static FeatureColumns? ToColumns(ColumnsDocument? columns)
+    {
+        if (columns is null)
+        {
+            return null;
+        }
+
+        return new FeatureColumns(
+            columns.Entry ?? string.Empty,
+            columns.ViewModel ?? string.Empty,
+            columns.Core ?? string.Empty,
+            columns.Storage ?? string.Empty);
     }
 
     private static List<CodeProbe> ToProbes(List<ProbeDocument>? probes)
@@ -69,9 +86,26 @@ public static class FeatureBlockCatalog
     {
         public string? Id { get; init; }
 
+        public string? Title { get; init; }
+
+        public string? Summary { get; init; }
+
+        public ColumnsDocument? Columns { get; init; }
+
         public List<ProbeDocument>? Code { get; init; }
 
         public List<ProbeDocument>? Tests { get; init; }
+    }
+
+    private sealed class ColumnsDocument
+    {
+        public string? Entry { get; init; }
+
+        public string? ViewModel { get; init; }
+
+        public string? Core { get; init; }
+
+        public string? Storage { get; init; }
     }
 
     private sealed class ProbeDocument
