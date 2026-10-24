@@ -23,12 +23,13 @@ param(
 
 # Nebula Launcher 构建脚本。
 #
-# 发布形态（实测体积，win-x64）：
-#   fdd       26.2 MB  48 个文件。框架依赖。
+# 发布形态（win-x64；体积随运行时版本与构建机变化，不在这里写死，实测值见
+# docs/release-notes/v1.0.0.md 与本脚本 -Publish 时打印的 [build] <模式> -> <目录> (<N> MB, <M> 个文件)）：
+#   fdd       几十 MB，数十个文件。框架依赖。
 #                      双击即用、无解压步骤、启动快；目标机需要 .NET 8 Desktop Runtime
 #                      （Windows 上很常见，启动器也会在缺失时提示）。
-#   folder    98.5 MB  231 个文件。自包含不裁剪，最稳，任何机器双击即用。
-#   portable  21.8 MB  1 个 exe。自包含 + 裁剪 + 压缩单文件。
+#   folder    近百 MB，两百多个文件。自包含不裁剪，最稳，任何机器双击即用。
+#   portable  二十多 MB，1 个 exe。自包含 + 裁剪 + 压缩单文件。
 #                      首次启动要把原生库解压到 %TEMP%\.net\<app>；
 #                      该目录被安全软件拦截时启动会直接失败（实测本机就是这种情况），
 #                      此时要么改用 fdd/folder，要么设 DOTNET_BUNDLE_EXTRACT_BASE_DIR。
@@ -409,7 +410,8 @@ try {
         switch ($Mode) {
             'minimal' {
                 # 框架依赖 + 单文件（托管程序集打进 exe），原生库外置。
-                # exe 10.4 MB + libSkiaSharp 9.0 + libHarfBuzzSharp 1.7 = 21.1 MB / 3 个文件。
+                # 3 个文件：托管单文件 exe 十几 MB + libSkiaSharp 9.0 MB + libHarfBuzzSharp 1.7 MB；
+                # 2026-10-24 实测合计 25,926,954 字节（24.72 MiB）。
                 # 不需要 %TEMP% 解压，双击即用。
                 $publishArgs = $common + @(
                     '--self-contained', 'false',
