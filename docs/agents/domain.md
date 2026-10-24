@@ -2,8 +2,8 @@
 
 本仓库的域文档布局：**single-context**（单上下文）。
 
-结论：本仓库所有子系统共用一套领域用语，根目录一份 `GLOSSARY.md`，架构决策统一放 `docs/adr/`，
-不使用多上下文的 `GLOSSARY-MAP.md`，也不在 `src/<context>/` 下再分各自的 `GLOSSARY.md` 与 `docs/adr/`。
+结论：本仓库所有子系统共用一套领域用语，根目录一份 `GLOSSARY.md`，架构决策统一放仓库根的 ADR 目录，
+不使用多上下文的 `GLOSSARY-MAP.md`，也不在任何 src 子目录下再分各自的 `GLOSSARY.md` 与 ADR。
 等第一次真正写下领域词条或写下第一条 ADR 时再建这些文件，初始化阶段不预建空文件。
 
 新版技能只认 `GLOSSARY.md` 与 `GLOSSARY-MAP.md` 这两个名字；旧名 `CONTEXT.md` / `CONTEXT-MAP.md` 已废弃，
@@ -12,7 +12,7 @@
 ## 探索代码前先读这些
 
 - 仓库根目录的 **`GLOSSARY.md`**；
-- **`docs/adr/`**：读与你即将动手的区域相关的 ADR。
+- **ADR 目录**（尚未创建）：读与你即将动手的区域相关的 ADR。
 
 如果这些文件还不存在，**静默继续**。不要提它们的缺失，也不要建议预先创建。
 `/domain-modeling` 技能（经 `/grill-with-docs` 与 `/improve-codebase-architecture` 到达）会在词条或决策真正落定时按需生成。
@@ -22,7 +22,7 @@
 ```
 /
 ├── GLOSSARY.md
-├── docs/adr/
+├── adr/
 │   ├── 0001-event-sourced-orders.md
 │   └── 0002-postgres-for-write-model.md
 └── src/
