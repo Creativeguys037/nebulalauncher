@@ -1,0 +1,234 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             x:Class="NebulaLauncher.Views.LogsView"
+             x:DataType="vm:LogsViewModel">
+
+  <UserControl.Styles>
+    <!-- 级别 chip：选中态用强调底色 + 强调描边，与模组页的分类胶囊一致 -->
+    <Style Selector="Button.pill.tab.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- 左列日志项：外观复刻侧边栏导航项，选中态加 8% 强调底 -->
+    <Style Selector="Button.logfile">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+      <Setter Property="Padding" Value="7,6" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.16" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <Style Selector="Button.logfile:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+
+    <Style Selector="Button.logfile.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 左列固定 240px：文件名 + 大小 + 时间两行足够，再宽会挤压日志正文 -->
+  <Grid ColumnDefinitions="240,*" ColumnSpacing="16">
+
+    <!-- ==================== 左：日志源 ==================== -->
+    <Border Grid.Column="0" Classes="card" Padding="8">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Groups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LogFileGroupViewModel">
+              <StackPanel Margin="0,4,0,12">
+                <Grid ColumnDefinitions="*,Auto" Margin="6,0,6,4">
+                  <TextBlock Text="{Binding Title}"
+                             Classes="caption"
+                             FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding CountText}"
+                             Classes="caption" />
+                </Grid>
+
+                <TextBlock Text="暂无"
+                           Classes="muted"
+                           Margin="6,2"
+                           IsVisible="{Binding HasNoFiles}" />
+
+                <ItemsControl ItemsSource="{Binding Files}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LogFileItemViewModel">
+                      <!-- 命令挂在页面 VM 上，因此父级取 UserControl：
+                           嵌套 ItemsControl 里 $parent[ItemsControl] 会解析到内层，绑错 DataContext。 -->
+                      <Button Classes="logfile"
+                              Classes.active="{Binding IsSelected}"
+                              Command="{Binding $parent[UserControl].((vm:LogsViewModel)DataContext).SelectFileCommand}"
+                              CommandParameter="{Binding}"
+                              ToolTip.Tip="{Binding Path}">
+                        <StackPanel Spacing="1">
+                          <TextBlock Text="{Binding DisplayName}"
+                                     Classes="mono"
+                                     FontSize="11"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding MetaText}"
+                                     Classes="muted"
+                                     FontSize="11"
+                                     TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ==================== 右：工具条 + 正文 ==================== -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="12">
+
+      <Border Grid.Row="0" Classes="card" Padding="14,12">
+        <StackPanel Spacing="8">
+
+          <!-- 搜索 + 行数统计 -->
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <TextBox Text="{Binding SearchText}"
+                     Watermark="搜索日志：403 / Java / 崩溃…" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding RetentionNotice}"
+                       IsVisible="{Binding HasRetentionNotice}"
+                       Classes="muted"
+                       FontSize="11"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="跟随过程中超出保留上限的行已从头部丢弃" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding CountText}"
+                       Classes="muted"
+                       VerticalAlignment="Center" />
+          </Grid>
+
+          <!-- 级别过滤（多选 chip）+ 自动跟随 -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <WrapPanel Orientation="Horizontal">
+              <Button Classes="pill tab"
+                      Classes.active="{Binding IsAllLevels}"
+                      Content="全部"
+                      Margin="0,0,6,0"
+                      Command="{Binding ToggleLevelCommand}"
+                      CommandParameter="all" />
+              <Button Classes="pill tab"
+                      Classes.active="{Binding ShowInfo}"
+                      Content="信息"
+                      Margin="0,0,6,0"
+                      Command="{Binding ToggleLevelCommand}"
+                      CommandParameter="info" />
+              <Button Classes="pill tab"
+                      Classes.active="{Binding ShowWarn}"
+                      Content="警告"
+                      Margin="0,0,6,0"
+                      Command="{Binding ToggleLevelCommand}"
+                      CommandParameter="warn" />
+              <Button Classes="pill tab"
+                      Classes.active="{Binding ShowError}"
+                      Content="错误"
+                      Command="{Binding ToggleLevelCommand}"
+                      CommandParameter="error" />
+            </WrapPanel>
+
+            <CheckBox Grid.Column="1"
+                      Content="跟随到最新"
+                      IsChecked="{Binding FollowTail, Mode=TwoWay}"
+                      VerticalAlignment="Center"
+                      ToolTip.Tip="日志还在写时每 700ms 追加新行并滚到底部" />
+          </Grid>
+
+          <!-- 状态 + 操作 -->
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <!-- 跟随状态 chip：「跟随中」来自真实的增量读取，关掉开关立刻变「已暂停」 -->
+            <Border Classes="badge"
+                    Classes.success="{Binding IsFollowing}"
+                    IsVisible="{Binding HasSelection}"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="跟随开启时增量读取新行；关掉开关只是停止刷新，不卸载已显示的内容">
+              <TextBlock Text="{Binding FollowStateText}" />
+            </Border>
+
+            <TextBlock Grid.Column="1"
+                       Text="{Binding StatusText}"
+                       Classes="muted"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+              <Button Classes="ghost"
+                      Content="刷新"
+                      Padding="10,5"
+                      Command="{Binding RefreshCommand}" />
+              <Button Classes="ghost"
+                      Content="复制全部"
+                      Padding="10,5"
+                      IsEnabled="{Binding HasContent}"
+                      Command="{Binding CopyAllCommand}" />
+              <Button Classes="ghost"
+                      Content="定位"
+                      Padding="10,5"
+                      IsEnabled="{Binding HasSelection}"
+                      ToolTip.Tip="在文件夹中显示当前日志"
+                      Command="{Binding RevealSelectedCommand}" />
+              <Button Classes="ghost"
+                      Content="目录"
+                      Padding="10,5"
+                      ToolTip.Tip="打开日志所在目录"
+                      Command="{Binding OpenLogDirectoryCommand}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- 日志正文：等宽、只读、可选中，长行不换行改为横向滚动 -->
+      <Border Grid.Row="1" Classes="card" Padding="0">
+        <Panel>
+          <ScrollViewer Name="LogScroll"
+                        IsVisible="{Binding HasContent}"
+                        Padding="14,10"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto">
+            <SelectableTextBlock Text="{Binding EntriesText}"
+                                 Classes="mono"
+                                 TextWrapping="NoWrap"
+                                 LineHeight="18"
+                                 HorizontalAlignment="Left" />
+          </ScrollViewer>
+
+          <TextBlock Text="正在读取日志…"
+                     Classes="muted"
+                     Margin="16"
+                     IsVisible="{Binding IsLoading}" />
+
+          <!-- 空状态 / 文件不存在 / 读取失败：三种文案都由 VM 给，这里只负责排版 -->
+          <StackPanel VerticalAlignment="Top"
+                      Margin="18,16"
+                      Spacing="6"
+                      IsVisible="{Binding HasEmptyMessage}">
+            <TextBlock Text="{Binding EmptyMessage}"
+                       FontWeight="Medium"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding EmptyHint}"
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       LineHeight="20" />
+          </StackPanel>
+        </Panel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

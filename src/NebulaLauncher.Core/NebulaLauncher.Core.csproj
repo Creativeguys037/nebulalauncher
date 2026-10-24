@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NebulaLauncher.Core</RootNamespace>
+    <AssemblyName>NebulaLauncher.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CmlLib.Core" />
+    <PackageReference Include="CmlLib.Core.Auth.Microsoft" />
+    <PackageReference Include="CmlLib.Core.Installer.Forge" />
+    <PackageReference Include="CmlLib.Core.Installer.NeoForge" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      MC 百科译名表（数据来自 PCL 的 PCLCS/Resource/WikiEntries.txt，格式见 ModNameTable）。
+      嵌入而不是复制到输出目录：单文件发布时 Content 项会漏，模组页会静默失去全部中文名。
+    -->
+    <EmbeddedResource Include="Resources\WikiEntries.txt" />
+  </ItemGroup>
+
+</Project>

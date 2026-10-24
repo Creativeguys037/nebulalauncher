@@ -1,0 +1,489 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:models="using:NebulaLauncher.Core.Models"
+             x:Class="NebulaLauncher.Views.AccountsView"
+             x:DataType="vm:AccountsViewModel">
+
+  <UserControl.Styles>
+    <!-- 圆形头像：渐变底 + 首字母，完全不依赖外部图片 -->
+    <Style Selector="TextBlock.avatarLetter">
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.accountrow">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+          <BrushTransition Property="Background" Duration="0:0:0.16" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <Style Selector="Border.accountrow.active">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    </Style>
+
+    <!-- 浮层表单的字段标题：比正文低一档，避免和输入内容抢注意力 -->
+    <Style Selector="TextBlock.fieldLabel">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!--
+    页面根用 Grid 而不是 ScrollViewer：第三方验证表单要浮在内容之上。
+    ScrollViewer 仍是唯一的内容容器，浮层只是叠在它上面的一层。
+  -->
+  <Grid>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="16" Margin="0,0,4,16">
+
+        <!-- ============ 当前账户大卡片 ============ -->
+        <Border Classes="card accentEdge" Padding="22">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+
+            <Border Width="84" Height="84"
+                    CornerRadius="42"
+                    BorderBrush="{DynamicResource Stroke.Strong}"
+                    BorderThickness="1"
+                    ClipToBounds="True">
+              <Panel>
+                <Border CornerRadius="42"
+                        Background="{DynamicResource Gradient.Accent}"
+                        IsVisible="{Binding !ActiveUseAurora}" />
+                <Border CornerRadius="42"
+                        Background="{DynamicResource Gradient.Aurora}"
+                        IsVisible="{Binding ActiveUseAurora}" />
+                <TextBlock Text="{Binding ActiveInitial}"
+                           Classes="avatarLetter"
+                           FontSize="32" />
+              </Panel>
+            </Border>
+
+            <StackPanel Grid.Column="1" Margin="18,0,16,0" Spacing="6" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding ActiveName}" Classes="h2" />
+                <Border Classes="badge" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding ActiveTypeLabel}" />
+                </Border>
+                <Border Classes="badge warning" IsVisible="{Binding ActiveExpired}" VerticalAlignment="Center">
+                  <TextBlock Text="令牌过期" />
+                </Border>
+              </StackPanel>
+
+              <TextBlock Text="{Binding ActiveDetail}"
+                         Classes="mono"
+                         Foreground="{DynamicResource Text.Tertiary}"
+                         TextTrimming="CharacterEllipsis" />
+
+              <TextBlock Text="{Binding ActiveExpiryText}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         MaxWidth="560" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Center">
+              <Button Classes="accent"
+                      Content="刷新令牌"
+                      IsVisible="{Binding CanRefreshToken}"
+                      Command="{Binding RefreshTokenCommand}" />
+              <Button Classes="ghost"
+                      Content="刷新列表"
+                      Command="{Binding RefreshCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ============ 提示条 ============ -->
+        <Border IsVisible="{Binding IsDemoMode}"
+                Background="{DynamicResource Status.Warning.Soft}"
+                BorderBrush="{DynamicResource Status.Warning}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="14,10">
+          <TextBlock Text="示例数据 · Core 服务尚未接线，以下账户不会真正登录，设备码流程也不可用"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Warning}" />
+        </Border>
+
+        <Border IsVisible="{Binding HasError}"
+                Background="{DynamicResource Status.Danger.Soft}"
+                BorderBrush="{DynamicResource Status.Danger}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="14,10">
+          <TextBlock Text="{Binding ErrorText}"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Danger}" />
+        </Border>
+
+        <Border IsVisible="{Binding HasInfo}"
+                Background="{DynamicResource Accent.Soft}"
+                BorderBrush="{DynamicResource Stroke.Default}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="14,10">
+          <TextBlock Text="{Binding InfoText}" TextWrapping="Wrap" Classes="secondary" />
+        </Border>
+
+        <!-- ============ 删除确认 ============ -->
+        <Border IsVisible="{Binding HasPendingRemoval}"
+                Background="{DynamicResource Status.Danger.Soft}"
+                BorderBrush="{DynamicResource Status.Danger}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="14,10">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="确定移除这个账户吗？" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Status.Danger}" />
+              <TextBlock Text="{Binding PendingRemoval.Username}" Classes="muted" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Classes="danger" Content="移除" Command="{Binding ConfirmRemoveCommand}" />
+              <Button Classes="ghost" Content="取消" Command="{Binding CancelRemoveCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ============ 左：账户列表 / 右：添加账户 ============ -->
+        <Grid ColumnDefinitions="*,16,380">
+
+          <StackPanel Grid.Column="0" Spacing="10">
+            <TextBlock Text="所有账户" FontWeight="SemiBold" />
+
+            <ItemsControl ItemsSource="{Binding Accounts}" IsVisible="{Binding HasAccounts}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AccountRowViewModel">
+                  <Border Classes="card accountrow hoverable"
+                          Classes.active="{Binding IsActive}"
+                          Padding="12"
+                          Margin="0,0,0,8">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+
+                      <Border Width="38" Height="38" CornerRadius="19" ClipToBounds="True">
+                        <Panel>
+                          <Border CornerRadius="19"
+                                  Background="{DynamicResource Gradient.Accent}"
+                                  IsVisible="{Binding !UseAurora}" />
+                          <Border CornerRadius="19"
+                                  Background="{DynamicResource Gradient.Aurora}"
+                                  IsVisible="{Binding UseAurora}" />
+                          <TextBlock Text="{Binding Initial}" Classes="avatarLetter" FontSize="15" />
+                        </Panel>
+                      </Border>
+
+                      <StackPanel Grid.Column="1" Margin="12,0,10,0" Spacing="3" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="{Binding Username}" FontWeight="Medium" />
+                          <Border Classes="badge">
+                            <TextBlock Text="{Binding TypeLabel}" />
+                          </Border>
+                          <Border Classes="badge success" IsVisible="{Binding IsActive}">
+                            <TextBlock Text="当前" />
+                          </Border>
+                          <Border Classes="badge warning" IsVisible="{Binding IsExpired}">
+                            <TextBlock Text="已过期" />
+                          </Border>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding LastLoginText}" Classes="muted" />
+
+                        <!-- host 单独占一行：和登录时间挤在同一行时，窄窗口下只剩几个字符可显示 -->
+                        <TextBlock Text="{Binding AuthHost}"
+                                   Classes="mono"
+                                   Foreground="{DynamicResource Text.Tertiary}"
+                                   TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding IsAuthlib}" />
+                      </StackPanel>
+
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="ghost"
+                                Content="切换"
+                                IsVisible="{Binding !IsActive}"
+                                Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).SwitchAccountCommand}"
+                                CommandParameter="{Binding}" />
+                        <Button Classes="icon"
+                                ToolTip.Tip="移除账户"
+                                Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).RequestRemoveCommand}"
+                                CommandParameter="{Binding}">
+                          <Path Data="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v5M14 11v5"
+                                Stroke="{DynamicResource Status.Danger}"
+                                StrokeThickness="1.5"
+                                StrokeLineCap="Round"
+                                StrokeJoin="Round"
+                                Stretch="Uniform"
+                                Width="14" Height="14" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Classes="card" IsVisible="{Binding !HasAccounts}" Padding="24" MinHeight="196" VerticalAlignment="Stretch">
+              <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440">
+                <TextBlock Text="还没有账户"
+                           Classes="h3"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="在右侧添加一个离线账户就能立刻启动游戏；需要正版皮肤与联机时再用微软账户登录。"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           LineHeight="20" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Spacing="12">
+
+            <!-- 离线账户 -->
+            <Border Classes="card" Padding="18">
+              <StackPanel Spacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="添加离线账户" FontWeight="SemiBold" />
+                  <TextBlock Text="仅本地使用，不连接 Mojang。适合单机与离线服务器。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <TextBox Watermark="3–16 位，字母 / 数字 / 下划线"
+                         Text="{Binding OfflineName}" />
+
+                <TextBlock Text="{Binding OfflineNameError}"
+                           IsVisible="{Binding OfflineNameError, Converter={x:Static conv:Converters.HasValue}}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource Status.Danger}"
+                           FontSize="{DynamicResource FontSize.Small}" />
+
+                <Button Classes="accent"
+                        Content="添加离线账户"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding AddOfflineCommand}" />
+              </StackPanel>
+            </Border>
+
+            <!-- 微软账户 -->
+            <Border Classes="card" Padding="18">
+              <StackPanel Spacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="微软账户" FontWeight="SemiBold" />
+                  <TextBlock Text="用设备码登录：先复制验证码到浏览器，再回到这里等待完成。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Button Classes="accent"
+                        Content="开始微软登录"
+                        HorizontalAlignment="Stretch"
+                        IsEnabled="{Binding !IsSigningIn}"
+                        Command="{Binding SignInMicrosoftCommand}" />
+
+                <Border Classes="sunken" IsVisible="{Binding IsSigningIn}" Padding="14">
+                  <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding AuthStage}"
+                               Classes="muted"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+
+                    <Border IsVisible="{Binding HasDeviceCode}"
+                            Background="{DynamicResource Surface.Sunken}"
+                            BorderBrush="{DynamicResource Stroke.Default}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            Padding="12">
+                      <TextBlock Text="{Binding DeviceCode}"
+                                 Classes="mono"
+                                 FontSize="26"
+                                 FontWeight="Bold"
+                                 LetterSpacing="4"
+                                 HorizontalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
+                                IsVisible="{Binding HasDeviceCode}">
+                      <Button Classes="pill" Content="复制验证码" Command="{Binding CopyDeviceCodeCommand}" />
+                      <Button Classes="pill" Content="打开浏览器" Command="{Binding OpenVerificationUriCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding VerificationUri}"
+                               Classes="muted"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               IsVisible="{Binding HasDeviceCode}" />
+
+                    <ProgressBar IsIndeterminate="True" Height="4" />
+
+                    <Button Classes="ghost"
+                            Content="取消登录"
+                            HorizontalAlignment="Center"
+                            Command="{Binding CancelSignInCommand}" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <!-- 第三方验证（authlib-injector） -->
+            <Border Classes="card" Padding="18">
+              <StackPanel Spacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="第三方验证（authlib-injector）"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="用皮肤站 / 统一通行证账号登录，启动时自动注入 authlib-injector。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Button Classes="accent"
+                        Content="添加第三方验证账户"
+                        HorizontalAlignment="Stretch"
+                        IsEnabled="{Binding !IsAuthlibBusy}"
+                        Command="{Binding OpenAuthlibFormCommand}" />
+              </StackPanel>
+            </Border>
+
+          </StackPanel>
+        </Grid>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ============ 第三方验证表单（浮层） ============ -->
+    <Panel IsVisible="{Binding IsAuthlibFormOpen}">
+      <!-- 遮罩单独一层：Opacity 放在 Panel 上会把表单卡片一起变透明 -->
+      <Border Background="{DynamicResource Surface.Base}" Opacity="0.78" />
+
+      <Border Classes="card"
+              MaxWidth="560"
+              MaxHeight="640"
+              Margin="24"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="14">
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="第三方验证登录" Classes="h3" />
+              <TextBlock Text="地址取自皮肤站文档，通常以 /api/yggdrasil 结尾。登录成功后启动游戏会自动注入 authlib-injector。"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         LineHeight="18" />
+            </StackPanel>
+
+            <StackPanel Spacing="14" IsVisible="{Binding !IsChoosingAuthlibProfile}" IsEnabled="{Binding !IsAuthlibBusy}">
+            <StackPanel Spacing="6">
+              <TextBlock Text="常用服务商" Classes="fieldLabel" />
+              <ItemsControl ItemsSource="{Binding AuthlibPresets}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AuthlibPreset">
+                    <Button Classes="pill"
+                            Content="{Binding Name}"
+                            ToolTip.Tip="{Binding ApiRoot}"
+                            Margin="0,0,8,8"
+                            Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).UseAuthlibPresetCommand}"
+                            CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="API 根" Classes="fieldLabel" />
+              <TextBox Text="{Binding AuthlibApiRoot}"
+                       Watermark="例如 https://littleskin.cn/api/yggdrasil" />
+              <TextBlock Text="要带上皮肤站文档里的完整路径，不要只填域名。"
+                         Classes="caption"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding !HasAuthlibApiRootError}" />
+              <TextBlock Text="{Binding AuthlibApiRootError}"
+                         Classes="caption"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Status.Danger}"
+                         IsVisible="{Binding HasAuthlibApiRootError}" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="用户名" Classes="fieldLabel" />
+              <TextBox Text="{Binding AuthlibUsername}"
+                       Watermark="皮肤站邮箱或角色名" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="密码" Classes="fieldLabel" />
+              <TextBox Text="{Binding AuthlibPassword}"
+                       PasswordChar="●"
+                       Watermark="只用于本次登录，不写入日志" />
+            </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="10" IsVisible="{Binding IsChoosingAuthlibProfile}">
+              <TextBlock Text="选择游戏角色" Classes="fieldLabel" />
+              <TextBlock Text="此账号拥有多个角色。选定角色后完成登录；取消不会添加账户。"
+                         Classes="muted" TextWrapping="Wrap" />
+              <ListBox ItemsSource="{Binding AuthlibProfiles}"
+                       SelectedItem="{Binding SelectedAuthlibProfile}"
+                       MaxHeight="260"
+                       IsEnabled="{Binding !IsAuthlibBusy}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="models:AuthlibProfileOption">
+                    <StackPanel Spacing="4" Margin="4,6">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding Id}" Classes="caption" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+
+            <Border IsVisible="{Binding HasAuthlibError}"
+                    Background="{DynamicResource Status.Danger.Soft}"
+                    BorderBrush="{DynamicResource Status.Danger}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource Radius.Sm}"
+                    Padding="12,8">
+              <TextBlock Text="{Binding AuthlibError}"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Status.Danger}"
+                         FontSize="{DynamicResource FontSize.Small}" />
+            </Border>
+
+            <ProgressBar IsIndeterminate="True"
+                         Height="4"
+                         IsVisible="{Binding IsAuthlibBusy}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+              <Button Classes="ghost"
+                      Content="取消"
+                      Command="{Binding CancelAuthlibFormCommand}" />
+              <Button Classes="accent"
+                      Content="登录并添加"
+                      IsVisible="{Binding !IsChoosingAuthlibProfile}"
+                      Command="{Binding SubmitAuthlibCommand}" />
+              <Button Classes="accent"
+                      Content="使用此角色"
+                      IsVisible="{Binding IsChoosingAuthlibProfile}"
+                      Command="{Binding ConfirmAuthlibProfileCommand}" />
+            </StackPanel>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Panel>
+
+  </Grid>
+</UserControl>

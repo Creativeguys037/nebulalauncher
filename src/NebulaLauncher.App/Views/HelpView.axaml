@@ -1,0 +1,102 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:help="using:NebulaLauncher.Core.Help"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             x:Class="NebulaLauncher.Views.HelpView"
+             x:DataType="vm:HelpViewModel">
+  <Grid ColumnDefinitions="330,*" ColumnSpacing="16">
+
+    <!-- 左栏：搜索 + 分类 + 条目列表 -->
+    <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+      <TextBox Grid.Row="0"
+               Text="{Binding SearchText}"
+               Watermark="搜索帮助：整合包 / Java / 崩溃…" />
+
+      <ItemsControl Grid.Row="1" ItemsSource="{Binding Categories}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <Button Classes="pill"
+                    Margin="0,0,6,6"
+                    Content="{Binding}"
+                    Command="{Binding $parent[ItemsControl].((vm:HelpViewModel)DataContext).SelectCategoryCommand}"
+                    CommandParameter="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Grid.Row="2"
+                 Text="{Binding CountText}"
+                 Classes="muted" />
+
+      <ListBox Grid.Row="3"
+               ItemsSource="{Binding FilteredTopics}"
+               SelectedItem="{Binding SelectedTopic}"
+               IsVisible="{Binding HasNoMatch, Converter={x:Static BoolConverters.Not}}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="help:HelpTopic">
+            <StackPanel Spacing="2" Margin="0,2">
+              <TextBlock Text="{Binding Title}"
+                         FontWeight="Medium"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Category}" Classes="muted" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <Border Grid.Row="3"
+              Classes="card"
+              IsVisible="{Binding HasNoMatch}"
+              VerticalAlignment="Top">
+        <StackPanel Spacing="6">
+          <TextBlock Text="没有匹配的帮助条目" FontWeight="Medium" />
+          <TextBlock Text="换个关键词，或点上面的「全部」看完整清单。"
+                     Classes="muted"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- 右栏：正文 -->
+    <Border Grid.Column="1" Classes="card">
+      <Grid RowDefinitions="*,Auto" RowSpacing="12">
+        <ScrollViewer Grid.Row="0">
+          <StackPanel Spacing="12"
+                      IsVisible="{Binding SelectedTopic, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock Text="{Binding SelectedTopic.Title}" Classes="h3" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Border Classes="badge">
+                <TextBlock Text="{Binding SelectedTopic.Category}" />
+              </Border>
+              <TextBlock Text="{Binding SelectedTopic.Keywords}"
+                         Classes="muted"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+            <SelectableTextBlock Text="{Binding SelectedTopic.Body}"
+                                 TextWrapping="Wrap"
+                                 LineHeight="22" />
+          </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+          <TextBlock Text="{Binding StatusText}"
+                     Classes="muted"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap" />
+          <Button Grid.Column="1"
+                  Classes="pill"
+                  Content="打开日志目录"
+                  Command="{Binding OpenLogFolderCommand}" />
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

@@ -1,0 +1,855 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:views="using:NebulaLauncher.Views"
+             xmlns:models="using:NebulaLauncher.Core.Models"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:sys="using:System"
+             x:Class="NebulaLauncher.Views.LibraryView"
+             x:DataType="vm:LibraryViewModel">
+
+  <UserControl.Resources>
+    <views:PathToImageConverter x:Key="PathToImage" />
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- 分类胶囊：选中态用强调色描边 + 8% 底，与模组页保持一致 -->
+    <Style Selector="Button.pill.tab.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- 数据源胶囊：选中态用第二强调色描边，与分类胶囊区分开（同一屏上有两组选中态） -->
+    <Style Selector="Button.pill.source.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Secondary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- 结果列表：卡片自带边框，去掉 ListBoxItem 的默认内边距与间距 -->
+    <Style Selector="ListBox.libraryList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+    </Style>
+
+    <!-- 选中态体现在卡片描边上：卡片自身背景不透明，ListBoxItem 的选中底色会被盖住 -->
+    <Style Selector="Border.card.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+    </Style>
+
+    <Style Selector="Border.toneBar">
+      <Setter Property="Background" Value="{DynamicResource Status.Warning.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Status.Warning}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Padding" Value="14,10" />
+    </Style>
+
+    <Style Selector="Border.toneBar.danger">
+      <Setter Property="Background" Value="{DynamicResource Status.Danger.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Status.Danger}" />
+    </Style>
+
+    <Style Selector="Border.toneBar.info">
+      <Setter Property="Background" Value="{DynamicResource Status.Success.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Status.Success}" />
+    </Style>
+
+    <!-- 「另一站也有」徽标：比数据源胶囊小一档，不抢卡片主信息的视觉重量 -->
+    <Style Selector="Button.counterpart">
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+      <Setter Property="Padding" Value="8,1" />
+      <Setter Property="MinHeight" Value="20" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 上下两段：上面是左右两栏，底下是安装确认区。
+       页面根不用 ScrollViewer —— 两个栏各自滚动才能在 660 高度下同时看到列表与安装按钮；
+       确认区钉在底部，清单再长也不会把「总数 / 总大小 / 确认按钮」挤出可视区。 -->
+  <Grid RowDefinitions="*,Auto" Margin="0,0,4,14">
+
+    <Grid ColumnDefinitions="*,16,340">
+
+    <!-- ==================== 左：搜索与结果 ==================== -->
+    <Grid Grid.Column="0" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+
+      <!-- 分类 + 数据源。两者是独立的维度：左边选「找什么」，右边选「去哪找」。
+           用 WrapPanel：1024 宽下四个分类 + 两个数据源 + 标签会超过一栏宽，
+           换行比把两组胶囊压到互相重叠可读。 -->
+      <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4" VerticalAlignment="Center">
+          <Button Classes="pill tab" Classes.active="{Binding IsModTabActive}"
+                  Content="模组"
+                  Command="{Binding SelectKindCommand}"
+                  CommandParameter="{x:Static models:ContentKind.Mod}" />
+          <Button Classes="pill tab" Classes.active="{Binding IsResourcePackTabActive}"
+                  Content="资源包"
+                  Command="{Binding SelectKindCommand}"
+                  CommandParameter="{x:Static models:ContentKind.ResourcePack}" />
+          <Button Classes="pill tab" Classes.active="{Binding IsShaderPackTabActive}"
+                  Content="光影包"
+                  Command="{Binding SelectKindCommand}"
+                  CommandParameter="{x:Static models:ContentKind.ShaderPack}" />
+          <Button Classes="pill tab" Classes.active="{Binding IsDataPackTabActive}"
+                  Content="数据包"
+                  Command="{Binding SelectKindCommand}"
+                  CommandParameter="{x:Static models:ContentKind.DataPack}" />
+          <!-- 整合包不是 ContentKind 值：它装成独立实例，不落在内容子目录里（见 ViewModel 里的说明）。 -->
+          <Button Classes="pill tab" Classes.active="{Binding IsModPackTabActive}"
+                  Content="整合包"
+                  ToolTip.Tip="搜索 Modrinth 的整合包，下载后导入为一个独立实例"
+                  Command="{Binding SelectModPackCommand}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4" VerticalAlignment="Center">
+          <TextBlock Text="数据源" Classes="caption" VerticalAlignment="Center" />
+          <Button Classes="pill source" Classes.active="{Binding IsModrinthSourceActive}"
+                  Content="Modrinth"
+                  Command="{Binding SelectSourceCommand}"
+                  CommandParameter="{x:Static models:ContentSourceKind.Modrinth}" />
+          <Button Classes="pill source" Classes.active="{Binding IsCurseForgeSourceActive}"
+                  Content="CurseForge"
+                  Command="{Binding SelectSourceCommand}"
+                  CommandParameter="{x:Static models:ContentSourceKind.CurseForge}" />
+          <!-- 双源：两站并行查询、去重合并后按热度混排。整合包分区不可用（那里固定 Modrinth），
+               点了会在状态行说明缺什么——禁用按钮不会解释自己为什么点不动。 -->
+          <Button Classes="pill source" Classes.active="{Binding IsBothSources}"
+                  Content="双源"
+                  ToolTip.Tip="{Binding BothSourcesHint}"
+                  Command="{Binding SelectBothSourcesCommand}" />
+        </StackPanel>
+
+        <!--
+          排序只在 Modrinth 的结果集上成立：CurseForge 客户端固定按下载量排序，不接受排序键；
+          整合包分区走另一条客户端，两者都没有「结果集」可排。对它们显示这个控件只会骗人。
+
+          与「数据源」分成两个 StackPanel 是刻意的：外层 WrapPanel 只对直接子元素换行。
+          塞进同一个 StackPanel 里，1024×660 下这块会把搜索框和下拉一起挤出右边界。
+        -->
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding SupportsSort}">
+          <Border Width="1" Height="18" Margin="4,0"
+                  VerticalAlignment="Center"
+                  Background="{DynamicResource Stroke.Subtle}" />
+          <TextBlock Text="排序" Classes="caption" VerticalAlignment="Center" />
+          <ComboBox ItemsSource="{Binding SortOptions}"
+                    SelectedItem="{Binding SelectedSort}"
+                    MinWidth="112"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="按此顺序排列 Modrinth 的搜索结果">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:LibrarySortOption">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+      </WrapPanel>
+
+      <!-- 搜索行 -->
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,10">
+        <TextBox x:Name="SearchBox"
+                 VerticalAlignment="Center"
+                 Watermark="{Binding SearchWatermark}"
+                 Text="{Binding SearchText}"
+                 KeyDown="OnSearchKeyDown" />
+        <Button Grid.Column="1" Classes="accent" Margin="8,0,0,0"
+                Content="搜索"
+                Command="{Binding SearchCommand}" />
+        <Button Grid.Column="2" Classes="pill" Margin="8,0,0,0"
+                Content="刷新"
+                ToolTip.Tip="重新读取安装目标与已安装版本，并按当前目标重搜"
+                Command="{Binding RefreshCommand}" />
+      </Grid>
+
+      <!-- 提示条区 -->
+      <StackPanel Grid.Row="2" Spacing="8" Margin="0,0,0,10">
+        <TextBlock Text="{Binding FilterText}" Classes="caption" TextWrapping="Wrap" />
+
+        <!-- 安装目标：由玩家在页内显式选择（实例 / 未建实例的已安装版本 / 全局目录）。
+             整合包装成新实例，与任何既有目标无关，所以那个分区显示固定文案而不是下拉框。
+             路径必须显示完整绝对路径：只写 mods/ 等于让用户猜文件去哪儿了。 -->
+        <Border Classes="sunken" Padding="12,9">
+          <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Text="将装到" Classes="caption" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1"
+                        Margin="10,0,0,0"
+                        HorizontalAlignment="Stretch"
+                        MinHeight="34"
+                        ItemsSource="{Binding InstallTargets}"
+                        SelectedItem="{Binding SelectedInstallTarget}"
+                        IsVisible="{Binding !IsModPackTabActive}"
+                        ToolTip.Tip="{Binding InstallTargetDetail}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:LibraryInstallTargetViewModel">
+                    <StackPanel Spacing="1" Margin="0,2">
+                      <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Detail}" Classes="caption" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Border Grid.Column="1"
+                      Classes="badge"
+                      Margin="10,0,0,0"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsModPackTabActive}">
+                <TextBlock Text="新实例" />
+              </Border>
+            </Grid>
+            <TextBlock Text="{Binding InstallTargetPath}" Classes="mono" TextWrapping="Wrap"
+                       ToolTip.Tip="{Binding InstallTargetPath}" />
+            <TextBlock Text="{Binding TargetNoticeText}"
+                       IsVisible="{Binding HasTargetNotice}"
+                       Classes="caption"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Status.Warning}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 整合包分区：搜索不按游戏版本筛。这句说明不能省，否则「搜不到某个版本的包」会被当成功能坏了。 -->
+        <Border Classes="toneBar" IsVisible="{Binding ShowsModPackSearchNotice}" Padding="12,8">
+          <TextBlock Text="{Binding ModPackSearchNotice}"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Warning}" />
+        </Border>
+
+        <Border Classes="toneBar" IsVisible="{Binding IsFilterLimited}" Padding="12,8">
+          <TextBlock Text="{Binding FilterLimitedHint}"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Warning}" />
+        </Border>
+
+        <!-- 选中项是服务端插件：安装按钮是灰的，这里说明为什么。
+             与 ServerPluginPolicy.InstallRejectedMessage 同一句话，改文案时两处一起改。 -->
+        <Border Classes="toneBar" IsVisible="{Binding HasServerPluginNotice}" Padding="12,8">
+          <TextBlock Text="{Binding ServerPluginNotice}"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Warning}" />
+        </Border>
+
+        <Border Classes="toneBar" IsVisible="{Binding IsDemoMode}" Padding="12,8">
+          <TextBlock Text="示例数据 · Core 服务尚未接线，以下条目仅用于预览布局"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Warning}" />
+        </Border>
+
+        <Border Classes="toneBar danger" IsVisible="{Binding HasError}" Padding="12,8">
+          <TextBlock Text="{Binding ErrorText}"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Danger}" />
+        </Border>
+
+        <Border Classes="toneBar info" IsVisible="{Binding HasInfo}" Padding="12,8">
+          <TextBlock Text="{Binding InfoText}"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Success}" />
+        </Border>
+      </StackPanel>
+
+      <!-- 搜索结果 -->
+      <ListBox Grid.Row="3"
+               Classes="libraryList"
+               ItemsSource="{Binding Results}"
+               SelectedItem="{Binding SelectedProject}"
+               IsVisible="{Binding !IsEmpty}"
+               Background="Transparent"
+               BorderThickness="0"
+               Padding="0"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:LibraryProjectViewModel">
+            <Border Classes="card hoverable"
+                    Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                    Padding="12"
+                    ToolTip.Tip="{Binding Description}">
+              <Grid ColumnDefinitions="44,*,Auto">
+
+                <Border Width="44" Height="44"
+                        CornerRadius="12"
+                        ClipToBounds="True"
+                        Background="{DynamicResource Gradient.Accent}"
+                        VerticalAlignment="Top">
+                  <Panel>
+                    <TextBlock Text="{Binding Initial}"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.OnAccent}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                    <Image Source="{Binding IconPath, Converter={StaticResource PathToImage}}"
+                           Stretch="UniformToFill" />
+                  </Panel>
+                </Border>
+
+                <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="3">
+                  <TextBlock Text="{Binding Title}"
+                             FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Description}"
+                             IsVisible="{Binding HasDescription}"
+                             Classes="muted"
+                             TextTrimming="CharacterEllipsis" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding MetaText}" Classes="caption" />
+                  </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                  <Border Classes="badge" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding KindLabel}" />
+                  </Border>
+
+                  <!-- 双源合并后，去重只留下一条；「另一站也有」是这次合并唯一的可见证据。
+                       点一下去另一站的项目页——只给文字的话用户没法核对两边是不是同一个东西。 -->
+                  <Button Classes="counterpart"
+                          HorizontalAlignment="Right"
+                          IsVisible="{Binding HasCounterpart}"
+                          Content="{Binding CounterpartLabel}"
+                          ToolTip.Tip="{Binding CounterpartUrl}"
+                          Command="{Binding $parent[UserControl].((vm:LibraryViewModel)DataContext).OpenProjectWebCommand}"
+                          CommandParameter="{Binding CounterpartUrl}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- 空状态 -->
+      <Border Grid.Row="3" Classes="card" IsVisible="{Binding IsEmpty}" Padding="24,28" VerticalAlignment="Top">
+        <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
+          <Border Width="52" Height="52"
+                  CornerRadius="26"
+                  Background="{DynamicResource Accent.Soft}"
+                  HorizontalAlignment="Center">
+            <Path Data="M4 4v16M8.5 4v16M13 4l3.6 15.4M18.5 5.4 21 4.4"
+                  Stroke="{DynamicResource Accent.Primary}"
+                  StrokeThickness="1.6"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="Uniform"
+                  Width="24" Height="24"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="{Binding EmptyTitle}"
+                     Classes="h3"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding EmptyHint}"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center"
+                     LineHeight="20" />
+        </StackPanel>
+      </Border>
+
+      <!-- 分页 -->
+      <Button Grid.Row="4"
+              Classes="pill"
+              Margin="0,10,0,0"
+              HorizontalAlignment="Center"
+              Content="加载更多"
+              IsVisible="{Binding HasMore}"
+              Command="{Binding LoadMoreCommand}" />
+
+      <ProgressBar Grid.Row="5"
+                   Margin="0,10,0,0"
+                   IsVisible="{Binding IsSearching}"
+                   IsIndeterminate="True"
+                   Height="4" />
+    </Grid>
+
+    <!-- ==================== 右：详情与安装 ==================== -->
+    <ScrollViewer Grid.Column="2"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="12" Margin="0,0,0,4">
+
+        <!-- 未选中项目 -->
+        <Border Classes="card" IsVisible="{Binding !HasSelection}" Padding="18">
+          <StackPanel Spacing="10">
+            <TextBlock Text="选一个项目查看版本" Classes="h3" />
+            <TextBlock Text="左侧搜索在线资源库，点中条目后这里会列出可用版本、文件大小与安装按钮。"
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       LineHeight="20" />
+            <Border Classes="divider" />
+            <TextBlock Text="{Binding FilterText}" Classes="caption" TextWrapping="Wrap" />
+            <TextBlock Text="安装位置" Classes="caption" />
+            <Border Classes="sunken" Padding="10,8">
+              <StackPanel Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="目标" Classes="caption" VerticalAlignment="Center" />
+                  <Border Classes="badge">
+                    <TextBlock Text="{Binding InstallTargetName}" />
+                  </Border>
+                </StackPanel>
+                <TextBlock Text="{Binding InstallTargetPath}" Classes="mono" TextWrapping="Wrap"
+                           ToolTip.Tip="{Binding InstallTargetPath}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- 选中项目的详情 -->
+        <Border Classes="card" IsVisible="{Binding HasSelection}" Padding="16">
+          <StackPanel Spacing="12">
+
+            <Grid ColumnDefinitions="48,*">
+              <Border Width="48" Height="48"
+                      CornerRadius="12"
+                      ClipToBounds="True"
+                      Background="{DynamicResource Gradient.Accent}"
+                      VerticalAlignment="Top">
+                <Panel>
+                  <TextBlock Text="{Binding SelectedProject.Initial}"
+                             FontSize="20"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource Text.OnAccent}"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
+                  <Image Source="{Binding SelectedProject.IconPath, Converter={StaticResource PathToImage}}"
+                         Stretch="UniformToFill" />
+                </Panel>
+              </Border>
+
+              <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="3">
+                <TextBlock Text="{Binding SelectedProject.Title}"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding SelectedProject.MetaText}"
+                           Classes="caption"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Grid>
+
+            <TextBlock Text="{Binding SelectedProject.Description}"
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       LineHeight="19" />
+
+            <ItemsControl ItemsSource="{Binding SelectedProject.Badges}" IsVisible="{Binding SelectedProject.HasBadges}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="sys:String">
+                  <Border Classes="badge" Margin="0,0,6,4">
+                    <TextBlock Text="{Binding}" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Button Classes="ghost"
+                    Content="在浏览器中打开项目页"
+                    HorizontalAlignment="Left"
+                    Command="{Binding OpenProjectCommand}"
+                    CommandParameter="{Binding SelectedProject}" />
+
+            <!-- 详情加载中：正文与缩略图要等详情接口 + 4 次图片缓存，先给一条进度，
+                 不然用户会以为右栏就是空的。 -->
+            <StackPanel Spacing="6" IsVisible="{Binding IsLoadingDetails}">
+              <TextBlock Text="正在加载项目详情…" Classes="caption" />
+              <ProgressBar IsIndeterminate="True" Height="3" />
+            </StackPanel>
+
+            <!-- 项目详情（详情接口才有）：图标 / 标题 / 下载量已由上面的卡片头部给出，
+                 这里补源码·问题·许可入口、图库缩略图与正文。
+                 CurseForge 项目与示例数据没有这些字段，整块隐藏而不是留白。 -->
+            <StackPanel Spacing="8" IsVisible="{Binding HasProjectDetails}">
+
+              <!-- 三个入口都走系统浏览器。许可在 Modrinth 上没有独立页面，链回项目页。 -->
+              <WrapPanel Orientation="Horizontal">
+                <Button Classes="pill"
+                        Margin="0,0,6,6"
+                        Content="源码"
+                        IsVisible="{Binding HasSourceUrl}"
+                        Command="{Binding OpenProjectWebCommand}"
+                        CommandParameter="{Binding SourceUrl}" />
+                <Button Classes="pill"
+                        Margin="0,0,6,6"
+                        Content="问题反馈"
+                        IsVisible="{Binding HasIssuesUrl}"
+                        Command="{Binding OpenProjectWebCommand}"
+                        CommandParameter="{Binding IssuesUrl}" />
+                <Button Classes="pill"
+                        Margin="0,0,6,6"
+                        Content="{Binding LicenseId, StringFormat='许可 · {0}'}"
+                        ToolTip.Tip="在项目页查看许可全文"
+                        IsVisible="{Binding HasLicenseId}"
+                        Command="{Binding OpenProjectWebCommand}"
+                        CommandParameter="{Binding SelectedProject.WebUrl}" />
+              </WrapPanel>
+
+              <!-- 图库前 4 张：窄栏里固定两列，宽度由 UniformGrid 均分，不依赖 WrapPanel 的换行判断。 -->
+              <ItemsControl ItemsSource="{Binding ProjectGallery}" IsVisible="{Binding HasProjectGallery}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="sys:String">
+                    <Border Height="83"
+                            Margin="0,0,6,6"
+                            CornerRadius="8"
+                            ClipToBounds="True"
+                            Background="{DynamicResource Surface.Sunken}">
+                      <Image Source="{Binding Converter={StaticResource PathToImage}}" Stretch="UniformToFill" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Text="{Binding ProjectBody}"
+                         IsVisible="{Binding HasProjectBody}"
+                         Classes="secondary"
+                         TextWrapping="Wrap"
+                         LineHeight="20" />
+            </StackPanel>
+
+            <Border Classes="divider" Margin="0,2" />
+
+            <!-- 版本选择。整合包分区多一个「游戏版本」筛选：搜索不按版本筛，筛选放在这里。 -->
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="版本" Classes="caption" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Versions.Count, StringFormat='共 {0} 个'}"
+                           Classes="caption"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+              <ComboBox Grid.Column="2"
+                        MinWidth="128"
+                        IsVisible="{Binding ShowsModPackVersionFilter}"
+                        ItemsSource="{Binding ModPackVersionFilters}"
+                        SelectedItem="{Binding SelectedModPackVersionFilter}"
+                        ToolTip.Tip="按游戏版本筛选整合包的构建">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ModPackVersionFilterOption">
+                    <TextBlock Text="{Binding Label}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+
+            <ComboBox ItemsSource="{Binding Versions}"
+                      SelectedItem="{Binding SelectedVersion}"
+                      HorizontalAlignment="Stretch"
+                      MinHeight="36">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:LibraryVersionViewModel">
+                  <StackPanel Spacing="1" Margin="0,2">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Summary}" Classes="caption" />
+                    <TextBlock Text="{Binding GameVersionText}"
+                               Classes="caption"
+                               IsVisible="{Binding HasGameVersionText}"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <ProgressBar IsVisible="{Binding IsLoadingVersions}" IsIndeterminate="True" Height="4" />
+
+            <Border Classes="toneBar" IsVisible="{Binding HasVersionError}" Padding="12,8">
+              <TextBlock Text="{Binding VersionErrorText}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Status.Warning}" />
+            </Border>
+
+            <Border Classes="toneBar" IsVisible="{Binding HasVersionNotice}" Padding="12,8">
+              <TextBlock Text="{Binding VersionNoticeText}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Text.Secondary}" />
+            </Border>
+
+            <StackPanel Spacing="2" IsVisible="{Binding SelectedVersion, Converter={x:Static conv:Converters.HasValue}}">
+              <TextBlock Text="{Binding SelectedVersion.FileName}" Classes="mono" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding SelectedVersion.Summary}" Classes="caption" />
+            </StackPanel>
+
+            <Border Classes="divider" Margin="0,2" />
+
+            <!-- 安装 -->
+            <Button Classes="accent"
+                    Content="{Binding InstallButtonText}"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Command="{Binding InstallCommand}" />
+
+            <ProgressBar IsVisible="{Binding IsInstalling}"
+                         Value="{Binding InstallProgress}"
+                         Minimum="0"
+                         Maximum="1"
+                         Height="6" />
+
+            <TextBlock Text="{Binding InstallStatus}"
+                       IsVisible="{Binding InstallStatus, Converter={x:Static conv:Converters.HasValue}}"
+                       Classes="caption"
+                       TextWrapping="Wrap" />
+
+            <!-- 装完给一个去模组页看文件的出口；数据包还会在模组页的「数据包」分类里出现。 -->
+            <Button Classes="ghost"
+                    Content="去模组页查看"
+                    HorizontalAlignment="Left"
+                    Padding="0"
+                    IsVisible="{Binding HasInstalledContent}"
+                    Command="{Binding GoToModsCommand}" />
+
+            <!-- 整合包装成实例，不是文件：结果要写清「已在版本页可见」，并给两个出口。 -->
+            <Border Classes="toneBar info" IsVisible="{Binding HasModPackResult}" Padding="12,8">
+              <TextBlock Text="{Binding ModPackResultText}"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Status.Success}" />
+            </Border>
+
+            <WrapPanel Orientation="Horizontal" IsVisible="{Binding HasModPackResult}">
+              <Button Classes="ghost"
+                      Margin="0,0,12,6"
+                      Padding="0"
+                      Content="去版本页查看"
+                      Command="{Binding GoToVersionsCommand}" />
+              <Button Classes="ghost"
+                      Margin="0,0,12,6"
+                      Padding="0"
+                      Content="打开实例目录"
+                      IsVisible="{Binding HasImportedModPack}"
+                      Command="{Binding OpenModPackFolderCommand}" />
+            </WrapPanel>
+
+            <TextBlock Text="{Binding InstallTargetPath, StringFormat='安装到：{0}'}"
+                       Classes="caption"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    </Grid>
+
+    <!-- ==================== 安装确认区 ====================
+         依赖递归会替用户多下几个前置，所以清单必须摊开在眼前：总数、总大小、每个文件名与体积。
+         Blocked 非空时确认按钮 CanExecute 为 false，原因写在红色提示条里。 -->
+    <Border Grid.Row="1"
+            Classes="card accentEdge"
+            Margin="0,12,0,0"
+            Padding="14,12"
+            IsVisible="{Binding IsPlanOpen}">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+
+        <!-- 标题行 + 操作按钮 -->
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Text="安装确认" Classes="h3" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2"
+                      Orientation="Horizontal"
+                      Spacing="8"
+                      VerticalAlignment="Center">
+            <Button Classes="ghost"
+                    Content="{Binding PlanNoticeToggleText}"
+                    IsVisible="{Binding HasPlanNotices}"
+                    Command="{Binding TogglePlanNoticesCommand}" />
+            <Button Classes="pill"
+                    Content="取消"
+                    IsVisible="{Binding IsPlanConfirmVisible}"
+                    Command="{Binding CancelPlanCommand}" />
+            <Button Classes="accent"
+                    Content="{Binding PlanConfirmText}"
+                    IsVisible="{Binding IsPlanConfirmVisible}"
+                    Command="{Binding ConfirmPlanCommand}" />
+          </StackPanel>
+        </Grid>
+
+        <!-- 摘要单独占一行：前置数 / 文件总数 / 总大小三项都必须完整露出来，
+             塞进标题行右侧会被按钮挤到换行或截断。 -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding PlanHeadline}"
+                   Classes="caption"
+                   TextWrapping="Wrap" />
+
+        <!-- 文件清单：前置在前，本体最后；执行后逐行带状态。
+             只占一行并横向滚动——清单一旦换行，1024x660 下会把左栏的列表挤没。 -->
+        <ScrollViewer Grid.Row="2"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding PlanFiles}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LibraryPlanFileViewModel">
+                <Border Classes="sunken" Margin="0,0,8,0" Padding="10,6" MaxWidth="220">
+                  <StackPanel Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Classes="badge">
+                        <TextBlock Text="{Binding RoleLabel}" />
+                      </Border>
+                      <TextBlock Text="{Binding SizeText}" Classes="caption" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding StatusText}" Classes="caption" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding FileName}"
+                               Classes="mono"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding FileName}" />
+                    <TextBlock Text="{Binding ErrorText}"
+                               IsVisible="{Binding HasError}"
+                               Classes="caption"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource Status.Danger}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- 阻断原因：非空时确认按钮不可点 -->
+        <Border Grid.Row="3" Classes="toneBar danger" Padding="12,8" IsVisible="{Binding HasPlanBlocked}">
+          <StackPanel Spacing="3">
+            <TextBlock Text="存在阻断原因，不能安装"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource Status.Danger}" />
+            <TextBlock Text="{Binding PlanBlockedText}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Status.Danger}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 提示与可选依赖：默认折叠，别让说明文字压掉清单本身 -->
+        <Border Grid.Row="4" Classes="sunken" IsVisible="{Binding IsPlanNoticesVisible}" Padding="12,9">
+          <StackPanel Spacing="5">
+            <TextBlock Text="可选依赖（不会自动安装）"
+                       Classes="caption"
+                       IsVisible="{Binding HasPlanOptional}" />
+            <TextBlock Text="{Binding PlanOptionalText}"
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasPlanOptional}" />
+            <TextBlock Text="{Binding PlanWarningsText}"
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasPlanWarnings}" />
+          </StackPanel>
+        </Border>
+
+        <!-- 执行结果摘要 -->
+        <TextBlock Grid.Row="5"
+                   Text="{Binding PlanResultText}"
+                   IsVisible="{Binding HasPlanResult}"
+                   Classes="secondary"
+                   TextWrapping="Wrap" />
+
+        <ProgressBar Grid.Row="6"
+                     IsVisible="{Binding IsInstalling}"
+                     Value="{Binding InstallProgress}"
+                     Minimum="0"
+                     Maximum="1"
+                     Height="4" />
+      </Grid>
+    </Border>
+
+    <!-- ==================== 数据包安装位置 ====================
+         数据包能装进全局 datapacks/，也能只装进某个存档：两者的生效范围不同，
+         所以点安装后先选落点，选完再下载。没有存档时只列全局一项。 -->
+    <Border Grid.Row="1"
+            Classes="card accentEdge"
+            Margin="0,12,0,0"
+            Padding="14,12"
+            IsVisible="{Binding IsDataPackTargetOpen}">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Text="选择数据包安装位置" Classes="h3" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="ghost"
+                    Content="刷新"
+                    ToolTip.Tip="重新扫描当前游戏目录下的存档"
+                    Command="{Binding RefreshDataPackTargetsCommand}" />
+            <Button Classes="pill"
+                    Content="取消"
+                    Command="{Binding CancelDataPackTargetCommand}" />
+            <Button Classes="accent"
+                    Content="开始下载"
+                    Command="{Binding ConfirmDataPackTargetCommand}" />
+          </StackPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="1"
+                   Text="全局 datapacks/ 对所有存档生效；存档级只对选中的世界生效。"
+                   Classes="caption"
+                   TextWrapping="Wrap" />
+
+        <Border Grid.Row="2"
+                Classes="sunken"
+                Padding="10,8"
+                IsVisible="{Binding HasDataPackScopeHint}">
+          <TextBlock Text="当前游戏目录下没有存档：只能装到全局。进入过某个世界后刷新即可选存档级。"
+                     Classes="caption"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Text.Secondary}" />
+        </Border>
+
+        <ListBox Grid.Row="3"
+                 ItemsSource="{Binding DataPackTargets}"
+                 SelectedItem="{Binding SelectedDataPackTarget}"
+                 MaxHeight="140"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:DataPackTargetOption">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="0,2">
+                <Border Classes="badge" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding ScopeLabel}" />
+                </Border>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Directory}"
+                           Classes="mono"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"
+                           ToolTip.Tip="{Binding Directory}" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Grid.Row="4"
+                   Text="{Binding DataPackTargetError}"
+                   IsVisible="{Binding HasDataPackTargetError}"
+                   Classes="caption"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Status.Danger}" />
+
+        <TextBlock Grid.Row="5"
+                   Text="{Binding SelectedDataPackTargetPath, StringFormat='将写入：{0}'}"
+                   Classes="mono"
+                   TextWrapping="Wrap" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

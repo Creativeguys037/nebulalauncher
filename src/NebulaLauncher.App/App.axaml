@@ -1,0 +1,27 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NebulaLauncher"
+             x:Class="NebulaLauncher.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.DataTemplates>
+    <local:ViewLocator />
+  </Application.DataTemplates>
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://NebulaLauncher/Themes/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- 字体由 App.axaml.cs 在启动时按平台覆盖（Windows: Microsoft YaHei UI，macOS: PingFang SC）。 -->
+      <FontFamily x:Key="Font.UI">Microsoft YaHei UI</FontFamily>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://NebulaLauncher/Themes/Controls.axaml" />
+  </Application.Styles>
+
+</Application>

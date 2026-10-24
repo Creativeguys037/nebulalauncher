@@ -1,0 +1,678 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:views="using:NebulaLauncher.Views"
+             xmlns:models="using:NebulaLauncher.Core.Models"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             x:Class="NebulaLauncher.Views.WorldsView"
+             x:DataType="vm:WorldsViewModel">
+
+  <UserControl.Resources>
+    <!-- 存档缩略图：Core 只给缓存文件路径，解码成位图在视图层（与模组页图标共用同一个转换器）。 -->
+    <views:PathToImageConverter x:Key="PathToImage" />
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="Button.tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+      <Setter Property="Padding" Value="18,7" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+
+    <Style Selector="Button.tab:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style Selector="Button.tab.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*">
+
+    <!-- ==================== 工具行 ==================== -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Classes="tab"
+                Classes.active="{Binding IsWorldsTab}"
+                Command="{Binding SelectTabCommand}"
+                CommandParameter="worlds"
+                Content="存档" />
+        <Button Classes="tab"
+                Classes.active="{Binding IsBackupsTab}"
+                Command="{Binding SelectTabCommand}"
+                CommandParameter="backups"
+                Content="备份" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+        <Button Classes="pill" Content="刷新" Command="{Binding RefreshCommand}" />
+        <Button Classes="pill" Content="导出整合包" Command="{Binding FocusExportTabCommand}" />
+        <Button Classes="accent" Content="导入整合包" Click="OnImportModpackClick" />
+      </StackPanel>
+    </Grid>
+
+    <ProgressBar Grid.Row="1"
+                 Margin="0,12,0,0"
+                 IsIndeterminate="True"
+                 IsVisible="{Binding IsLoading}" />
+
+    <!-- ==================== 内容 ==================== -->
+    <ScrollViewer Grid.Row="2"
+                  Margin="0,12,0,0"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="12" Margin="0,0,6,0">
+
+        <!-- 错误提示 -->
+        <Border IsVisible="{Binding HasError}"
+                Background="{DynamicResource Status.Danger.Soft}"
+                BorderBrush="{DynamicResource Status.Danger}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="14,10">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="!"
+                         FontWeight="Bold"
+                         Foreground="{DynamicResource Status.Danger}"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ErrorMessage}"
+                         Foreground="{DynamicResource Text.Secondary}"
+                         TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Classes="pill"
+                    Content="重试"
+                    VerticalAlignment="Center"
+                    Command="{Binding RefreshCommand}" />
+          </Grid>
+        </Border>
+
+        <!-- ==================== 存档 ==================== -->
+        <StackPanel IsVisible="{Binding IsWorldsTab}" Spacing="12">
+
+          <!-- ==================== 整合包导出 ==================== -->
+          <Border Classes="card accentEdge">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="导出整合包" Classes="h3" />
+                  <TextBlock Text="{Binding ExportTargetHint}" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center">
+                  <TextBlock Text=".mrpack" />
+                </Border>
+              </Grid>
+
+              <Grid ColumnDefinitions="260,*,110" ColumnSpacing="10">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="实例" Classes="caption muted" />
+                  <ComboBox ItemsSource="{Binding ExportTargets}"
+                            SelectedItem="{Binding SelectedExportTarget, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="models:ContentTarget">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding DisplayName}" />
+                          <TextBlock Text="{Binding LoaderLabel}" Classes="caption muted" VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Text="整合包名称" Classes="caption muted" />
+                  <TextBox Text="{Binding ExportName}" Watermark="例如 我的 1.21.4 整合包" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="版本" Classes="caption muted" />
+                  <TextBox Text="{Binding ExportVersion}" Classes="mono" />
+                </StackPanel>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="保存位置" Classes="caption muted" />
+                  <TextBox Text="{Binding ExportArchivePath}"
+                           Classes="mono"
+                           IsReadOnly="True"
+                           Watermark="选择一个 .mrpack 保存位置" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Classes="pill"
+                        Content="选择…"
+                        VerticalAlignment="Bottom"
+                        Click="OnChooseExportArchiveClick" />
+              </Grid>
+
+              <WrapPanel>
+                <CheckBox Content="包含存档"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeSaves, Mode=TwoWay}" />
+                <CheckBox Content="包含配置"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeConfig, Mode=TwoWay}" />
+                <CheckBox Content="包含资源包"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeResourcePacks, Mode=TwoWay}" />
+                <CheckBox Content="包含光影包"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeShaderPacks, Mode=TwoWay}" />
+                <CheckBox Content="包含游戏设置（options.txt）"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeOptions, Mode=TwoWay}" />
+                <CheckBox Content="包含新建世界默认配置"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeDefaultConfigs, Mode=TwoWay}" />
+                <CheckBox Content="包含服务器列表"
+                          Margin="0,0,18,0"
+                          IsChecked="{Binding ExportIncludeServerList, Mode=TwoWay}" />
+                <CheckBox Content="优先使用在线哈希"
+                          IsChecked="{Binding ExportPreferModrinthHashes, Mode=TwoWay}" />
+              </WrapPanel>
+
+              <ProgressBar IsVisible="{Binding IsExporting}"
+                           Maximum="1"
+                           Value="{Binding ExportProgress}" />
+              <TextBlock Text="{Binding ExportProgressText}"
+                         IsVisible="{Binding IsExporting}"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="4" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding ExportResult}"
+                             IsVisible="{Binding HasExportResult}"
+                             FontWeight="Medium"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding ExportError}"
+                             IsVisible="{Binding ExportError, Converter={x:Static conv:Converters.HasValue}}"
+                             Foreground="{DynamicResource Status.Danger}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Classes="accent"
+                        Content="开始导出"
+                        Command="{Binding ExportModpackCommand}"
+                        VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- 正在解析整合包 -->
+          <Border Classes="card" IsVisible="{Binding IsInspecting}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <ProgressBar IsIndeterminate="True" Width="140" VerticalAlignment="Center" />
+              <TextBlock Text="正在读取整合包…" Classes="secondary" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <!-- 整合包预览 -->
+          <Border Classes="card accentEdge" IsVisible="{Binding HasImportPreview}">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
+              <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Text="{Binding ImportPreview.Name}"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <Border Classes="badge" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ImportPreview.FormatText}" />
+                  </Border>
+                </StackPanel>
+
+                <TextBlock Text="{Binding ImportPreview.Description}"
+                           IsVisible="{Binding ImportPreview.HasDescription}"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           MaxLines="3"
+                           TextTrimming="CharacterEllipsis" />
+
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+                  <TextBlock Text="Minecraft" Classes="muted" />
+                  <TextBlock Grid.Column="1" Text="{Binding ImportPreview.GameVersionText}" Classes="mono" />
+                  <TextBlock Grid.Row="1" Text="加载器" Classes="muted" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ImportPreview.LoaderText}" Classes="mono" />
+                  <TextBlock Grid.Row="2" Text="内容" Classes="muted" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ImportPreview.FilesText}" Classes="mono" />
+                  <TextBlock Grid.Row="3" Text="安装" Classes="muted" />
+                  <TextBlock Grid.Row="3"
+                             Grid.Column="1"
+                             Text="{Binding ImportPreview.InstallPlanText}"
+                             Classes="mono"
+                             TextWrapping="Wrap" />
+                </Grid>
+
+                <!-- 同时安装游戏与加载器：只解压会得到一个指向不存在版本的实例 -->
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="16"
+                      IsVisible="{Binding CanInstallGame}">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="同时安装游戏与加载器" />
+                    <TextBlock Text="关掉后只解压文件，导入完需要自己去版本页安装对应的版本才能启动"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding InstallGameWithModpack}"
+                                OnContent="开启" OffContent="关闭"
+                                VerticalAlignment="Center" />
+                </Grid>
+
+                <StackPanel Spacing="4">
+                  <TextBlock Text="实例名称" Classes="label" />
+                  <TextBox Text="{Binding ImportInstanceName}"
+                           Width="300"
+                           HorizontalAlignment="Left"
+                           Classes="mono" />
+                </StackPanel>
+
+                <ProgressBar IsVisible="{Binding IsImporting}"
+                             Maximum="1"
+                             Value="{Binding ImportProgress}" />
+                <TextBlock Text="{Binding ImportProgressText}"
+                           IsVisible="{Binding IsImporting}"
+                           Classes="muted" />
+
+                <TextBlock Text="{Binding ImportError}"
+                           IsVisible="{Binding ImportError, Converter={x:Static conv:Converters.HasValue}}"
+                           Foreground="{DynamicResource Status.Danger}"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center" MinWidth="104">
+                <Button Classes="accent" Content="确认导入" Command="{Binding ConfirmImportCommand}" />
+                <Button Classes="ghost" Content="取消" Command="{Binding CancelImportCommand}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- 导入完成 -->
+          <Border Classes="card" IsVisible="{Binding HasImportResult}">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding ImportResult}" FontWeight="Medium" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding ImportedDirectory}"
+                             Classes="mono muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                  <!-- addons 反查查不到的条目：不给出口的话玩家只知道「需要手动安装」却不知去哪装 -->
+                  <Button Classes="pill"
+                          Content="{Binding PendingAddonsToggleText}"
+                          IsVisible="{Binding HasPendingAddons}"
+                          Command="{Binding TogglePendingAddonsCommand}" />
+                  <Button Classes="pill"
+                          Content="打开实例目录"
+                          Command="{Binding OpenImportedFolderCommand}" />
+                </StackPanel>
+              </Grid>
+
+              <Border Classes="sunken"
+                      IsVisible="{Binding IsPendingAddonListVisible}"
+                      Padding="12">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="需要手动安装的内容"
+                             FontWeight="SemiBold" />
+                  <TextBlock Text="这些条目在 CurseForge / Modrinth 上都查不到可下载文件（作者关闭第三方分发、项目已删除或改了文件名）。点「打开页面」去网页手动下载，把 jar 放进实例的 mods 目录即可。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                  <ItemsControl ItemsSource="{Binding PendingAddons}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="models:ModpackPendingAddon">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Name}" Classes="mono" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Reason}" Classes="muted" TextWrapping="Wrap" />
+                          </StackPanel>
+                          <Button Grid.Column="1"
+                                  Classes="ghost"
+                                  Content="打开页面"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding WebUrl, Converter={x:Static conv:Converters.HasValue}}"
+                                  Command="{Binding $parent[UserControl].((vm:WorldsViewModel)DataContext).OpenPendingAddonUrlCommand}"
+                                  CommandParameter="{Binding WebUrl}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <!-- ==================== 存档编辑（level.dat） ==================== -->
+          <!-- 只在点「编辑」后出现；面板里的每项都是「改了就写进 level.dat」的硬设置。 -->
+          <Border Classes="card accentEdge" IsVisible="{Binding IsEditorOpen}">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="编辑存档" Classes="h3" />
+                  <TextBlock Text="{Binding EditTargetText}" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center">
+                  <TextBlock Text="level.dat" />
+                </Border>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="世界名称" Classes="caption muted" />
+                  <TextBox Text="{Binding EditLevelName, Mode=TwoWay}" Watermark="世界名" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Text="种子" Classes="caption muted" />
+                  <TextBox Classes="mono"
+                           Text="{Binding EditSeed, Mode=TwoWay}"
+                           Watermark="整数，可为负数" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="游戏模式" Classes="caption muted" />
+                  <ComboBox ItemsSource="{Binding GameModeOptions}"
+                            SelectedIndex="{Binding EditGameModeIndex, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" />
+                </StackPanel>
+              </Grid>
+
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="难度" Classes="caption muted" />
+                  <ComboBox ItemsSource="{Binding DifficultyOptions}"
+                            SelectedIndex="{Binding EditDifficultyIndex, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Text="作弊（允许命令）" Classes="caption muted" />
+                  <ToggleSwitch IsChecked="{Binding EditAllowCommands, Mode=TwoWay}"
+                                OnContent="开启" OffContent="关闭" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="保留物品栏" Classes="caption muted" />
+                  <ToggleSwitch IsChecked="{Binding EditKeepInventory, Mode=TwoWay}"
+                                OnContent="开启" OffContent="关闭" />
+                </StackPanel>
+              </Grid>
+
+              <TextBlock Text="{Binding EditError}"
+                         IsVisible="{Binding EditError, Converter={x:Static conv:Converters.HasValue}}"
+                         Foreground="{DynamicResource Status.Danger}"
+                         TextWrapping="Wrap" />
+
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="改动前会自动备份为 level.dat.nebula.bak"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="accent" Content="保存" Command="{Binding SaveWorldEditCommand}" />
+                  <Button Classes="ghost" Content="取消" Command="{Binding CancelWorldEditCommand}" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- 列表头 -->
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding SummaryText}" Classes="muted" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding StatusMessage}"
+                       Classes="muted"
+                       VerticalAlignment="Center" />
+          </Grid>
+
+          <!-- 存档网格 -->
+          <ItemsControl ItemsSource="{Binding Worlds}" IsVisible="{Binding HasWorlds}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:WorldCardViewModel">
+                <Border Classes="card hoverable"
+                        Width="300"
+                        Margin="0,0,12,12">
+                  <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                      <!-- 存档缩略图：48×48 固定尺寸，有没有图标都不改变卡片行高 -->
+                      <Border Width="48"
+                              Height="48"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              ClipToBounds="True"
+                              VerticalAlignment="Top">
+                        <Panel>
+                          <!-- 无图标 / 加载失败 / 加载中的占位：令牌色块，不写颜色字面量 -->
+                          <Border Background="{DynamicResource Surface.Sunken}"
+                                  BorderBrush="{DynamicResource Stroke.Subtle}"
+                                  BorderThickness="1"
+                                  IsVisible="{Binding !HasIconImage}">
+                            <TextBlock Text="—"
+                                       Classes="muted"
+                                       FontSize="18"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                          </Border>
+                          <Image Source="{Binding IconPath, Converter={StaticResource PathToImage}}"
+                                 Stretch="UniformToFill"
+                                 IsVisible="{Binding HasIconImage}" />
+                        </Panel>
+                      </Border>
+
+                      <StackPanel Grid.Column="1" Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                          <TextBlock Text="{Binding Name}"
+                                     FontSize="16"
+                                     FontWeight="SemiBold"
+                                     TextTrimming="CharacterEllipsis"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding VersionText}" />
+                          </Border>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="5">
+                          <TextBlock Text="大小" Classes="muted" />
+                          <TextBlock Grid.Column="1"
+                                     Text="{Binding SizeText}"
+                                     Classes="muted"
+                                     HorizontalAlignment="Right" />
+                          <TextBlock Grid.Row="1" Text="游戏模式" Classes="muted" />
+                          <TextBlock Grid.Row="1"
+                                     Grid.Column="1"
+                                     Text="{Binding GameModeText}"
+                                     Classes="muted"
+                                     HorizontalAlignment="Right" />
+                          <TextBlock Grid.Row="2" Text="最后修改" Classes="muted" />
+                          <TextBlock Grid.Row="2"
+                                     Grid.Column="1"
+                                     Text="{Binding LastWriteTime, Converter={x:Static conv:Converters.TimeAgo}}"
+                                     Classes="muted"
+                                     HorizontalAlignment="Right" />
+                        </Grid>
+                      </StackPanel>
+                    </Grid>
+
+                    <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                    <ProgressBar IsVisible="{Binding ShowProgress}"
+                                 Maximum="1"
+                                 Value="{Binding Progress}" />
+
+                    <TextBlock Text="{Binding Status}"
+                               MinHeight="16"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowActions}">
+                      <Button Classes="pill"
+                              Content="备份"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).BackupWorldCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="pill"
+                              Content="打开"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).OpenWorldFolderCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="pill"
+                              Content="编辑"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).OpenWorldEditorCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="pill danger"
+                              Content="删除"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).RequestDeleteWorldCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowConfirm}">
+                      <Button Classes="pill danger"
+                              Content="确认删除"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).ConfirmDeleteWorldCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="pill"
+                              Content="取消"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).CancelDeleteWorldCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <!-- 空状态 -->
+          <Border Classes="card" IsVisible="{Binding WorldsEmpty}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center" Margin="0,24">
+              <TextBlock Text="还没有存档" Classes="h3" HorizontalAlignment="Center" />
+              <TextBlock Text="运行一次游戏并创建世界后，saves 目录下的存档会出现在这里。"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center"
+                         MaxWidth="420" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <Button Classes="pill" Content="刷新列表" Command="{Binding RefreshCommand}" />
+                <Button Classes="pill" Content="导入整合包" Click="OnImportModpackClick" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- ==================== 备份 ==================== -->
+        <StackPanel IsVisible="{Binding IsBackupsTab}" Spacing="12">
+          <StackPanel Spacing="2">
+            <TextBlock Text="{Binding BackupsSummaryText}" Classes="secondary" />
+            <TextBlock Text="备份文件保存在启动器数据目录的 backups 子目录，可手工复制到别处。"
+                       Classes="muted"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding Backups}" IsVisible="{Binding HasBackups}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:BackupCardViewModel">
+                <Border Classes="card" Padding="16" Margin="0,0,0,10">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                    <Border Width="44" Height="44"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            Background="{DynamicResource Surface.Raised}"
+                            BorderBrush="{DynamicResource Stroke.Subtle}"
+                            BorderThickness="1"
+                            VerticalAlignment="Center">
+                      <TextBlock Text="ZIP"
+                                 Classes="caption"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding WorldName}" FontWeight="Medium" TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding CreatedAt, Converter={x:Static conv:Converters.TimeAgo}}"
+                                   Classes="muted" />
+                        <TextBlock Text="·" Classes="muted" />
+                        <TextBlock Text="{Binding SizeText}" Classes="muted" />
+                        <TextBlock Text="·" Classes="muted" />
+                        <TextBlock Text="{Binding NoteText}"
+                                   Classes="muted"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="360" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding Status}"
+                                 MinHeight="16"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding ShowActions}">
+                      <Button Classes="pill"
+                              Content="还原"
+                              Click="OnRestoreBackupClick" />
+                      <Button Classes="pill danger"
+                              Content="删除"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).RequestDeleteBackupCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding ShowConfirm}">
+                      <Button Classes="pill danger"
+                              Content="确认删除"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).ConfirmDeleteBackupCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="pill"
+                              Content="取消"
+                              Command="{Binding $parent[ItemsControl].((vm:WorldsViewModel)DataContext).CancelDeleteBackupCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+
+                    <ProgressBar Grid.Column="2"
+                                 Width="140"
+                                 Maximum="1"
+                                 Value="{Binding Progress}"
+                                 VerticalAlignment="Center"
+                                 IsVisible="{Binding ShowProgress}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border Classes="card" IsVisible="{Binding BackupsEmpty}">
+            <StackPanel Spacing="8" HorizontalAlignment="Center" Margin="0,24">
+              <TextBlock Text="还没有备份" Classes="h3" HorizontalAlignment="Center" />
+              <TextBlock Text="在「存档」页对任意世界点「备份」，生成的压缩包会列在这里。"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center"
+                         MaxWidth="420" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

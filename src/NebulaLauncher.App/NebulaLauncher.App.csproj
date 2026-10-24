@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Windows 上走 WinExe（无控制台窗口）；macOS/Linux 上必须是 Exe，否则宿主拒绝启动。 -->
+    <OutputType Condition="'$(OS)' == 'Windows_NT'">WinExe</OutputType>
+    <OutputType Condition="'$(OS)' != 'Windows_NT'">Exe</OutputType>
+    <RootNamespace>NebulaLauncher</RootNamespace>
+    <AssemblyName>NebulaLauncher</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+
+    <!-- 发布形态默认「框架依赖」：约 26 MB，需要目标机装 .NET 8 Desktop Runtime。
+         自包含（约 98 MB）用 build.ps1 -SelfContained 显式请求。
+         裁剪默认关闭：Avalonia 的 XAML/反射面在 full trim 下容易运行期缺成员。 -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 不引 Avalonia.Fonts.Inter：界面用系统字体（见 Program.DefaultFontFamily），
+         嵌入整套 Inter 只是白白多出 1.8 MB 发布体积。 -->
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NebulaLauncher.Core\NebulaLauncher.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 裁剪发布时保留运行期靠反射/序列化访问的类型：
+       ViewLocator 按命名约定反射建 View，System.Text.Json 按泛型反序列化模型。 -->
+  <ItemGroup Condition="'$(PublishTrimmed)' == 'true'">
+    <TrimmerRootAssembly Include="NebulaLauncher" />
+    <TrimmerRootAssembly Include="NebulaLauncher.Core" />
+    <TrimmerRootAssembly Include="CmlLib.Core" />
+    <TrimmerRootAssembly Include="CmlLib.Core.Installer.Forge" />
+    <TrimmerRootAssembly Include="CmlLib.Core.Installer.NeoForge" />
+    <TrimmerRootAssembly Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+</Project>

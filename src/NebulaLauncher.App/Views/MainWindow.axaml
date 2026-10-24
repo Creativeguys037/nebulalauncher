@@ -1,0 +1,297 @@
+<!-- 默认尺寸 1240×800 只是兜底：运行时由 MainWindow.axaml.cs 的 RestoreWindowState 按
+     「截图参数 > settings.json 的 launcherWindow* > 这里的默认值」决定，设计器预览也用它。 -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NebulaLauncher.ViewModels"
+        xmlns:controls="using:NebulaLauncher.Controls"
+        x:Class="NebulaLauncher.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Nebula Launcher"
+        Width="1240" Height="800"
+        MinWidth="1024" MinHeight="660"
+        Background="{DynamicResource Surface.Base}"
+        FontFamily="{DynamicResource Font.UI}"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1">
+
+  <Window.Styles>
+    <!-- 侧边导航项 -->
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Margin" Value="10,1" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.16" />
+          <BrushTransition Property="Foreground" Duration="0:0:0.16" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <Style Selector="Button.nav:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style Selector="Button.nav.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="Button.nav Path">
+      <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+
+    <Style Selector="Button.nav.active Path">
+      <Setter Property="Stroke" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!-- 窗口控制按钮 -->
+    <Style Selector="Button.window-btn">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xs}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.window-btn:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+
+    <Style Selector="Button.window-btn.close:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Window.CloseHover}" />
+    </Style>
+
+    <!-- 红色底上浅灰叉号在浅色主题里对比度不足，悬停时统一转成反白色（两种主题都是白） -->
+    <Style Selector="Button.window-btn.close:pointerover Path">
+      <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
+    </Style>
+  </Window.Styles>
+
+  <Panel>
+    <!-- 背景：星云光斑。关闭动效时保留静态渐变，避免视觉突然变空。 -->
+    <controls:AuroraBackground IsAnimated="{Binding BackgroundAnimationsActive}" />
+
+    <!-- 用户背景图：盖住星云、位于内容之下。不参与命中测试，避免挡住点击。 -->
+    <Image Source="{Binding BackgroundImage}"
+           IsVisible="{Binding HasBackgroundImage}"
+           Stretch="UniformToFill"
+           IsHitTestVisible="False"
+           RenderOptions.BitmapInterpolationMode="HighQuality" />
+
+    <!-- 主题色遮罩：保证背景图上的文字可读，强度由设置控制。 -->
+    <Border IsVisible="{Binding HasBackgroundImage}"
+            IsHitTestVisible="False"
+            Background="{DynamicResource Surface.Base}"
+            Opacity="{Binding BackgroundImageOverlay}" />
+
+    <Grid RowDefinitions="46,*">
+
+      <!-- ==================== 标题栏 ==================== -->
+      <Grid Grid.Row="0"
+            Name="TitleBar"
+            Background="Transparent"
+            PointerPressed="OnTitleBarPointerPressed">
+        <StackPanel Orientation="Horizontal"
+                    Margin="18,0,0,0"
+                    Spacing="9"
+                    VerticalAlignment="Center">
+          <Border Width="20" Height="20"
+                  CornerRadius="6"
+                  Background="{DynamicResource Gradient.Accent}">
+            <TextBlock Text="N"
+                       FontSize="11"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="Nebula Launcher"
+                     FontSize="12"
+                     Foreground="{DynamicResource Text.Tertiary}"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Margin="0,0,6,0"
+                    Spacing="2">
+          <Button Classes="window-btn" Click="OnMinimizeClick" ToolTip.Tip="最小化">
+            <Rectangle Width="10" Height="1" Fill="{DynamicResource Text.Secondary}" />
+          </Button>
+          <Button Classes="window-btn" Click="OnMaximizeClick" ToolTip.Tip="最大化">
+            <Rectangle Width="9" Height="9"
+                       Stroke="{DynamicResource Text.Secondary}"
+                       StrokeThickness="1"
+                       Fill="Transparent" />
+          </Button>
+          <Button Classes="window-btn close" Click="OnCloseClick" ToolTip.Tip="关闭">
+            <Path Data="M0,0 L9,9 M9,0 L0,9"
+                  Stroke="{DynamicResource Text.Secondary}"
+                  StrokeThickness="1.1" />
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <!-- ==================== 主体 ==================== -->
+      <Grid Grid.Row="1" ColumnDefinitions="228,*">
+
+        <!-- 侧边栏 -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource Surface.Sidebar}"
+                BorderBrush="{DynamicResource Stroke.Subtle}"
+                BorderThickness="0,1,1,0">
+          <Grid RowDefinitions="*,Auto">
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding NavigationItems}" Margin="0,10,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NavigationItem">
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsActive}"
+                            Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
+                            CommandParameter="{Binding Key}">
+                      <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Path Data="{Binding IconData}"
+                              StrokeThickness="1.6"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="17" Height="17"
+                              VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+              <Border Height="1" Margin="20,0,20,8" Background="{DynamicResource Stroke.Subtle}" />
+              <ItemsControl ItemsSource="{Binding FooterItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NavigationItem">
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsActive}"
+                            Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
+                            CommandParameter="{Binding Key}">
+                      <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Path Data="{Binding IconData}"
+                              StrokeThickness="1.6"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="17" Height="17"
+                              VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- 内容区 -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+
+          <!-- 页面抬头 -->
+          <!--
+            两列而不是「横向 StackPanel 放在 * 列」：横 StackPanel 的测量宽度只取子元素之和，
+            窗口压到 1024 时它先被压成标题宽度，副标题拿到 0 宽而整条消失（截图实测）。
+            Auto 列给标题、* 列给副标题，副标题才有可用的剩余宽度，并用省略号兜住长文案。
+          -->
+          <Grid Grid.Row="0" Margin="30,20,30,4" ColumnDefinitions="Auto,*">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding CurrentPage.Title}"
+                       Classes="h3"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding CurrentPage.Subtitle}"
+                       Classes="muted"
+                       VerticalAlignment="Center"
+                       Margin="12,3,0,0"
+                       TextTrimming="CharacterEllipsis" />
+          </Grid>
+
+          <!-- 页面宿主：切换内容时自动播放转场 -->
+          <controls:PageHost Grid.Row="1"
+                             Content="{Binding CurrentPage}"
+                             Margin="30,10,30,0" />
+
+          <!-- 状态栏 -->
+          <Border Grid.Row="2"
+                  Margin="30,0,30,14"
+                  Padding="0,8,0,0"
+                  BorderBrush="{DynamicResource Stroke.Subtle}"
+                  BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{Binding StatusText}"
+                         Classes="muted"
+                         VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1"
+                         Text="Nebula Launcher"
+                         Classes="muted"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </Grid>
+      </Grid>
+    </Grid>
+
+    <!-- ==================== 退出下载确认 ====================
+         PCL2 的 FormMain.EndProgram 在还有下载任务时弹「还有下载任务尚未完成，是否确定退出？」。
+         放在窗口级：它不属于任何页面，下载可能来自安装、模组更新或整合包导入。 -->
+    <Border Background="{DynamicResource Surface.Sunken}"
+            IsVisible="{Binding IsExitDownloadConfirmOpen}">
+      <Border Classes="card"
+              Width="420"
+              Padding="22,20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              BoxShadow="{DynamicResource Shadow.Overlay}">
+        <StackPanel Spacing="14">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Path Data="M12 3v12m0 4v.5M12 3l9 16H3z"
+                  Stroke="{DynamicResource Status.Warning}"
+                  StrokeThickness="1.6"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Width="17" Height="17"
+                  Stretch="Uniform"
+                  VerticalAlignment="Center" />
+            <TextBlock Text="还有下载任务尚未完成" Classes="h3" />
+          </StackPanel>
+
+          <TextBlock Text="{Binding ExitDownloadConfirmText}"
+                     Classes="secondary"
+                     TextWrapping="Wrap"
+                     LineHeight="20" />
+
+          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Classes="ghost" Content="继续下载" Command="{Binding CancelExitWithDownloadsCommand}" />
+            <Button Classes="danger" Content="仍然退出" Command="{Binding ConfirmExitWithDownloadsCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+  </Panel>
+</Window>

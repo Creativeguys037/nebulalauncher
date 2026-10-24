@@ -1,0 +1,268 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    设计令牌（Design Tokens）。
+    规则：页面与控件一律通过 {DynamicResource ...} 取用，禁止写死颜色字面量。
+    命名分三层：palette.<色名> → surface/text/accent 语义层 → 组件层直接引用语义层。
+
+    双主题结构（Avalonia 11 ThemeDictionaries）：
+    - 语义层（Surface.* / Stroke.* / Text.* / Accent.* / Status.* / Gradient.* / Shadow.*）
+      在 Dark 与 Light 两个字典里各写一份，**键名必须完全一致**，否则切主题时页面会掉资源。
+    - 主题字典内部一律写字面色值：主题字典是独立资源作用域，引用外层 Palette.* 依赖
+      解析顺序，容易在运行期变成「找不到静态资源」。Palette 只作为命名对照表保留。
+    - 非颜色令牌（圆角 / 字号 / 动效时长）与主题无关，留在字典根部。
+  -->
+
+  <ResourceDictionary.ThemeDictionaries>
+
+    <!-- ==================== 深色（主视觉，深空 / 玻璃 / 微光） ==================== -->
+    <ResourceDictionary x:Key="Dark">
+
+      <!-- 表面 -->
+      <SolidColorBrush x:Key="Surface.Base" Color="#080B12" />
+      <SolidColorBrush x:Key="Surface.Canvas" Color="#0B0F18" />
+      <SolidColorBrush x:Key="Surface.Card" Color="#0FFFFFFF" />
+      <SolidColorBrush x:Key="Surface.CardSolid" Color="#10151F" />
+      <SolidColorBrush x:Key="Surface.Raised" Color="#151B27" />
+      <SolidColorBrush x:Key="Surface.Hover" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="Surface.Pressed" Color="#0AFFFFFF" />
+      <SolidColorBrush x:Key="Surface.Sunken" Color="#66000000" />
+      <!-- 玻璃面板（侧栏、浮层）：比 card 更透 -->
+      <SolidColorBrush x:Key="Surface.Glass" Color="#4D0B0F18" />
+      <!-- 侧边导航栏底：叠在星云背景之上，保留一点底色以分隔内容区 -->
+      <SolidColorBrush x:Key="Surface.Sidebar" Color="#66080C14" />
+
+      <!-- 描边 -->
+      <SolidColorBrush x:Key="Stroke.Subtle" Color="#0DFFFFFF" />
+      <SolidColorBrush x:Key="Stroke.Default" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="Stroke.Strong" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="Stroke.Focus" Color="#4C6FFF" />
+
+      <!-- 文字 -->
+      <SolidColorBrush x:Key="Text.Primary" Color="#F2F6FC" />
+      <SolidColorBrush x:Key="Text.Secondary" Color="#AEB9CA" />
+      <SolidColorBrush x:Key="Text.Tertiary" Color="#8B97AB" />
+      <SolidColorBrush x:Key="Text.Muted" Color="#3D4A60" />
+      <SolidColorBrush x:Key="Text.OnAccent" Color="#FFFFFF" />
+
+      <!-- 强调 -->
+      <SolidColorBrush x:Key="Accent.Primary" Color="#4C6FFF" />
+      <SolidColorBrush x:Key="Accent.Secondary" Color="#A855F7" />
+      <SolidColorBrush x:Key="Accent.Tertiary" Color="#22D3EE" />
+      <SolidColorBrush x:Key="Accent.Soft" Color="#264C6FFF" />
+      <SolidColorBrush x:Key="Accent.Glow" Color="#594C6FFF" />
+
+      <!-- 状态 -->
+      <SolidColorBrush x:Key="Status.Success" Color="#34D399" />
+      <SolidColorBrush x:Key="Status.Warning" Color="#FBBF24" />
+      <SolidColorBrush x:Key="Status.Danger" Color="#FB7185" />
+      <SolidColorBrush x:Key="Status.Info" Color="#22D3EE" />
+      <SolidColorBrush x:Key="Status.Success.Soft" Color="#1F34D399" />
+      <SolidColorBrush x:Key="Status.Warning.Soft" Color="#1FFBBF24" />
+      <SolidColorBrush x:Key="Status.Danger.Soft" Color="#1FFB7185" />
+      <!-- 危险色描边 / 悬停底：深色底上要能看见，浅色底上要压住亮度 -->
+      <SolidColorBrush x:Key="Status.Danger.Edge" Color="#33FB7185" />
+
+      <!--
+        内存三段条（设置页「游戏启动参数」）。
+        单独一组令牌而不是直接复用 Status.Warning / Accent.Primary：条是三个色块并排，
+        并排时的可读性由三者的相对亮度决定，将来调色只动这里，不影响状态徽标。
+      -->
+      <SolidColorBrush x:Key="Memory.BarFree" Color="#33FFFFFF" />
+      <SolidColorBrush x:Key="Memory.BarUsed" Color="#B3FBBF24" />
+      <SolidColorBrush x:Key="Memory.BarGame" Color="#B34C6FFF" />
+
+      <!-- 渐变 -->
+      <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#4C6FFF" Offset="0" />
+        <GradientStop Color="#A855F7" Offset="1" />
+      </LinearGradientBrush>
+
+      <LinearGradientBrush x:Key="Gradient.Aurora" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#4C6FFF" Offset="0" />
+        <GradientStop Color="#A855F7" Offset="0.5" />
+        <GradientStop Color="#22D3EE" Offset="1" />
+      </LinearGradientBrush>
+
+      <LinearGradientBrush x:Key="Gradient.Sheen" StartPoint="0%,50%" EndPoint="100%,50%">
+        <GradientStop Color="#00FFFFFF" Offset="0" />
+        <GradientStop Color="#22FFFFFF" Offset="0.5" />
+        <GradientStop Color="#00FFFFFF" Offset="1" />
+      </LinearGradientBrush>
+
+      <LinearGradientBrush x:Key="Gradient.CardOverlay" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#12FFFFFF" Offset="0" />
+        <GradientStop Color="#00FFFFFF" Offset="1" />
+      </LinearGradientBrush>
+
+      <!-- 阴影 -->
+      <BoxShadows x:Key="Shadow.Card">0 2 8 0 #33000000</BoxShadows>
+      <BoxShadows x:Key="Shadow.CardHover">0 10 28 -6 #66000000</BoxShadows>
+      <BoxShadows x:Key="Shadow.Overlay">0 24 56 -12 #A6000000</BoxShadows>
+      <BoxShadows x:Key="Shadow.Glow">0 0 24 0 #554C6FFF</BoxShadows>
+
+      <!-- 组件层 -->
+      <SolidColorBrush x:Key="Scrollbar.Thumb" Color="#33000000" />
+      <SolidColorBrush x:Key="Window.CloseHover" Color="#E81123" />
+
+    </ResourceDictionary>
+
+    <!--
+      ==================== 浅色 ====================
+      目标：背景 #F4F6FB 系（不是纯白），卡片纯白 + 细描边，文字 #0F1724 系四档。
+      对比度实测（相对纯白卡片）：
+        Text.Primary 17.97 / Secondary 7.75 / Tertiary 5.31 / Muted 2.65（只做装饰点，不作正文）
+        Accent.Primary 5.64（白字压在渐变上 5.64–5.70）
+        Status.Success 5.34 / Warning 6.41 / Danger 5.87 / Info 5.36
+      状态色刻意比深色版深两档：深色 #34D399 / #FBBF24 / #FB7185 在白底上只有 1.9–2.5:1。
+    -->
+    <ResourceDictionary x:Key="Light">
+
+      <!-- 表面 -->
+      <SolidColorBrush x:Key="Surface.Base" Color="#F4F6FB" />
+      <SolidColorBrush x:Key="Surface.Canvas" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="Surface.Card" Color="#B3FFFFFF" />
+      <SolidColorBrush x:Key="Surface.CardSolid" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="Surface.Raised" Color="#EDF1F9" />
+      <SolidColorBrush x:Key="Surface.Hover" Color="#140F1724" />
+      <SolidColorBrush x:Key="Surface.Pressed" Color="#0A0F1724" />
+      <SolidColorBrush x:Key="Surface.Sunken" Color="#EDF1F9" />
+      <SolidColorBrush x:Key="Surface.Glass" Color="#CCFFFFFF" />
+      <SolidColorBrush x:Key="Surface.Sidebar" Color="#E9EFF9" />
+
+      <!-- 描边 -->
+      <SolidColorBrush x:Key="Stroke.Subtle" Color="#140F1724" />
+      <SolidColorBrush x:Key="Stroke.Default" Color="#240F1724" />
+      <SolidColorBrush x:Key="Stroke.Strong" Color="#3D0F1724" />
+      <SolidColorBrush x:Key="Stroke.Focus" Color="#3B5AE0" />
+
+      <!-- 文字 -->
+      <SolidColorBrush x:Key="Text.Primary" Color="#0F1724" />
+      <SolidColorBrush x:Key="Text.Secondary" Color="#46536B" />
+      <SolidColorBrush x:Key="Text.Tertiary" Color="#5F6C82" />
+      <SolidColorBrush x:Key="Text.Muted" Color="#93A0B4" />
+      <SolidColorBrush x:Key="Text.OnAccent" Color="#FFFFFF" />
+
+      <!-- 强调：蓝紫沿用品牌色，压深一档保证白底 4.5:1 -->
+      <SolidColorBrush x:Key="Accent.Primary" Color="#3B5AE0" />
+      <SolidColorBrush x:Key="Accent.Secondary" Color="#7C3AED" />
+      <SolidColorBrush x:Key="Accent.Tertiary" Color="#0891B2" />
+      <SolidColorBrush x:Key="Accent.Soft" Color="#1A3B5AE0" />
+      <SolidColorBrush x:Key="Accent.Glow" Color="#333B5AE0" />
+
+      <!-- 状态 -->
+      <SolidColorBrush x:Key="Status.Success" Color="#0B7A57" />
+      <SolidColorBrush x:Key="Status.Warning" Color="#92400E" />
+      <SolidColorBrush x:Key="Status.Danger" Color="#C42020" />
+      <SolidColorBrush x:Key="Status.Info" Color="#0E7490" />
+      <SolidColorBrush x:Key="Status.Success.Soft" Color="#140B7A57" />
+      <SolidColorBrush x:Key="Status.Warning.Soft" Color="#1492400E" />
+      <SolidColorBrush x:Key="Status.Danger.Soft" Color="#14C42020" />
+      <SolidColorBrush x:Key="Status.Danger.Edge" Color="#4DC42020" />
+
+      <!-- 内存三段条：浅底上黄色/蓝色都要压深一档，否则三块糊成一片 -->
+      <SolidColorBrush x:Key="Memory.BarFree" Color="#2E0F1724" />
+      <SolidColorBrush x:Key="Memory.BarUsed" Color="#B392400E" />
+      <SolidColorBrush x:Key="Memory.BarGame" Color="#B33B5AE0" />
+
+      <!-- 渐变 -->
+      <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#3B5AE0" Offset="0" />
+        <GradientStop Color="#7C3AED" Offset="1" />
+      </LinearGradientBrush>
+
+      <LinearGradientBrush x:Key="Gradient.Aurora" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#3B5AE0" Offset="0" />
+        <GradientStop Color="#7C3AED" Offset="0.5" />
+        <GradientStop Color="#0891B2" Offset="1" />
+      </LinearGradientBrush>
+
+      <!-- 浅色底上的「高光」是深色极淡涂层，白色 sheen 在浅色背景上完全不可见 -->
+      <LinearGradientBrush x:Key="Gradient.Sheen" StartPoint="0%,50%" EndPoint="100%,50%">
+        <GradientStop Color="#000F1724" Offset="0" />
+        <GradientStop Color="#120F1724" Offset="0.5" />
+        <GradientStop Color="#000F1724" Offset="1" />
+      </LinearGradientBrush>
+
+      <LinearGradientBrush x:Key="Gradient.CardOverlay" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#080F1724" Offset="0" />
+        <GradientStop Color="#000F1724" Offset="1" />
+      </LinearGradientBrush>
+
+      <!-- 阴影：深色底上的黑投影在白底上会发脏，改成低 alpha 的墨蓝 -->
+      <BoxShadows x:Key="Shadow.Card">0 2 8 0 #140F1724</BoxShadows>
+      <BoxShadows x:Key="Shadow.CardHover">0 10 24 -6 #1F0F1724</BoxShadows>
+      <BoxShadows x:Key="Shadow.Overlay">0 24 48 -12 #330F1724</BoxShadows>
+      <BoxShadows x:Key="Shadow.Glow">0 0 24 0 #333B5AE0</BoxShadows>
+
+      <!-- 组件层 -->
+      <SolidColorBrush x:Key="Scrollbar.Thumb" Color="#33000000" />
+      <SolidColorBrush x:Key="Window.CloseHover" Color="#E81123" />
+
+    </ResourceDictionary>
+
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!--
+    ============ 基础色板（两套主题共用的命名对照表） ============
+    主题字典里写字面色值，这里只记录色名与品牌色，改品牌色需要同时改两个字典里的引用值。
+  -->
+  <Color x:Key="Palette.Ink900">#05070C</Color>
+  <Color x:Key="Palette.Ink850">#080B12</Color>
+  <Color x:Key="Palette.Ink800">#0B0F18</Color>
+  <Color x:Key="Palette.Ink750">#10151F</Color>
+  <Color x:Key="Palette.Ink700">#151B27</Color>
+  <Color x:Key="Palette.Ink650">#1A2130</Color>
+  <Color x:Key="Palette.Ink600">#212A3B</Color>
+  <Color x:Key="Palette.Ink500">#2C3648</Color>
+  <Color x:Key="Palette.Ink400">#3D4A60</Color>
+
+  <Color x:Key="Palette.Slate300">#8B97AB</Color>
+  <Color x:Key="Palette.Slate200">#AEB9CA</Color>
+  <Color x:Key="Palette.Slate100">#D7DEE9</Color>
+  <Color x:Key="Palette.Snow">#F2F6FC</Color>
+
+  <Color x:Key="Palette.Blue">#4C6FFF</Color>
+  <Color x:Key="Palette.BlueBright">#6E8BFF</Color>
+  <Color x:Key="Palette.Violet">#A855F7</Color>
+  <Color x:Key="Palette.Cyan">#22D3EE</Color>
+  <Color x:Key="Palette.Mint">#34D399</Color>
+  <Color x:Key="Palette.Amber">#FBBF24</Color>
+  <Color x:Key="Palette.Rose">#FB7185</Color>
+
+  <!-- 浅色侧新增色名：#F4F6FB 背景 / #0F1724 墨色文字 / 压深一档的品牌蓝紫 -->
+  <Color x:Key="Palette.Mist">#F4F6FB</Color>
+  <Color x:Key="Palette.MistDeep">#E9EFF9</Color>
+  <Color x:Key="Palette.Navy">#0F1724</Color>
+  <Color x:Key="Palette.BlueDeep">#3B5AE0</Color>
+  <Color x:Key="Palette.VioletDeep">#7C3AED</Color>
+
+  <!-- ============ 圆角 ============ -->
+  <CornerRadius x:Key="Radius.Xs">4</CornerRadius>
+  <CornerRadius x:Key="Radius.Sm">8</CornerRadius>
+  <CornerRadius x:Key="Radius.Md">12</CornerRadius>
+  <CornerRadius x:Key="Radius.Lg">16</CornerRadius>
+  <CornerRadius x:Key="Radius.Xl">20</CornerRadius>
+  <CornerRadius x:Key="Radius.Pill">999</CornerRadius>
+
+  <!-- ============ 间距（Thickness 直接内联使用，此处仅列数值刻度）
+       4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 ============ -->
+
+  <!-- ============ 字体 ============ -->
+  <x:Double x:Key="FontSize.Caption">11</x:Double>
+  <x:Double x:Key="FontSize.Small">12</x:Double>
+  <x:Double x:Key="FontSize.Body">13</x:Double>
+  <x:Double x:Key="FontSize.BodyLg">14</x:Double>
+  <x:Double x:Key="FontSize.Subtitle">16</x:Double>
+  <x:Double x:Key="FontSize.Title">20</x:Double>
+  <x:Double x:Key="FontSize.Headline">26</x:Double>
+  <x:Double x:Key="FontSize.Display">34</x:Double>
+
+  <!-- ============ 动效时长（毫秒），C# 侧 Motion.cs 同步读取 ============ -->
+  <x:Double x:Key="Motion.Instant">90</x:Double>
+  <x:Double x:Key="Motion.Fast">150</x:Double>
+  <x:Double x:Key="Motion.Normal">220</x:Double>
+  <x:Double x:Key="Motion.Slow">320</x:Double>
+
+</ResourceDictionary>

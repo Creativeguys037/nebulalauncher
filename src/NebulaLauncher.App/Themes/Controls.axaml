@@ -1,0 +1,371 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Nebula 控件样式表。
+    只覆盖属性与外观，不重写 ControlTemplate —— 保留 Fluent 主题的可访问性与键盘导航行为。
+    动效统一走 Transitions，时长取自 Motion.* 令牌。
+  -->
+
+  <!-- ================= 文本 ================= -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+
+  <Style Selector="TextBlock.h1">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Display}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="-0.6" />
+  </Style>
+
+  <Style Selector="TextBlock.h2">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Headline}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="-0.3" />
+  </Style>
+
+  <Style Selector="TextBlock.h3">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Title}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TextBlock.caption">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+  </Style>
+
+  <Style Selector="TextBlock.secondary">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+  </Style>
+
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
+  </Style>
+
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
+  </Style>
+
+  <!-- ================= 按钮基座 ================= -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.15" />
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="{DynamicResource Surface.Pressed}" />
+    <Setter Property="Opacity" Value="0.9" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.4" />
+    <Setter Property="Cursor" Value="Arrow" />
+  </Style>
+
+  <!-- 主按钮：渐变强调色 -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.accent:pointerover">
+    <Setter Property="Opacity" Value="0.92" />
+  </Style>
+
+  <Style Selector="Button.accent:pressed">
+    <Setter Property="Opacity" Value="0.82" />
+  </Style>
+
+  <!-- 幽灵按钮：无底色，仅悬停出背景 -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+  </Style>
+
+  <Style Selector="Button.ghost:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <!-- 图标按钮：正方形 -->
+  <Style Selector="Button.icon">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Width" Value="34" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontSize" Value="15" />
+  </Style>
+
+  <!-- 危险操作 -->
+  <Style Selector="Button.danger">
+    <Setter Property="Background" Value="{DynamicResource Status.Danger.Soft}" />
+    <Setter Property="Foreground" Value="{DynamicResource Status.Danger}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Status.Danger.Edge}" />
+  </Style>
+
+  <Style Selector="Button.danger:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Status.Danger.Edge}" />
+  </Style>
+
+  <!-- 胶囊按钮 -->
+  <Style Selector="Button.pill">
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="Padding" Value="18,7" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+    <Setter Property="MinHeight" Value="32" />
+  </Style>
+
+  <!-- ================= 卡片 ================= -->
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource Surface.CardSolid}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+    <Setter Property="Padding" Value="18" />
+    <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+        <BrushTransition Property="Background" Duration="0:0:0.18" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.card.hoverable:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+  </Style>
+
+  <Style Selector="Border.card.accentEdge">
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent.Soft}" />
+  </Style>
+
+  <Style Selector="Border.divider">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource Stroke.Subtle}" />
+    <Setter Property="Margin" Value="0,12" />
+  </Style>
+
+  <!-- 玻璃面板：比 card 更透，用于侧栏、浮层 -->
+  <Style Selector="Border.glass">
+    <Setter Property="Background" Value="{DynamicResource Surface.Glass}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+    <Setter Property="Padding" Value="18" />
+  </Style>
+
+  <!-- 内凹区域：日志、代码、路径展示 -->
+  <Style Selector="Border.sunken">
+    <Setter Property="Background" Value="{DynamicResource Surface.Sunken}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Padding" Value="12" />
+  </Style>
+
+  <!-- 状态徽标 -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.badge.success">
+    <Setter Property="Background" Value="{DynamicResource Status.Success.Soft}" />
+  </Style>
+
+  <Style Selector="Border.badge.warning">
+    <Setter Property="Background" Value="{DynamicResource Status.Warning.Soft}" />
+  </Style>
+
+  <Style Selector="Border.badge.danger">
+    <Setter Property="Background" Value="{DynamicResource Status.Danger.Soft}" />
+  </Style>
+
+  <Style Selector="Border.badge > TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+  </Style>
+
+  <!-- ================= 输入框 ================= -->
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{DynamicResource Surface.Sunken}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+  </Style>
+
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+  </Style>
+
+  <!-- ================= 滚动条 ================= -->
+  <Style Selector="ScrollBar:vertical">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ScrollBar:horizontal">
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ScrollBar /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource Scrollbar.Thumb}" />
+  </Style>
+
+  <!-- ================= 选择与开关 ================= -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="MinHeight" Value="28" />
+  </Style>
+
+  <Style Selector="ToggleSwitch">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="MinHeight" Value="32" />
+  </Style>
+
+  <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
+    <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+  </Style>
+
+  <!--
+    ToggleButton 的选中态：Fluent 在 :checked 时把内容前景改成强调对比色（白），
+    那是给「强调色实心填充」准备的。本启动器的选中胶囊（DownloadView 的加载器）是浅色 Accent.Soft 底，
+    白字在浅色主题里会直接消失，所以对使用 .loader 类的胶囊强制用正文色。
+  -->
+  <Style Selector="ToggleButton.loader:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+  </Style>
+
+  <!-- ================= 列表项 ================= -->
+  <Style Selector="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="ListBoxItem">
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="Margin" Value="0,1" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.14" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBoxItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <!--
+    选中态：Fluent 默认用「系统强调色 60% 填充」，深色底上还能看，浅色底上会变成一整块高饱和紫蓝
+    （DESIGN §1 明确禁止高饱和色块铺满卡片）。这里统一改回 Accent.Soft + 正文色，
+    必须同时改模板里的 ContentPresenter，否则 Fluent 的 /template/ 规则优先级更高。
+  -->
+  <Style Selector="ListBoxItem:selected">
+    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+  </Style>
+
+  <!-- ================= 进度条 ================= -->
+  <Style Selector="ProgressBar">
+    <Setter Property="Background" Value="{DynamicResource Surface.Sunken}" />
+    <Setter Property="Foreground" Value="{DynamicResource Gradient.Accent}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="MinHeight" Value="6" />
+    <Setter Property="Height" Value="6" />
+  </Style>
+
+  <!-- ================= 提示 ================= -->
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+    <Setter Property="Padding" Value="10,6" />
+  </Style>
+
+  <!-- ================= 滚动容器 ================= -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+</Styles>

@@ -1,0 +1,696 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:models="using:NebulaLauncher.Core.Models"
+             xmlns:controls="using:NebulaLauncher.Controls"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             x:Class="NebulaLauncher.Views.HomeView"
+             x:DataType="vm:HomeViewModel">
+
+  <UserControl.Styles>
+    <!-- Fluent 默认选中态是高饱和强调色，和「微光」规范冲突，统一压到 Accent.Soft。 -->
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!--
+    根节点是 ScrollViewer + Grid：
+    正常情况下内容高度不超过视口，页面不滚动，中部「最近版本 + 统计」吃掉剩余高度；
+    崩溃面板出现后内容必然超出视口（真故障现场就是这个量级），此时必须能滚动——
+    Grid 的 * 行不会裁掉溢出的子元素，不能滚动时崩溃面板会直接画在「最近版本」上面。
+  -->
+  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="0,0,0,16">
+
+    <!-- ==================== 顶部：提示 + Hero ==================== -->
+    <StackPanel Grid.Row="0" Spacing="16">
+
+      <!-- 服务未就绪提示：组合根还没合并时说明原因，而不是留一片空白。 -->
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Status.Warning.Soft}"
+              BorderBrush="{DynamicResource Status.Warning}"
+              IsVisible="{Binding ServiceWarning, Converter={x:Static conv:Converters.HasValue}}">
+        <TextBlock Text="{Binding ServiceWarning}"
+                   TextWrapping="Wrap"
+                   FontSize="{DynamicResource FontSize.Small}"
+                   Foreground="{DynamicResource Status.Warning}" />
+      </Border>
+
+      <!-- Hero -->
+      <Border Classes="card" Padding="24,20">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+
+          <!-- 账户 -->
+          <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+            <Border Width="54" Height="54"
+                    CornerRadius="27"
+                    Background="{DynamicResource Gradient.Accent}">
+              <TextBlock Text="{Binding AccountInitial}"
+                         FontSize="22"
+                         FontWeight="Bold"
+                         Foreground="White"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+
+            <StackPanel Spacing="4" VerticalAlignment="Center">
+              <TextBlock Text="{Binding AccountName}" Classes="h3" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Classes="badge" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding AccountBadge}" />
+                </Border>
+                <TextBlock Text="{Binding AccountDetail}"
+                           Classes="muted"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="240" />
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+
+          <!-- 当前版本 + 启动 -->
+          <StackPanel Grid.Column="1"
+                      Orientation="Horizontal"
+                      Spacing="22"
+                      VerticalAlignment="Center">
+            <StackPanel Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+              <TextBlock Text="当前版本" Classes="caption" HorizontalAlignment="Right" />
+              <TextBlock Text="{Binding SelectedVersionName}"
+                         FontSize="{DynamicResource FontSize.Subtitle}"
+                         FontWeight="SemiBold"
+                         HorizontalAlignment="Right"
+                         MaxWidth="220"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding SelectedVersionDetail}"
+                         Classes="muted"
+                         HorizontalAlignment="Right"
+                         MaxWidth="220"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <Button Classes="accent"
+                    Command="{Binding LaunchCommand}"
+                    Height="48"
+                    CornerRadius="12"
+                    Padding="28,0"
+                    VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Path Data="M8 5.2 19 12 8 18.8Z"
+                      Fill="{DynamicResource Text.OnAccent}"
+                      Width="12" Height="12"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center" />
+                <TextBlock Text="启动游戏"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Text.OnAccent}"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 提示条 -->
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Accent.Soft}"
+              BorderBrush="{DynamicResource Accent.Primary}"
+              IsVisible="{Binding Notice, Converter={x:Static conv:Converters.HasValue}}">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+          <TextBlock Text="{Binding Notice}"
+                     TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Classes="pill" Content="账户" Command="{Binding NavigateToCommand}" CommandParameter="accounts" />
+            <Button Classes="pill" Content="下载" Command="{Binding NavigateToCommand}" CommandParameter="download" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 官方正式版更新提示：同一版本只提示一次（已读过就写回 settings） -->
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Accent.Soft}"
+              BorderBrush="{DynamicResource Accent.Primary}"
+              IsVisible="{Binding HasGameUpdate}">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="有新版本可安装" FontWeight="Medium" />
+            <TextBlock Text="{Binding GameUpdateNotice}"
+                       Classes="muted"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="accent"
+                    Content="去下载"
+                    Command="{Binding NavigateToCommand}"
+                    CommandParameter="download" />
+            <Button Classes="ghost"
+                    Content="知道了"
+                    Command="{Binding AcknowledgeGameUpdateCommand}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Status.Danger.Soft}"
+              BorderBrush="{DynamicResource Status.Danger}"
+              IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
+        <TextBlock Text="{Binding ErrorText}"
+                   TextWrapping="Wrap"
+                   FontSize="{DynamicResource FontSize.Small}"
+                   Foreground="{DynamicResource Status.Danger}" />
+      </Border>
+    </StackPanel>
+
+    <!-- ==================== 中部：最近版本 + 统计 ==================== -->
+    <Grid Grid.Row="1" RowDefinitions="*,Auto" Margin="0,16,0,0">
+
+      <Grid ColumnDefinitions="2*,1*" ColumnSpacing="16" MinHeight="184"
+            IsVisible="{Binding HasNoImportedCrash}">
+
+        <Border Classes="card">
+          <Grid RowDefinitions="Auto,*" RowSpacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="最近使用的版本" Classes="h3" VerticalAlignment="Center" />
+              <Button Grid.Column="1"
+                      Classes="ghost"
+                      Content="全部版本"
+                      Padding="10,4"
+                      MinHeight="28"
+                      Command="{Binding NavigateToCommand}"
+                      CommandParameter="versions" />
+            </Grid>
+
+            <Grid Grid.Row="1">
+              <ListBox ItemsSource="{Binding RecentVersions}"
+                       SelectedItem="{Binding SelectedItem}"
+                       DoubleTapped="OnVersionListDoubleTapped">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:HomeVersionItem">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                      <TextBlock Text="{Binding Name}"
+                                 FontWeight="Medium"
+                                 VerticalAlignment="Center"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding Detail}"
+                                 Classes="muted"
+                                 VerticalAlignment="Center"
+                                 MaxWidth="200"
+                                 TextTrimming="CharacterEllipsis" />
+                      <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding LoaderText}" />
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <StackPanel Spacing="8"
+                          VerticalAlignment="Center"
+                          IsVisible="{Binding IsRecentEmpty}">
+                <TextBlock Text="还没有安装任何版本"
+                           Classes="secondary"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="去「下载」页挑一个版本装好，这里就会列出最近使用的版本。"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center" />
+                <Button Classes="accent"
+                        Content="去下载"
+                        HorizontalAlignment="Center"
+                        Padding="22,8"
+                        Command="{Binding NavigateToCommand}"
+                        CommandParameter="download" />
+              </StackPanel>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <Grid Grid.Column="1" RowDefinitions="*,*" ColumnDefinitions="*,*" RowSpacing="12" ColumnSpacing="12">
+          <Border Classes="card" Padding="16,12">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="已安装版本" Classes="caption" />
+              <TextBlock Text="{Binding InstalledVersionCount}"
+                         FontSize="{DynamicResource FontSize.Title}"
+                         FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="1" Classes="card" Padding="16,12">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="模组" Classes="caption" />
+              <TextBlock Text="{Binding ModCount}"
+                         FontSize="{DynamicResource FontSize.Title}"
+                         FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Row="1" Classes="card" Padding="16,12">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="世界" Classes="caption" />
+              <TextBlock Text="{Binding WorldCount}"
+                         FontSize="{DynamicResource FontSize.Title}"
+                         FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Row="1" Grid.Column="1" Classes="card" Padding="16,12">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="磁盘占用" Classes="caption" />
+              <TextBlock Text="{Binding DiskUsageBytes, Converter={x:Static conv:Converters.BytesToSize}}"
+                         FontSize="{DynamicResource FontSize.Title}"
+                         FontWeight="SemiBold"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Grid>
+
+      <!-- 外部报告分析结果：占用主区域，不新开页面，也不与本机崩溃状态共用集合 -->
+      <Border Classes="card"
+              Padding="18,16"
+              IsVisible="{Binding HasImportedCrash}">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="外部报告分析" Classes="h3" />
+              <TextBlock Text="{Binding ImportedCrashSource}"
+                         Classes="mono"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Column="1"
+                    Classes="ghost"
+                    Content="关闭结果"
+                    VerticalAlignment="Top"
+                    Command="{Binding ClearImportedCrashCommand}" />
+          </Grid>
+
+          <TextBlock Grid.Row="1"
+                     Text="{Binding ImportedCrashSummary}"
+                     TextWrapping="Wrap"
+                     LineHeight="18" />
+
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding ImportedSuggestions}"
+                          IsVisible="{Binding HasImportedSuggestions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CrashSuggestionItem">
+                  <Border Classes="sunken" Margin="0,0,0,8">
+                    <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="12">
+                      <Border Grid.Column="0" Width="4" CornerRadius="2"
+                              Background="{DynamicResource Status.Danger}"
+                              IsVisible="{Binding IsError}" />
+                      <Border Grid.Column="0" Width="4" CornerRadius="2"
+                              Background="{DynamicResource Status.Warning}"
+                              IsVisible="{Binding IsWarning}" />
+
+                      <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="{DynamicResource FontSize.BodyLg}" />
+                        <TextBlock Text="{Binding Detail}"
+                                   Classes="muted"
+                                   TextWrapping="Wrap"
+                                   LineHeight="18" />
+                      </StackPanel>
+
+                      <Button Grid.Column="2"
+                              Classes="pill"
+                              VerticalAlignment="Center"
+                              Content="{Binding ActionLabel}"
+                              ToolTip.Tip="{Binding ActionTip}"
+                              Command="{Binding RunCommand}"
+                              IsVisible="{Binding HasAction}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <!-- 启动进度与崩溃建议：按内容高度挂在主区域下方，不参与空间分配 -->
+      <StackPanel Grid.Row="1" Spacing="16" Margin="0,16,0,0">
+
+        <Border Classes="card" Padding="20,18" IsVisible="{Binding HasLaunchPanel}">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">
+            <controls:RingProgress Width="72" Height="72"
+                                   Value="{Binding LaunchRatio}"
+                                   Maximum="100"
+                                   Thickness="6"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   Text="{Binding LaunchPercentText}"
+                                   TextBrush="{DynamicResource Text.Primary}" />
+
+            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding LaunchPhaseText}" FontWeight="Medium" />
+                <TextBlock Grid.Column="1" Text="{Binding LaunchSpeedText}" Classes="muted" />
+              </Grid>
+              <ProgressBar Value="{Binding LaunchRatio}" Maximum="100" />
+              <TextBlock Text="{Binding LaunchDetail}"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+              <!-- 多开时首页只显示「最近一次启动」这一条进度，另外几个实例在跑的事实
+                   必须显式说出来，否则用户会以为「停止游戏」能把它们一起停掉。 -->
+              <TextBlock Text="{Binding OtherRunningText}"
+                         Classes="muted"
+                         FontSize="12"
+                         IsVisible="{Binding HasOtherRunningGames}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <!-- 进程起来之后「取消」就失效了（它只取消启动流程，不会杀进程），
+                   这里换成「停止游戏」：文案必须写「停止」而不是「关闭」，
+                   用户才知道这是杀掉进程；不弹确认框，卡死时少一次点击。
+                   可见性绑「本次启动的会话是否在跑」：多开时别的实例在跑不该让这个按钮亮起来，
+                   它只停最近一次启动的那个。 -->
+              <Button Classes="pill danger"
+                      Content="停止游戏"
+                      IsVisible="{Binding IsLaunchSessionRunning}"
+                      ToolTip.Tip="结束最近一次启动的游戏进程；其它实例请在版本页各自停止"
+                      Command="{Binding StopGameCommand}" />
+              <Button Classes="ghost"
+                      Content="取消"
+                      IsVisible="{Binding ShowCancelLaunch}"
+                      Command="{Binding CancelLaunchCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Classes="card"
+                Padding="18,16"
+                Background="{DynamicResource Status.Danger.Soft}"
+                BorderBrush="{DynamicResource Status.Danger}"
+                IsVisible="{Binding HasFailure}">
+          <StackPanel Spacing="10">
+            <!-- Grid 而不是横向 StackPanel：横向 StackPanel 给子元素的可用宽度是无限的，
+                 TextWrapping="Wrap" 因此不生效，长失败文案（缺 Java 那段）会溢出到卡片外被裁掉（§6.18 同类坑）。 -->
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Path Data="M12 3 22 20H2Z M12 10v4 M12 17h.01"
+                    Stroke="{DynamicResource Status.Danger}"
+                    StrokeThickness="1.6"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Width="17" Height="17"
+                    Stretch="Uniform"
+                    VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding FailureMessage}"
+                         TextWrapping="Wrap"
+                         FontWeight="Medium"
+                         Foreground="{DynamicResource Status.Danger}"
+                         VerticalAlignment="Center" />
+            </Grid>
+
+            <TextBlock Text="{Binding CrashText}"
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding CrashText, Converter={x:Static conv:Converters.HasValue}}" />
+
+            <ItemsControl ItemsSource="{Binding Suggestions}" IsVisible="{Binding HasSuggestions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CrashSuggestionItem">
+                  <Border Classes="sunken" Margin="0,0,0,8">
+                    <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="12">
+                      <!-- 左侧竖条按严重度上色：Error 红、Warning 黄、Info 不画。比加图标省地方，也符合既有 badge 语言。 -->
+                      <Border Grid.Column="0" Width="4" CornerRadius="2"
+                              Background="{DynamicResource Status.Danger}"
+                              IsVisible="{Binding IsError}" />
+                      <Border Grid.Column="0" Width="4" CornerRadius="2"
+                              Background="{DynamicResource Status.Warning}"
+                              IsVisible="{Binding IsWarning}" />
+
+                      <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="{DynamicResource FontSize.BodyLg}" />
+                        <TextBlock Text="{Binding Detail}"
+                                   Classes="muted"
+                                   TextWrapping="Wrap"
+                                   LineHeight="18" />
+                      </StackPanel>
+
+                      <!-- 动作按钮：Core 的规则一直带着 ActionId，界面层此前从没接上 -->
+                      <Button Grid.Column="2"
+                              Classes="pill"
+                              VerticalAlignment="Center"
+                              Content="{Binding ActionLabel}"
+                              ToolTip.Tip="{Binding ActionTip}"
+                              Command="{Binding RunCommand}"
+                              IsVisible="{Binding HasAction}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- 缺少 Java 的处置：整条失败链路上唯一「点一下就修好」的出口。
+                 文案与能否一键装都由 Core 的 JavaProvisionPlanner 决定，
+                 这里只按结果渲染按钮：能装就「安装 Java N」，装好了换成「重新启动」。 -->
+            <Border Classes="sunken"
+                    IsVisible="{Binding HasMissingJava}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding MissingJavaHint}"
+                           TextWrapping="Wrap" />
+
+                <!-- 进度条只在下载中出现；百分比用 RingProgress 会喧宾夺主，这里是次要信息 -->
+                <StackPanel Spacing="4" IsVisible="{Binding JavaInstall.IsInstalling}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="正在下载运行时" Classes="muted" />
+                    <TextBlock Grid.Column="1" Text="{Binding JavaInstall.PercentText}" Classes="muted" />
+                  </Grid>
+                  <!-- 比例一律 0..1 直接绑，不套字符串转换器 -->
+                  <ProgressBar Value="{Binding JavaInstall.Ratio}" Minimum="0" Maximum="1" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding JavaInstall.StatusText}"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding JavaInstall.StatusText, Converter={x:Static conv:Converters.HasValue}}" />
+
+                <!-- WrapPanel：1024 窄窗下两个按钮不会把卡片撑破 -->
+                <WrapPanel Orientation="Horizontal">
+                  <Button Classes="pill"
+                          Margin="0,0,8,0"
+                          Content="{Binding JavaInstallButtonText}"
+                          IsVisible="{Binding JavaInstallButtonText, Converter={x:Static conv:Converters.HasValue}}"
+                          IsEnabled="{Binding CanInstallMissingJava}"
+                          Command="{Binding InstallMissingJavaCommand}" />
+                  <Button Classes="pill"
+                          Margin="0,0,8,0"
+                          Content="{Binding JavaRestartButtonText}"
+                          IsVisible="{Binding HasInstalledJava}"
+                          Command="{Binding RelaunchAfterJavaInstallCommand}" />
+                  <Button Classes="pill"
+                          Margin="0,0,8,0"
+                          Content="打开 Java 设置"
+                          Command="{Binding NavigateToCommand}"
+                          CommandParameter="settings" />
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+
+            <!-- WrapPanel 而不是 StackPanel：窄窗（1024）下按钮会自动换行，不会横向溢出被裁掉 -->
+            <WrapPanel Orientation="Horizontal">
+              <Button Classes="pill"
+                      Content="打开游戏目录"
+                      Margin="0,0,8,8"
+                      Command="{Binding OpenGameFolderCommand}" />
+              <!-- 只有真的解析到报告文件时才露出，避免用户点了没反应 -->
+              <Button Classes="pill"
+                      Content="打开崩溃报告"
+                      Margin="0,0,8,8"
+                      IsVisible="{Binding HasCrashReportPath}"
+                      ToolTip.Tip="{Binding CrashReportPath}"
+                      Command="{Binding OpenCrashReportCommand}" />
+              <Button Classes="pill"
+                      Content="打开 mods 目录"
+                      Margin="0,0,8,8"
+                      Command="{Binding OpenModsFolderCommand}" />
+              <Button Classes="pill"
+                      Content="分析外部报告"
+                      Margin="0,0,8,8"
+                      IsEnabled="{Binding CanImportCrash}"
+                      Click="OnImportCrashReportClick" />
+              <!-- 没有崩溃结论时静默禁用，不弹错误框 -->
+              <Button Classes="pill"
+                      Content="导出崩溃报告"
+                      Margin="0,0,8,8"
+                      IsEnabled="{Binding CanExportCrash}"
+                      ToolTip.Tip="把结论、游戏输出、启动器日志与系统快照打成一个脱敏 zip，可直接发给他人排查"
+                      Click="OnExportCrashClick" />
+              <Button Classes="pill"
+                      Content="打开导出目录"
+                      Margin="0,0,8,8"
+                      IsVisible="{Binding HasExportPath}"
+                      ToolTip.Tip="{Binding ExportPath}"
+                      Command="{Binding OpenExportFolderCommand}" />
+              <Button Classes="pill"
+                      Content="查看版本"
+                      Margin="0,0,8,0"
+                      Command="{Binding NavigateToCommand}"
+                      CommandParameter="versions" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Grid>
+
+    <!-- ==================== 底部：快捷操作 ==================== -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,*,*,*" ColumnSpacing="16" Margin="0,16,0,0">
+      <Button Background="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Stretch"
+              VerticalContentAlignment="Stretch"
+              Command="{Binding OpenGameFolderCommand}">
+        <Border Classes="card hoverable" Padding="16,14">
+          <StackPanel Spacing="10">
+            <Border Width="34" Height="34"
+                    CornerRadius="10"
+                    Background="{DynamicResource Accent.Soft}"
+                    HorizontalAlignment="Left">
+              <Path Data="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"
+                    Stroke="{DynamicResource Accent.Primary}"
+                    StrokeThickness="1.6"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="16" Height="16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="打开游戏目录" FontWeight="Medium" />
+              <TextBlock Text="在资源管理器中查看 .minecraft"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Button>
+
+      <Button Grid.Column="1"
+              Background="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Stretch"
+              VerticalContentAlignment="Stretch"
+              Command="{Binding NavigateToCommand}"
+              CommandParameter="versions">
+        <Border Classes="card hoverable" Padding="16,14">
+          <StackPanel Spacing="10">
+            <Border Width="34" Height="34"
+                    CornerRadius="10"
+                    Background="{DynamicResource Accent.Soft}"
+                    HorizontalAlignment="Left">
+              <Path Data="M12 2.5 21 7v10l-9 4.5L3 17V7zM12 12l9-5M12 12v9.5M12 12 3 7"
+                    Stroke="{DynamicResource Accent.Primary}"
+                    StrokeThickness="1.6"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="16" Height="16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="管理版本" FontWeight="Medium" />
+              <TextBlock Text="修复、删除或启动已安装版本"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Button>
+
+      <Button Grid.Column="2"
+              Background="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Stretch"
+              VerticalContentAlignment="Stretch"
+              Command="{Binding NavigateToCommand}"
+              CommandParameter="servers">
+        <Border Classes="card hoverable" Padding="16,14">
+          <StackPanel Spacing="10">
+            <Border Width="34" Height="34"
+                    CornerRadius="10"
+                    Background="{DynamicResource Accent.Soft}"
+                    HorizontalAlignment="Left">
+              <Path Data="M4 6h16v5H4zM4 13h16v5H4zM7.5 8.5h.01M7.5 15.5h.01"
+                    Stroke="{DynamicResource Accent.Primary}"
+                    StrokeThickness="1.6"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="16" Height="16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="收藏服务器" FontWeight="Medium" />
+              <TextBlock Text="查看在线状态并一键加入"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Button>
+
+      <!-- 崩溃报告入口：常驻可点，不要求本机先崩一次才能用 -->
+      <Button Grid.Column="3"
+              Background="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Stretch"
+              VerticalContentAlignment="Stretch"
+              IsEnabled="{Binding CanImportCrash}"
+              Click="OnImportCrashReportClick">
+        <Border Classes="card hoverable" Padding="16,14">
+          <StackPanel Spacing="10">
+            <Border Width="34" Height="34"
+                    CornerRadius="10"
+                    Background="{DynamicResource Accent.Soft}"
+                    HorizontalAlignment="Left">
+              <Path Data="M6 3h7l5 5v13H6zM13 3v5h5M9 13h6M9 17h4"
+                    Stroke="{DynamicResource Accent.Primary}"
+                    StrokeThickness="1.6"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="16" Height="16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+              <TextBlock Text="分析崩溃报告" FontWeight="Medium" />
+              <TextBlock Text="导入 crash-report / hs_err"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Button>
+    </Grid>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

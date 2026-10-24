@@ -1,0 +1,365 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:views="using:NebulaLauncher.Views"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             x:Class="NebulaLauncher.Views.ServersView"
+             x:DataType="vm:ServersViewModel">
+
+  <UserControl.Styles>
+    <!-- 状态灯：在线绿 / 超时黄 / 其余灰 -->
+    <Style Selector="Border.statusDot">
+      <Setter Property="Background" Value="{DynamicResource Text.Muted}" />
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Height" Value="10" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="2,7,0,0" />
+    </Style>
+
+    <Style Selector="Border.statusDot.online">
+      <Setter Property="Background" Value="{DynamicResource Status.Success}" />
+    </Style>
+
+    <Style Selector="Border.statusDot.timeout">
+      <Setter Property="Background" Value="{DynamicResource Status.Warning}" />
+    </Style>
+
+    <Style Selector="Button.icon.small">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="30" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Spacing="14" Margin="0,0,4,16">
+
+      <!-- ============ 工具行 ============ -->
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="收藏的服务器" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="每分钟自动刷新状态" Classes="muted" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Classes="ghost" Content="刷新全部" Command="{Binding RefreshAllCommand}" />
+          <Button Classes="ghost"
+                  Command="{Binding ImportFromServersDatCommand}"
+                  IsEnabled="{Binding !IsImporting}"
+                  ToolTip.Tip="读取当前游戏目录的 servers.dat（Minecraft 自带的服务器列表），已存在的地址会跳过">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Data="M3 6h6l2 2h10v11H3zM12 12v5M9.5 14.5L12 17l2.5-2.5"
+                    Stroke="{DynamicResource Text.Secondary}"
+                    StrokeThickness="1.5"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="14" Height="14"
+                    VerticalAlignment="Center" />
+              <TextBlock Text="导入 servers.dat" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="accent" Content="添加服务器" Command="{Binding OpenFormCommand}" />
+        </StackPanel>
+      </Grid>
+
+      <ProgressBar IsVisible="{Binding IsLoading}" IsIndeterminate="True" Height="4" />
+
+      <!-- ============ 提示条 ============ -->
+      <Border IsVisible="{Binding IsDemoMode}"
+              Background="{DynamicResource Status.Warning.Soft}"
+              BorderBrush="{DynamicResource Status.Warning}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <TextBlock Text="示例数据 · Core 服务尚未接线，状态为本地模拟，不会发起网络请求"
+                   Classes="muted"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Status.Warning}" />
+      </Border>
+
+      <Border IsVisible="{Binding HasError}"
+              Background="{DynamicResource Status.Danger.Soft}"
+              BorderBrush="{DynamicResource Status.Danger}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <TextBlock Text="{Binding ErrorText}"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Status.Danger}" />
+      </Border>
+
+      <Border IsVisible="{Binding HasInfo}"
+              Background="{DynamicResource Accent.Soft}"
+              BorderBrush="{DynamicResource Stroke.Default}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <TextBlock Text="{Binding InfoText}" TextWrapping="Wrap" Classes="secondary" />
+      </Border>
+
+      <!-- ============ 添加 / 编辑表单 ============ -->
+      <Border Classes="card" IsVisible="{Binding IsFormOpen}" Padding="18">
+        <StackPanel Spacing="12">
+          <TextBlock Text="服务器信息" FontWeight="SemiBold" />
+
+          <Grid ColumnDefinitions="*,12,1.4*,Auto" VerticalAlignment="Center">
+            <TextBox Watermark="名称，可留空（默认用域名）"
+                     Text="{Binding FormName}" />
+            <TextBox Grid.Column="2"
+                     Watermark="地址，例如 play.example.com:25565"
+                     Text="{Binding FormAddress}" />
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
+              <Button Classes="accent" Content="保存" Command="{Binding SaveFormCommand}" />
+              <Button Classes="ghost" Content="取消" Command="{Binding CancelFormCommand}" />
+            </StackPanel>
+          </Grid>
+
+          <TextBlock Text="{Binding FormError}"
+                     IsVisible="{Binding FormError, Converter={x:Static conv:Converters.HasValue}}"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource Status.Danger}"
+                     FontSize="{DynamicResource FontSize.Small}" />
+        </StackPanel>
+      </Border>
+
+      <!-- ============ 服务器列表 ============ -->
+      <ItemsControl ItemsSource="{Binding Servers}" IsVisible="{Binding !IsEmpty}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ServerCardViewModel">
+            <Border Classes="card hoverable" Margin="0,0,0,10" Padding="16,14">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+
+                  <Border Classes="statusDot"
+                          Classes.online="{Binding IsOnline}"
+                          Classes.timeout="{Binding IsTimeout}" />
+
+                  <!-- 图标槽固定 32×32：有没有图标都不改变行高与列宽，不会让旁边的列错位。
+                       图标来自服务器 SLP 的 favicon；没有时显示名字首字母占位。 -->
+                  <Border Grid.Column="1"
+                          Width="32"
+                          Height="32"
+                          Margin="10,0,0,0"
+                          VerticalAlignment="Top"
+                          CornerRadius="{DynamicResource Radius.Sm}"
+                          ClipToBounds="True">
+                    <Panel>
+                      <Border Background="{DynamicResource Surface.Sunken}"
+                              BorderBrush="{DynamicResource Stroke.Subtle}"
+                              BorderThickness="1"
+                              IsVisible="{Binding !HasFavicon}">
+                        <TextBlock Text="{Binding Initial}"
+                                   FontSize="{DynamicResource FontSize.BodyLg}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                      </Border>
+                      <Image Source="{Binding Favicon}"
+                             Stretch="UniformToFill"
+                             IsVisible="{Binding HasFavicon}" />
+                    </Panel>
+                  </Border>
+
+                <StackPanel Grid.Column="2" Margin="12,0,16,0" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Address}"
+                               Classes="mono"
+                               Foreground="{DynamicResource Text.Tertiary}"
+                               VerticalAlignment="Center" />
+                    <Border Classes="badge" IsVisible="{Binding HasVersion}">
+                      <TextBlock Text="{Binding VersionText}" />
+                    </Border>
+                    <TextBlock Text="{Binding StatusText}" Classes="caption" VerticalAlignment="Center" />
+                  </StackPanel>
+
+                  <views:MotdBlock Motd="{Binding MotdRaw}"
+                                   MaxLines="3"
+                                   LineHeight="19"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontSize="{DynamicResource FontSize.BodyLg}" />
+
+                  <TextBlock Text="{Binding ErrorText}"
+                             IsVisible="{Binding HasError}"
+                             Classes="caption"
+                             Foreground="{DynamicResource Status.Warning}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Spacing="8" MinWidth="210">
+                  <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="人数" Classes="caption" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding PlayerText}" Classes="mono" VerticalAlignment="Center" />
+                      <Button Classes="pill ghost"
+                              Content="玩家"
+                              Padding="9,2"
+                              MinHeight="22"
+                              FontSize="{DynamicResource FontSize.Caption}"
+                              VerticalAlignment="Center"
+                              IsEnabled="{Binding !IsQueryingPlayers}"
+                              ToolTip.Tip="用 GameSpy4 Query（UDP 同端口）查询这台服务器的玩家名单。只查这一台，不会批量轮询；服务器关闭 Query 时看不到名单。"
+                              Command="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).QueryPlayersCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="延迟" Classes="caption" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding LatencyText}" Classes="mono" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </StackPanel>
+
+                  <StackPanel Orientation="Horizontal" Spacing="3" HorizontalAlignment="Right">
+                    <Button Classes="icon small" ToolTip.Tip="刷新状态"
+                            Command="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).RefreshOneCommand}"
+                            CommandParameter="{Binding}">
+                      <Path Data="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"
+                            Stroke="{DynamicResource Text.Tertiary}"
+                            StrokeThickness="1.6"
+                            StrokeLineCap="Round"
+                            StrokeJoin="Round"
+                            Stretch="Uniform"
+                            Width="14" Height="14" />
+                    </Button>
+
+                    <Button Classes="icon small" ToolTip.Tip="编辑"
+                            Command="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).EditServerCommand}"
+                            CommandParameter="{Binding}">
+                      <Path Data="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"
+                            Stroke="{DynamicResource Text.Tertiary}"
+                            StrokeThickness="1.6"
+                            StrokeLineCap="Round"
+                            StrokeJoin="Round"
+                            Stretch="Uniform"
+                            Width="14" Height="14" />
+                    </Button>
+
+                    <Button Classes="icon small" ToolTip.Tip="复制地址"
+                            Command="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).CopyAddressCommand}"
+                            CommandParameter="{Binding}">
+                      <Path Data="M9 9h10v10H9zM5 15V5h10"
+                            Stroke="{DynamicResource Text.Tertiary}"
+                            StrokeThickness="1.6"
+                            StrokeLineCap="Round"
+                            StrokeJoin="Round"
+                            Stretch="Uniform"
+                            Width="14" Height="14" />
+                    </Button>
+
+                    <Button Classes="icon small" ToolTip.Tip="删除"
+                            Command="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).DeleteServerCommand}"
+                            CommandParameter="{Binding}">
+                      <Path Data="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v5M14 11v5"
+                            Stroke="{DynamicResource Status.Danger}"
+                            StrokeThickness="1.6"
+                            StrokeLineCap="Round"
+                            StrokeJoin="Round"
+                            Stretch="Uniform"
+                            Width="14" Height="14" />
+                    </Button>
+
+                    <Button Classes="accent"
+                            Content="加入"
+                            Padding="14,4"
+                            MinHeight="30"
+                            IsEnabled="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).IsJoining, Converter={x:Static conv:Converters.InverseBool}}"
+                            Command="{Binding $parent[ItemsControl].((vm:ServersViewModel)DataContext).JoinServerCommand}"
+                            CommandParameter="{Binding}" />
+                  </StackPanel>
+                </StackPanel>
+                </Grid>
+
+                <!-- 玩家名单：点「玩家」才查（GameSpy4 Query，UDP）。Query 关闭时只给说明，不算错误。 -->
+                <Border Classes="sunken" IsVisible="{Binding IsPlayersOpen}">
+                  <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding PlayersHeaderText}"
+                                 FontWeight="SemiBold"
+                                 FontSize="{DynamicResource FontSize.Body}"
+                                 VerticalAlignment="Center" />
+                      <TextBlock Text="Query · UDP"
+                                 Classes="caption"
+                                 VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding PlayersHint}"
+                               IsVisible="{Binding PlayersHint, Converter={x:Static conv:Converters.HasValue}}"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <ItemsControl ItemsSource="{Binding PlayerNames}" IsVisible="{Binding HasPlayerList}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <Border Classes="badge" Margin="0,0,6,6">
+                            <TextBlock Text="{Binding}" />
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- ============ 空状态 ============ -->
+      <Border Classes="card" IsVisible="{Binding IsEmpty}" Padding="32,36">
+        <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="560">
+          <Border Width="56" Height="56"
+                  CornerRadius="28"
+                  Background="{DynamicResource Accent.Soft}"
+                  HorizontalAlignment="Center">
+            <Path Data="M4 6h16v5H4zM4 13h16v5H4zM7.5 8.5h.01M7.5 15.5h.01"
+                  Stroke="{DynamicResource Accent.Primary}"
+                  StrokeThickness="1.6"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="Uniform"
+                  Width="26" Height="26"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Border>
+
+          <TextBlock Text="还没有收藏任何服务器"
+                     Classes="h3"
+                     TextAlignment="Center"
+                     HorizontalAlignment="Center" />
+          <TextBlock Text="点右上角「添加服务器」填 host:port；如果这个目录里的 Minecraft 已经有一份收藏，直接点下面的按钮把它搬过来。进入本页会并行探测状态，之后每分钟自动刷新。"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center"
+                     LineHeight="20" />
+
+          <Button Classes="ghost"
+                  HorizontalAlignment="Center"
+                  Margin="0,6,0,0"
+                  Command="{Binding ImportFromServersDatCommand}"
+                  IsEnabled="{Binding !IsImporting}"
+                  ToolTip.Tip="读取当前游戏目录的 servers.dat（Minecraft 自带的服务器列表），已存在的地址会跳过">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Data="M3 6h6l2 2h10v11H3zM12 12v5M9.5 14.5L12 17l2.5-2.5"
+                    Stroke="{DynamicResource Text.Secondary}"
+                    StrokeThickness="1.5"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="14" Height="14"
+                    VerticalAlignment="Center" />
+              <TextBlock Text="从 servers.dat 导入" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

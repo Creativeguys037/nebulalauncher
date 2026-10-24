@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>NebulaLauncher.Tests</RootNamespace>
+    <AssemblyName>NebulaLauncher.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NebulaLauncher.Core\NebulaLauncher.Core.csproj" />
+
+    <!-- App 层的纯逻辑（ShellProgress 的进度映射与节流）需要直接测。
+         App 是 WinExe，但 .NET 允许引用 exe 程序集；测试只触碰不依赖 Avalonia 的类型。 -->
+    <ProjectReference Include="..\..\src\NebulaLauncher.App\NebulaLauncher.App.csproj" />
+  </ItemGroup>
+
+</Project>

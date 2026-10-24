@@ -1,0 +1,1653 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             x:Class="NebulaLauncher.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <UserControl.Styles>
+    <!-- 左侧分区导航 -->
+    <Style Selector="Button.section">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Margin" Value="0,1" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="MinHeight" Value="40" />
+    </Style>
+
+    <Style Selector="Button.section:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style Selector="Button.section.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="Button.section Path">
+      <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+
+    <Style Selector="Button.section.active Path">
+      <Setter Property="Stroke" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!-- 卡片式选项（单选组） -->
+    <Style Selector="Button.option">
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="MinHeight" Value="74" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+
+    <Style Selector="Button.option:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+    </Style>
+
+    <Style Selector="Button.option.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <Style Selector="Button.option.active:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!-- 保存按钮：有未保存改动时高亮为渐变强调色 -->
+    <Style Selector="Button.save">
+      <Setter Property="Padding" Value="24,9" />
+      <Setter Property="MinWidth" Value="128" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    </Style>
+
+    <Style Selector="Button.save.dirty">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="*,Auto">
+
+    <Grid Grid.Row="0" ColumnDefinitions="196,*">
+
+      <!-- ==================== 分区导航 ==================== -->
+      <Border Classes="card" Padding="8" VerticalAlignment="Top">
+        <ItemsControl ItemsSource="{Binding Sections}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsSection">
+              <Button Classes="section"
+                      Classes.active="{Binding IsActive}"
+                      Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SelectSectionCommand}"
+                      CommandParameter="{Binding Key}">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Path Data="{Binding IconData}"
+                        StrokeThickness="1.6"
+                        StrokeLineCap="Round"
+                        StrokeJoin="Round"
+                        Stretch="Uniform"
+                        Width="16" Height="16"
+                        VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <!-- ==================== 分区内容 ==================== -->
+      <ScrollViewer Grid.Column="1"
+                    Margin="16,0,0,0"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12" Margin="0,0,6,0">
+
+          <!-- 服务未接入提示 -->
+          <Border IsVisible="{Binding HasServiceWarning}"
+                  Background="{DynamicResource Status.Warning.Soft}"
+                  BorderBrush="{DynamicResource Status.Warning}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource Radius.Md}"
+                  Padding="14,10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="!"
+                         FontWeight="Bold"
+                         Foreground="{DynamicResource Status.Warning}"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ServiceWarning}"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource Text.Secondary}"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <!-- ============ 常规 ============ -->
+          <StackPanel IsVisible="{Binding IsGeneralSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="常规" Classes="h3" />
+              <TextBlock Text="启动器行为与界面语言。" Classes="muted" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="18">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="界面语言" Classes="label" />
+                    <TextBlock Text="更多语言开发中" Classes="muted" />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1"
+                            Width="220"
+                            HorizontalAlignment="Left"
+                            ItemsSource="{Binding Languages}"
+                            SelectedItem="{Binding SelectedLanguage}" />
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="启动后自动关闭启动器" Classes="label" />
+                    <TextBlock Text="游戏进程启动成功后退出主窗口" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding CloseLauncherAfterLaunch}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="关闭到托盘" Classes="label" />
+                    <TextBlock Text="点击关闭按钮时最小化到通知区域" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding CloseToTray}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ Java ============ -->
+          <StackPanel IsVisible="{Binding IsJavaSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Java 运行时" Classes="h3" />
+              <TextBlock Text="启动器会为每个游戏版本挑选满足要求的最低主版本 Java；自带的 JDK 不在 PATH 里时，用「添加 Java…」手动纳入候选。"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="已检测到的 Java" Classes="label" />
+                    <TextBlock Text="{Binding JavaStatus}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1"
+                              Orientation="Horizontal"
+                              Spacing="8"
+                              VerticalAlignment="Center">
+                    <Button Classes="pill"
+                            Content="添加 Java…"
+                            Click="OnAddJavaClick" />
+                    <Button Classes="pill"
+                            Content="重新扫描"
+                            Command="{Binding DetectJavaCommand}" />
+                  </StackPanel>
+                </Grid>
+
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsJavaLoading}" />
+
+                <TextBlock Text="{Binding JavaError}"
+                           IsVisible="{Binding JavaError, Converter={x:Static conv:Converters.HasValue}}"
+                           Foreground="{DynamicResource Status.Danger}"
+                           TextWrapping="Wrap" />
+
+                <ScrollViewer MaxHeight="272" VerticalScrollBarVisibility="Auto">
+                  <ListBox ItemsSource="{Binding DetectedJavas}"
+                           SelectedItem="{Binding SelectedJava}"
+                           SelectionMode="Single">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:JavaOption">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                          <Border Classes="badge" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" />
+                          </Border>
+                          <StackPanel Grid.Column="1" Spacing="2">
+                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                              <TextBlock Text="{Binding Version}" FontWeight="Medium" />
+                              <Border Grid.Column="1"
+                                      Classes="badge"
+                                      IsVisible="{Binding IsManual}"
+                                      Background="{DynamicResource Status.Success.Soft}">
+                                <TextBlock Text="手动" />
+                              </Border>
+                            </Grid>
+                            <TextBlock Text="{Binding Meta}" Classes="muted" />
+                            <TextBlock Text="{Binding Path}"
+                                       Classes="mono muted"
+                                       TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                          <Button Grid.Column="2"
+                                  Classes="pill ghost"
+                                  Content="使用"
+                                  VerticalAlignment="Center"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).UseJavaCommand}"
+                                  CommandParameter="{Binding}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </ScrollViewer>
+
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                  <Button Classes="pill danger"
+                          Content="移除选中"
+                          VerticalAlignment="Center"
+                          IsEnabled="{Binding HasSelectedJava}"
+                          Command="{Binding RemoveSelectedJavaCommand}" />
+                  <TextBlock Grid.Column="1"
+                             Classes="muted"
+                             VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Text="移除只影响候选列表：该 Java 不再参与自动选择，记录在 java-excluded.json，可在下方「已忽略」里恢复。" />
+                </Grid>
+
+                <TextBlock Text="未检测到 Java，请手动指定路径或安装一个 JRE/JDK。"
+                           IsVisible="{Binding IsJavaEmpty}"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <!-- 已忽略（PCL2 的 JavaRemovedList）：有记录才出现，平时不占版面的注意力 -->
+            <Border Classes="card" IsVisible="{Binding HasExcludedJavas}">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="已忽略的 Java" Classes="label" />
+                    <TextBlock Text="{Binding ExcludedSummary}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Button Grid.Column="1"
+                          Classes="pill ghost"
+                          Content="全部恢复"
+                          VerticalAlignment="Center"
+                          Command="{Binding ClearExcludedJavaCommand}" />
+                </Grid>
+
+                <CheckBox Content="展开已忽略列表" IsChecked="{Binding ShowExcludedJavas}" />
+
+                <ItemsControl ItemsSource="{Binding ExcludedJavas}"
+                              IsVisible="{Binding ShowExcludedJavas}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ExcludedJavaOption">
+                      <Border Background="{DynamicResource Surface.Raised}"
+                              BorderBrush="{DynamicResource Stroke.Subtle}"
+                              BorderThickness="1"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              Padding="12,10"
+                              Margin="0,0,0,6">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding DisplayName}"
+                                       FontWeight="Medium"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding Path}" />
+                            <TextBlock Text="{Binding Path}"
+                                       Classes="mono muted"
+                                       TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                          <Button Grid.Column="1"
+                                  Classes="pill"
+                                  Content="恢复"
+                                  VerticalAlignment="Center"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RestoreJavaCommand}"
+                                  CommandParameter="{Binding Path}" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <TextBlock Text="启动时固定使用的 Java" Classes="label" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBox Text="{Binding JavaPath}"
+                           FontFamily="Cascadia Code, Consolas, monospace"
+                           Watermark="留空表示自动选择，例如 C:\Program Files\Java\jdk-21\bin\javaw.exe" />
+                  <Button Grid.Column="1" Classes="pill" Content="浏览…" Click="OnBrowseJavaClick" />
+                </Grid>
+                <TextBlock Text="留空时启动器在候选列表里挑满足版本要求的最低主版本；填了就固定用这一个。这一段只决定启动参数，不会把它加入候选列表——要加入候选（出现在上面的列表、参与自动选择）请用「添加 Java…」。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <TextBlock Text="缺少 Java？直接下载" Classes="label" />
+                <TextBlock Text="本机没有满足版本要求的运行时（例如 26.x 需要 Java 25）时，在这里装一个即可，启动器会复用。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <ComboBox ItemsSource="{Binding JavaDownloadOptions}"
+                            SelectedItem="{Binding SelectedJavaDownload}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:JavaDownloadOption">
+                        <TextBlock Text="{Binding Display}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <Button Grid.Column="1"
+                          Classes="pill"
+                          Content="下载并安装"
+                          IsEnabled="{Binding JavaInstall.CanStart}"
+                          Command="{Binding DownloadJavaCommand}" />
+                </Grid>
+                <!-- 比例一律 0..1 直接绑，不套字符串转换器 -->
+                <ProgressBar IsVisible="{Binding JavaInstall.IsInstalling}"
+                             Value="{Binding JavaInstall.Ratio}"
+                             Minimum="0"
+                             Maximum="1" />
+                <TextBlock Text="{Binding JavaInstall.StatusText}"
+                           IsVisible="{Binding JavaInstall.StatusText, Converter={x:Static conv:Converters.HasValue}}"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="缓存探测结果" Classes="label" />
+                    <TextBlock Text="跳过对未变化 Java 的重复探测" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding EnableJavaCache}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding JavaCacheHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ 游戏 ============ -->
+          <StackPanel IsVisible="{Binding IsGameSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="游戏目录" Classes="h3" />
+              <TextBlock Text="决定游戏本体、模组与存档写在哪里；换目录后不会自动搬走旧文件。" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text=".minecraft 位置" Classes="label" />
+                    <TextBlock Text="留空表示跟随平台默认" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding GameDirectory}"
+                               FontFamily="Cascadia Code, Consolas, monospace"
+                               Watermark="{Binding DefaultGameDirectory}" />
+                      <Button Grid.Column="1" Classes="pill" Content="浏览…" Click="OnBrowseGameDirectoryClick" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button Classes="ghost" Content="诊断写入" Command="{Binding ProbeGameDirectoryCommand}" />
+                      <Button Classes="pill" Content="打开目录" Command="{Binding OpenGameDirectoryCommand}" />
+                      <Button Classes="ghost" Content="恢复默认" Command="{Binding UseDefaultGameDirectoryCommand}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding GameDirectoryHint}" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Text="保存只要求路径合法、目录能创建；「诊断写入」仅作提示，不阻止保存。实际写入会在安装时校验。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ActiveGameDirectoryText}"
+                               Classes="mono muted"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ActiveDataDirectoryText}"
+                               Classes="muted"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GameDirectoryError}"
+                               IsVisible="{Binding GameDirectoryError, Converter={x:Static conv:Converters.HasValue}}"
+                               Foreground="{DynamicResource Status.Danger}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GameDirectoryStatus}"
+                               IsVisible="{Binding GameDirectoryStatus, Converter={x:Static conv:Converters.HasValue}}"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="版本隔离策略" Classes="label" />
+                <ItemsControl ItemsSource="{Binding IsolationOptions}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <UniformGrid Columns="3" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:IsolationOption">
+                      <Button Classes="option"
+                              Classes.active="{Binding IsActive}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SelectIsolationPolicyCommand}"
+                              CommandParameter="{Binding}">
+                        <StackPanel Spacing="4">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Title}" FontWeight="Medium" />
+                            <Border Classes="badge" IsVisible="{Binding IsRecommended}">
+                              <TextBlock Text="推荐" />
+                            </Border>
+                          </StackPanel>
+                          <TextBlock Text="{Binding Description}"
+                                     Classes="muted"
+                                     TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="变更只影响之后首次启动的版本，已存在的实例不受影响。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <StackPanel Spacing="2">
+              <TextBlock Text="游戏启动参数" Classes="h3" />
+              <TextBlock Text="内存与窗口设置会作为全局默认值，实例可以单独覆盖。" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="18">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="自动分配内存" Classes="label" />
+                    <TextBlock Text="按可用内存与模组数量计算 -Xmx" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding AutoMaxMemory}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding AutoMemoryHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="最大内存" Classes="label" />
+                    <TextBlock Text="大型整合包建议 6144 MB 以上" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Grid Grid.Column="1" ColumnDefinitions="*,86">
+                    <Slider Minimum="1024" Maximum="16384"
+                            TickFrequency="512"
+                            IsSnapToTickEnabled="True"
+                            IsEnabled="{Binding IsManualMemoryEnabled}"
+                            Value="{Binding MaxMemoryMb}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding MaxMemoryDisplay}"
+                               Classes="mono"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="内存占用" Classes="label" />
+                    <TextBlock Text="可分配 / 其它占用 / 本实例" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                    <!--
+                      三段条：整条宽 = 可分配内存上限，宽度随卡片自适应（窄窗不溢出）。
+                      做法是两条 ProgressBar 叠在同一个格子里，而不是三个 Border 拼宽度——
+                      Border 拼宽度需要知道容器像素宽，绑不上；进度条的 Value 直接吃 0..1 比例。
+
+                        上层（黄）= 其它占用，从 0 画到 UsedRatio
+                        底层（蓝）= 已用 + 本实例分配，从 0 画到 UsedRatio + GameRatio
+                        底色（BarFree）= 剩下的可分配余量
+
+                      蓝色被黄色盖住的正是「其它占用」，露出来的右半截就是本实例分配。
+                      超额时 ProgressBar 自己夹到满格，同时底层换红、下方出红字：
+                      条「看起来满了」+ 文字说清原因，而不是把游戏段画丢。
+                    -->
+                    <Grid IsVisible="{Binding HasMemorySnapshot}">
+                      <ProgressBar Minimum="0" Maximum="1"
+                                   Value="{Binding MemoryUsedPlusGameRatio}"
+                                   Background="{DynamicResource Memory.BarFree}"
+                                   Foreground="{DynamicResource Memory.BarGame}"
+                                   IsVisible="{Binding !IsMemoryOverCommit}" />
+                      <ProgressBar Minimum="0" Maximum="1"
+                                   Value="{Binding MemoryUsedPlusGameRatio}"
+                                   Background="{DynamicResource Memory.BarFree}"
+                                   Foreground="{DynamicResource Status.Danger}"
+                                   IsVisible="{Binding IsMemoryOverCommit}" />
+                      <ProgressBar Minimum="0" Maximum="1"
+                                   Value="{Binding MemoryUsedRatio}"
+                                   Background="Transparent"
+                                   Foreground="{DynamicResource Memory.BarUsed}" />
+                    </Grid>
+
+                    <!-- 图例：每项自带色块，窄窗下整项换行，数字不会被折断 -->
+                    <WrapPanel Orientation="Horizontal">
+                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
+                        <Border Width="8" Height="8" CornerRadius="2"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Memory.BarFree}" />
+                        <TextBlock Text="可分配" Classes="muted" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding MemoryTotalText}" Classes="mono" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
+                        <Border Width="8" Height="8" CornerRadius="2"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Memory.BarUsed}" />
+                        <TextBlock Text="其它占用" Classes="muted" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding MemoryUsedText}" Classes="mono" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
+                        <Border Width="8" Height="8" CornerRadius="2"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Memory.BarGame}" />
+                        <TextBlock Text="本实例分配" Classes="muted" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding MemoryGameText}" Classes="mono" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding MemoryOverCommitHint}"
+                               Foreground="{DynamicResource Status.Danger}"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding IsMemoryOverCommit}" />
+
+                    <TextBlock Text="容器 / WSL 里这是 cgroup 限制，不是物理内存条总量。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <!-- 次要动作：占用数字变了才需要重采，平时不用管 -->
+                    <Button Classes="ghost"
+                            Content="重新测量"
+                            HorizontalAlignment="Left"
+                            Command="{Binding RefreshMemorySnapshotCommand}" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="最小内存" Classes="label" />
+                    <TextBlock Text="启动初期占用，通常不用改" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Grid Grid.Column="1" ColumnDefinitions="*,86">
+                    <Slider Minimum="256" Maximum="8192"
+                            TickFrequency="256"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding MinMemoryMb}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding MinMemoryDisplay}"
+                               Classes="mono"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="窗口尺寸" Classes="label" />
+                    <TextBlock Text="游戏窗口的初始宽高" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <TextBox Width="96" Text="{Binding WindowWidthText}" HorizontalContentAlignment="Center" />
+                      <TextBlock Text="×" Classes="muted" VerticalAlignment="Center" />
+                      <TextBox Width="96" Text="{Binding WindowHeightText}" HorizontalContentAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="宽度 320–7680，高度 240–4320；非法值会禁用保存。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="全屏启动" Classes="label" />
+                    <TextBlock Text="忽略上面的窗口尺寸" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding Fullscreen}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="窗口最大化" Classes="label" />
+                    <TextBlock Text="窗口出现后自动最大化" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding MaximizeGameWindow}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Text="游戏窗口标题" Classes="label" />
+                  <TextBox Text="{Binding GameWindowTitle}"
+                           Watermark="Minecraft {version} - {user}" />
+                  <TextBlock Text="{Binding WindowTitleHint}" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                <StackPanel Spacing="6">
+                  <TextBlock Text="游戏启动后的启动器窗口" Classes="label" />
+                  <ItemsControl ItemsSource="{Binding VisibilityOptions}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="3" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ChoiceOption">
+                        <Button Classes="option"
+                                Classes.active="{Binding IsActive}"
+                                Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SelectVisibilityCommand}"
+                                CommandParameter="{Binding}">
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Title}" FontWeight="Medium" />
+                            <TextBlock Text="{Binding Description}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Text="游戏进程优先级" Classes="label" />
+                  <ItemsControl ItemsSource="{Binding PriorityOptions}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="3" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ChoiceOption">
+                        <Button Classes="option"
+                                Classes.active="{Binding IsActive}"
+                                Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SelectPriorityCommand}"
+                                CommandParameter="{Binding}">
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Title}" FontWeight="Medium" />
+                            <TextBlock Text="{Binding Description}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="自动设中文语言" Classes="label" />
+                    <TextBlock Text="改写游戏 options.txt 的 lang" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding AutoChineseLanguage}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding AutoChineseLanguageHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="启动前注册高性能 GPU" Classes="label" />
+                    <TextBlock Text="把 javaw.exe 交给独立显卡" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding RegisterGpuPreference}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding RegisterGpuPreferenceHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="崩溃报告归档" Classes="label" />
+                    <TextBlock Text="打包报告与日志便于求助" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding ArchiveCrashReports}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding ArchiveCrashReportsHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="退出后自动备份世界" Classes="label" />
+                    <TextBlock Text="崩溃退出也会备份" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding AutoBackupWorldsOnExit}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding AutoBackupWorldsHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*" IsEnabled="{Binding AutoBackupWorldsOnExit}">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="每个世界保留份数" Classes="label" />
+                    <TextBlock Text="超出后删除最旧的一份" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Grid Grid.Column="1" ColumnDefinitions="*,76">
+                    <Slider Minimum="1" Maximum="100"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding WorldBackupRetention}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding WorldBackupRetention, StringFormat='{}{0} 份'}"
+                               Classes="mono"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                <!-- JVM 参数预设：不同版本对 GC / 内存参数要求不同，
+                     让用户在设置页存几套，比每次来回改一段全局字符串可靠。 -->
+                <StackPanel Spacing="8">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Text="JVM 参数预设" Classes="label" />
+                      <TextBlock Text="{Binding ActiveJvmPresetHint}" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center">
+                      <Button Classes="pill" Content="新增预设" Command="{Binding AddJvmPresetCommand}" />
+                      <Button Classes="ghost" Content="删除预设" Command="{Binding DeleteJvmPresetCommand}" />
+                      <Button Classes="ghost" Content="用自定义参数" Command="{Binding UseDefaultJvmPresetCommand}" />
+                    </StackPanel>
+                  </Grid>
+
+                  <ComboBox ItemsSource="{Binding JvmPresetChoices}"
+                            SelectedItem="{Binding SelectedJvmPreset, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:JvmPresetRow">
+                        <TextBlock Text="{Binding DisplayName}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+
+                  <Grid ColumnDefinitions="190,*" IsVisible="{Binding IsPresetSelected}">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Text="预设名称" Classes="label" />
+                      <TextBlock Text="只用于下拉里区分" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding SelectedJvmPresetName, Mode=TwoWay}"
+                             Watermark="例如 1.20 整合包" />
+                  </Grid>
+
+                  <StackPanel Spacing="6" IsVisible="{Binding IsPresetSelected}">
+                    <TextBlock Text="预设参数" Classes="label" />
+                    <TextBox Text="{Binding SelectedJvmPresetArguments, Mode=TwoWay}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             Height="84"
+                             Classes="mono"
+                             Watermark="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
+                    <TextBlock Text="空格或换行分隔；保存后由这套参数替代下面的自定义参数。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Text="额外 JVM 参数" Classes="label" />
+                  <TextBox Text="{Binding ExtraJvmArguments}"
+                           AcceptsReturn="True"
+                           TextWrapping="Wrap"
+                           Height="84"
+                           Classes="mono"
+                           IsReadOnly="{Binding IsPresetSelected}"
+                           Watermark="-XX:+UseG1GC -Dfile.encoding=UTF-8" />
+                  <TextBlock Text="当前由预设提供，此框只读；切回「默认」后可继续编辑。"
+                             IsVisible="{Binding IsPresetSelected}"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="空格或换行分隔，例如 -XX:+UseG1GC；启动器会拼接在内存参数之后。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Text="额外游戏参数" Classes="label" />
+                  <TextBox Text="{Binding ExtraGameArguments}"
+                           AcceptsReturn="True"
+                           TextWrapping="Wrap"
+                           Height="60"
+                           Classes="mono"
+                           Watermark="--demo --width 1280" />
+                  <TextBlock Text="追加到游戏参数末尾；实例级的游戏参数会覆盖这里的值。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!--
+                  版本信息（即 versionType 参数）：主菜单 / F3 里显示的版本名。
+                  副文案点明「不是实例名」——这两个概念在启动器里都叫「版本」，混起来后
+                  用户会以为自己改的是版本页的条目名。
+                -->
+                <StackPanel Spacing="6">
+                  <TextBlock Text="版本信息" Classes="label" />
+                  <TextBox Text="{Binding VersionArgumentInfo}"
+                           MaxLength="32"
+                           Watermark="留空则不显示（默认）" />
+                  <TextBlock Text="显示在 Minecraft 主菜单标题与 F3 屏上，例如「整合包 1.20.1」；改了它不会改版本页里的实例名。最长 32 字符。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ 下载 ============ -->
+          <StackPanel IsVisible="{Binding IsDownloadSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="下载与网络" Classes="h3" />
+              <TextBlock Text="下载源决定游戏文件与资源从哪拿；切换后下一次请求即生效。" Classes="muted" TextWrapping="Wrap" />
+              <!-- 测速只提示、不落盘：把这句放在分区首屏，避免用户以为测速已经改了设置。 -->
+              <TextBlock Text="{Binding SourceProbeHint}" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="下载源" Classes="label" />
+                <UniformGrid Columns="3">
+                  <Button Classes="option"
+                          Classes.active="{Binding IsAutoSource}"
+                          Command="{Binding SelectDownloadSourceCommand}"
+                          CommandParameter="auto">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="自动" FontWeight="Medium" />
+                      <TextBlock Text="先走镜像；本次会话内镜像连续失败或明显变慢时自动降到官方，并在下载页说明原因。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsOfficialSource}"
+                          Command="{Binding SelectDownloadSourceCommand}"
+                          CommandParameter="official">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="官方源" FontWeight="Medium" />
+                      <TextBlock Text="Mojang 官方 CDN 优先，不改写下载地址；海外网络更稳定。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsMirrorSource}"
+                          Command="{Binding SelectDownloadSourceCommand}"
+                          CommandParameter="mirror">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="BMCLAPI 镜像" FontWeight="Medium" />
+                      <TextBlock Text="国内镜像优先，通常更快；镜像缺文件时仍会退回官方。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                </UniformGrid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="Modrinth 镜像兜底" Classes="label" />
+                    <TextBlock Text="官方连不上时才换第三方镜像" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <ToggleSwitch IsChecked="{Binding UseModrinthMirror}"
+                                  OnContent="开启" OffContent="关闭"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding UseModrinthMirrorHint}" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="并发下载数" Classes="label" />
+                <Grid ColumnDefinitions="*,86">
+                  <Slider Minimum="8" Maximum="256"
+                          TickFrequency="8"
+                          IsSnapToTickEnabled="True"
+                          Value="{Binding DownloadThreads}" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding DownloadThreads, StringFormat='{}{0} 线程'}"
+                             Classes="mono"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="网络较差时降低并发可以减少超时；默认 64。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="下载限速" Classes="label" />
+                <Grid ColumnDefinitions="*,110">
+                  <Slider Minimum="0" Maximum="10240"
+                          TickFrequency="128"
+                          IsSnapToTickEnabled="True"
+                          Value="{Binding DownloadSpeedLimitKb}" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding DownloadSpeedDisplay}"
+                             Classes="mono"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="拖到最左为「不限速」。限速只约束启动器自身的下载队列，适合按流量计费的网络或边下载边看视频的场景。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="网络代理" Classes="label" />
+                <TextBlock Text="启动器的全部网络请求（清单、模组、资源下载）都按这里的选择走。校园网或公司网关要求出网代理时填「自定义」。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+                <UniformGrid Columns="3">
+                  <Button Classes="option"
+                          Classes.active="{Binding IsProxyNone}"
+                          Command="{Binding SelectProxyModeCommand}"
+                          CommandParameter="none">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="不走代理" FontWeight="Medium" />
+                      <TextBlock Text="直连；连系统代理与环境变量都不使用。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsProxySystem}"
+                          Command="{Binding SelectProxyModeCommand}"
+                          CommandParameter="system">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="跟随系统" FontWeight="Medium" />
+                      <TextBlock Text="沿用 Windows 系统代理；默认选项。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsProxyCustom}"
+                          Command="{Binding SelectProxyModeCommand}"
+                          CommandParameter="custom">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="自定义" FontWeight="Medium" />
+                      <TextBlock Text="手填地址与端口，可带用户名密码。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                </UniformGrid>
+
+                <StackPanel Spacing="10" IsVisible="{Binding IsProxyCustom}">
+                  <TextBox Text="{Binding ProxyAddress}"
+                           Watermark="http://127.0.0.1:7890"
+                           Classes="mono" />
+                  <Grid ColumnDefinitions="*,12,*">
+                    <TextBox Grid.Column="0"
+                             Text="{Binding ProxyUserName}"
+                             Watermark="用户名（可留空）" />
+                    <TextBox Grid.Column="2"
+                             Text="{Binding ProxyPassword}"
+                             PasswordChar="●"
+                             Watermark="密码（留空则保持不变）" />
+                  </Grid>
+
+                  <!-- 不再提供「显示密码」：磁盘上存的是 DPAPI 密文，读出来的明文只用于本次会话发请求，
+                       没有理由再在界面上回显一遍。这里只如实说明存储方式。 -->
+                  <TextBlock Text="{Binding ProxyCredentialHint}"
+                             Classes="muted"
+                             FontSize="{DynamicResource FontSize.Small}"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding ProxyModeHint}" Classes="muted" TextWrapping="Wrap" />
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button Classes="accent"
+                          Content="测试连通性"
+                          Command="{Binding TestProxyCommand}" />
+                  <ProgressBar IsIndeterminate="True"
+                               Width="90"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding IsProxyTesting}" />
+                  <TextBlock Text="{Binding ProxyTestStatus}"
+                             Classes="muted"
+                             VerticalAlignment="Center"
+                             IsVisible="{Binding ProxyTestStatus, Converter={x:Static conv:Converters.HasValue}}" />
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{Binding ProxyProbeResults}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProxyProbeRow">
+                      <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                        <StackPanel Spacing="2">
+                          <TextBlock Text="{Binding Name}" FontWeight="Medium" />
+                          <TextBlock Text="{Binding Detail}" Classes="muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Verdict}"
+                                     Foreground="{DynamicResource Status.Success}"
+                                     IsVisible="{Binding IsOk}" />
+                          <TextBlock Text="{Binding Verdict}"
+                                     Foreground="{DynamicResource Status.Danger}"
+                                     IsVisible="{Binding !IsOk}" />
+                          <TextBlock Text="{Binding Elapsed}" Classes="mono" />
+                        </StackPanel>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="保存后对后续网络请求生效；正在进行中的下载不会被中断。密码用 Windows 账户级密钥加密后写入 settings.json，换个账户或换台机器需要重新填一次。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ 在线资源 ============ -->
+          <StackPanel IsVisible="{Binding IsContentSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="在线资源" Classes="h3" />
+              <TextBlock Text="资源页从哪个平台搜索模组与整合包。切换只影响默认值，随时可回来改。"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="默认数据源" Classes="label" />
+                <UniformGrid Columns="2">
+                  <Button Classes="option"
+                          Classes.active="{Binding IsModrinthSource}"
+                          Command="{Binding SelectContentSourceCommand}"
+                          CommandParameter="modrinth">
+                    <StackPanel Spacing="4">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Modrinth" FontWeight="Medium" />
+                        <Border Classes="badge"><TextBlock Text="推荐" /></Border>
+                      </StackPanel>
+                      <TextBlock Text="开放 API，无需任何配置，开箱可用。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsCurseForgeSource}"
+                          Command="{Binding SelectContentSourceCommand}"
+                          CommandParameter="curseforge">
+                    <StackPanel Spacing="4">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="CurseForge" FontWeight="Medium" />
+                        <Border Classes="badge"><TextBlock Text="开箱可用" /></Border>
+                      </StackPanel>
+                      <TextBlock Text="收录更全；搜索、文件列表与指纹反查都走官方接口，无需任何配置。"
+                                 Classes="muted"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                </UniformGrid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <TextBlock Text="Base URL 覆盖（可选）" Classes="label" />
+                <TextBox Text="{Binding CurseForgeBaseUrl}"
+                         Watermark="https://api.curseforge.com"
+                         FontFamily="Cascadia Code, Consolas, monospace" />
+                <TextBlock Classes="muted"
+                           TextWrapping="Wrap"
+                           Text="留空使用官方地址 https://api.curseforge.com。填镜像时镜像需接受本程序内置的 x-api-key（或自行忽略它）。第三方镜像可用性由镜像方维护，遇到失败请清空这里回到官方地址。" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ 外观 ============ -->
+          <StackPanel IsVisible="{Binding IsAppearanceSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="外观与动效" Classes="h3" />
+              <TextBlock Text="深色是本启动器的主视觉；浅色为白色卡片配淡雾蓝背景。切换后立即生效。" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="主题" Classes="label" />
+                <UniformGrid Columns="3">
+                  <Button Classes="option"
+                          Classes.active="{Binding IsThemeDark}"
+                          Command="{Binding SelectThemeCommand}"
+                          CommandParameter="dark">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="深色" FontWeight="Medium" />
+                      <TextBlock Text="默认星云配色" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsThemeLight}"
+                          Command="{Binding SelectThemeCommand}"
+                          CommandParameter="light">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="浅色" FontWeight="Medium" />
+                      <TextBlock Text="白色卡片 + 淡雾蓝背景" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsThemeSystem}"
+                          Command="{Binding SelectThemeCommand}"
+                          CommandParameter="system">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="跟随系统" FontWeight="Medium" />
+                      <TextBlock Text="读取系统的深浅色偏好" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                </UniformGrid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="背景图片" Classes="label" />
+                    <TextBlock Text="选一张本地图片做启动器背景，会盖在星云上" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Left">
+                    <TextBlock Text="{Binding BackgroundImagePath}"
+                               Classes="muted"
+                               TextWrapping="Wrap"
+                               MaxHeight="40"
+                               IsVisible="{Binding HasBackgroundImage}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button Content="选择图片…" Classes="ghost" Click="OnPickBackgroundImageClick" />
+                      <Button Content="清除"
+                              Classes="ghost"
+                              Click="OnClearBackgroundImageClick"
+                              IsVisible="{Binding HasBackgroundImage}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*" IsVisible="{Binding HasBackgroundImage}">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="遮罩强度" Classes="label" />
+                    <TextBlock Text="越大文字越清楚、背景图越淡" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Slider Grid.Column="1"
+                          Minimum="0" Maximum="0.95"
+                          TickFrequency="0.05"
+                          Value="{Binding BackgroundImageOverlay}"
+                          Width="220"
+                          HorizontalAlignment="Left" />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="18">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="界面动效" Classes="label" />
+                    <TextBlock Text="关闭后转场与悬停动画立即完成" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding EnableAnimations}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="背景特效" Classes="label" />
+                    <TextBlock Text="星云光斑缓慢漂移，关闭可省电" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding EnableBackgroundEffects}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <TextBlock Text="窗口材质" Classes="label" />
+                <UniformGrid Columns="3">
+                  <Button Classes="option"
+                          Classes.active="{Binding IsMaterialMica}"
+                          Command="{Binding SelectMaterialCommand}"
+                          CommandParameter="mica"
+                          IsEnabled="{Binding CanUseWindowMaterial}">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="Mica" FontWeight="Medium" />
+                      <TextBlock Text="Windows 11 云母材质" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsMaterialAcrylic}"
+                          Command="{Binding SelectMaterialCommand}"
+                          CommandParameter="acrylic"
+                          IsEnabled="{Binding CanUseWindowMaterial}">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="亚克力" FontWeight="Medium" />
+                      <TextBlock Text="半透明模糊背景" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="option"
+                          Classes.active="{Binding IsMaterialSolid}"
+                          Command="{Binding SelectMaterialCommand}"
+                          CommandParameter="solid">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="纯色" FontWeight="Medium" />
+                      <TextBlock Text="所有平台可用" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Button>
+                </UniformGrid>
+                <TextBlock Text="{Binding WindowMaterialHint}" Classes="muted" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="18">
+                <Grid ColumnDefinitions="190,*">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="记住窗口大小" Classes="label" />
+                    <TextBlock Text="关闭时记下当前尺寸与最大化状态，下次启动还原；关闭后启动与退出都不读写窗口尺寸" Classes="muted" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                IsChecked="{Binding RememberWindowSize}"
+                                OnContent="开启" OffContent="关闭"
+                                HorizontalAlignment="Left" />
+                </Grid>
+
+                <TextBlock Text="窗口最小 1024×660，最大 8000；最大化时只记标记，还原后仍是上一次的窗口尺寸。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="快捷键" Classes="label" />
+                <TextBlock Text="只在启动器窗口内生效，不注册系统级全局热键，不会跟游戏或输入法抢按键。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+
+                <Grid ColumnDefinitions="120,*"
+                      RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                      RowSpacing="8"
+                      Margin="0,4,0,0">
+                  <TextBlock Grid.Row="0" Text="Esc" Classes="mono" />
+                  <TextBlock Grid.Row="0" Grid.Column="1"
+                             Text="关闭当前页的确认 / 表单浮层；没有可关闭的浮层时不做任何事"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="1" Text="F5" Classes="mono" />
+                  <TextBlock Grid.Row="1" Grid.Column="1"
+                             Text="重新加载当前页（不重建窗口，窗口尺寸与导航状态不变）"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="2" Text="F11" Classes="mono" />
+                  <TextBlock Grid.Row="2" Grid.Column="1"
+                             Text="切换窗口最大化"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="3" Text="Ctrl+O" Classes="mono" />
+                  <TextBlock Grid.Row="3" Grid.Column="1"
+                             Text="打开当前游戏目录（选了实例时打开该实例的目录）"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="4" Text="Ctrl+L" Classes="mono" />
+                  <TextBlock Grid.Row="4" Grid.Column="1"
+                             Text="跳到日志页"
+                             TextWrapping="Wrap" />
+                </Grid>
+
+                <TextBlock Text="焦点在输入框里时 Esc 留给输入框（结束输入 / 关闭补全），F5 与 Ctrl+O 仍然生效。"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ 存储 ============ -->
+          <!-- 类别卡片来自 SettingsViewModel.StorageCategories；勾选用每行复选框，不用 ListBox 多选（§6.22）。 -->
+          <StackPanel IsVisible="{Binding IsStorageSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="存储" Classes="h3" />
+              <TextBlock Text="数据目录里各类文件的占用。清理只作用于下载缓存、日志、安装器临时文件与回收站。"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <!-- 抬头用 Auto,* + 右侧按钮列：横向 StackPanel 塞进 * 列会在 1024 下把文字压成 0 宽（§6.18）。 -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="总占用" Classes="muted" />
+                    <TextBlock Text="{Binding StorageTotalSizeText}" Classes="h2" />
+                    <TextBlock Text="{Binding StorageTotalFilesText}" Classes="muted" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Classes="pill"
+                            Content="刷新"
+                            Command="{Binding RefreshStorageCommand}"
+                            IsEnabled="{Binding CanScanStorage}" />
+                    <Button Classes="danger"
+                            Content="清理选中项"
+                            Command="{Binding RequestCleanSelectedStorageCommand}"
+                            IsEnabled="{Binding CanCleanSelectedStorage}" />
+                  </StackPanel>
+                </Grid>
+
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsStorageScanning}" />
+
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding StorageStatus}" Classes="muted" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding StorageScannedAtText}" Classes="caption" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding StorageSelectionSummary}" Classes="muted" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding StorageCategories}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="10" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StorageCategoryRow">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                      <CheckBox IsChecked="{Binding IsSelected}"
+                                IsEnabled="{Binding CanClean}"
+                                VerticalAlignment="Top"
+                                Margin="0,4,0,0" />
+
+                      <StackPanel Grid.Column="1" Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                          <Border Classes="badge" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SizeText}" />
+                          </Border>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding Path}"
+                                   Classes="mono"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                          <TextBlock Text="{Binding FileCountText}" Classes="muted" />
+                          <TextBlock Text="{Binding OldestText}" Classes="muted" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding CleanHint}" Classes="muted" TextWrapping="Wrap" />
+                      </StackPanel>
+
+                      <Button Grid.Column="2"
+                              Classes="pill"
+                              Content="清理"
+                              VerticalAlignment="Top"
+                              IsEnabled="{Binding CanClean}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RequestCleanStorageCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Classes="sunken"
+                    Padding="12,10"
+                    IsVisible="{Binding HasStorageCategories, Converter={x:Static conv:Converters.InverseBool}}">
+              <TextBlock Text="存储服务尚未接入，或数据目录下还没有可统计的文件。"
+                         Classes="muted"
+                         TextWrapping="Wrap" />
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="6">
+                <TextBlock Text="清理规则" FontWeight="SemiBold" />
+                <TextBlock Text="日志保留最近 7 天，其余类别整块清空；只删除各类别根目录下的文件与空目录。settings.json / accounts.json / servers.json / favorites.json / java-excluded.json 与 instances、versions、libraries、assets、backups 一律不动。"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           LineHeight="20" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- ============ 关于 ============ -->
+          <StackPanel IsVisible="{Binding IsAboutSection}" Spacing="12">
+            <StackPanel Spacing="2">
+              <TextBlock Text="关于" Classes="h3" />
+              <TextBlock Text="版本信息与数据目录。" Classes="muted" />
+            </StackPanel>
+
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                  <TextBlock Text="版本" Classes="muted" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding AppVersion}" Classes="mono" />
+
+                  <TextBlock Grid.Row="1" Text=".NET 运行时" Classes="muted" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DotNetVersion}" Classes="mono" TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="2" Text="平台" Classes="muted" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PlatformName}" Classes="mono" />
+
+                  <TextBlock Grid.Row="3" Text="数据目录" Classes="muted" VerticalAlignment="Top" Margin="0,6,0,0" />
+                  <TextBlock Grid.Row="3" Grid.Column="1"
+                             Text="{Binding DataDirectory}"
+                             Classes="mono"
+                             TextWrapping="Wrap" />
+
+                  <TextBlock Grid.Row="4" Text="日志文件" Classes="muted" VerticalAlignment="Top" Margin="0,6,0,0" />
+                  <TextBlock Grid.Row="4" Grid.Column="1"
+                             Text="{Binding LogFilePath}"
+                             Classes="mono"
+                             TextWrapping="Wrap" />
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                <WrapPanel Orientation="Horizontal">
+                  <Button Classes="pill" Content="打开数据目录" Margin="0,0,8,8" Command="{Binding OpenDataFolderCommand}" />
+                  <Button Classes="pill" Content="打开日志" Margin="0,0,8,8" Command="{Binding OpenLogFolderCommand}" />
+                  <Button Classes="pill" Content="复制日志路径" Margin="0,0,8,8" Command="{Binding CopyLogPathCommand}" />
+                  <Button Classes="pill" Content="复制诊断信息" Margin="0,0,8,8" Command="{Binding CopyDiagnosticsCommand}" />
+                </WrapPanel>
+
+                <!-- ============ 配置迁移 ============ -->
+                <!-- 换机器时只带走收藏 / 服务器 / 白名单设置，账户令牌永远不进包。
+                     目录与文件选择器在 code-behind（TopLevel 只在视图层拿得到）。 -->
+                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+                <StackPanel Spacing="8">
+                  <TextBlock Text="配置迁移" FontWeight="SemiBold" />
+                  <TextBlock Text="导出收藏、服务器列表与可迁移的设置（主题 / 外观 / 下载 / JVM 预设）。包内不含账户、令牌、日志与崩溃报告。"
+                             Classes="muted"
+                             TextWrapping="Wrap"
+                             LineHeight="20" />
+
+                  <WrapPanel Orientation="Horizontal">
+                    <Button Classes="pill"
+                            Content="导出配置"
+                            Margin="0,0,8,8"
+                            IsEnabled="{Binding CanTransfer}"
+                            Click="OnExportBundleClick"
+                            ToolTip.Tip="选择目录后生成 nebula-profile 时间戳.zip" />
+                    <Button Classes="pill"
+                            Content="导入配置"
+                            Margin="0,0,8,8"
+                            IsEnabled="{Binding CanTransfer}"
+                            Click="OnImportBundleClick"
+                            ToolTip.Tip="选择 nebula-profile-*.zip；服务器与收藏按地址 / 版本名合并，不删现有条目" />
+                  </WrapPanel>
+
+                  <CheckBox IsChecked="{Binding ImportSettingsWithBundle}"
+                            Content="导入时一并应用设置（主题 / 外观 / 下载 / JVM 预设）"
+                            IsEnabled="{Binding CanTransfer}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding ActionMessage}"
+                           IsVisible="{Binding ActionMessage, Converter={x:Static conv:Converters.HasValue}}"
+                           Classes="muted"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- ==================== 底部保存条 ==================== -->
+    <Border Grid.Row="1"
+            Classes="card"
+            Padding="16,12"
+            Margin="0,10,0,12">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+        <StackPanel Spacing="3" VerticalAlignment="Center">
+          <TextBlock Text="{Binding SaveStatus}" Classes="secondary" />
+          <TextBlock Text="{Binding ValidationMessage}"
+                     IsVisible="{Binding ValidationMessage, Converter={x:Static conv:Converters.HasValue}}"
+                     Foreground="{DynamicResource Status.Warning}"
+                     Classes="muted"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ErrorMessage}"
+                     IsVisible="{Binding ErrorMessage, Converter={x:Static conv:Converters.HasValue}}"
+                     Foreground="{DynamicResource Status.Danger}"
+                     Classes="muted"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+        <Button Grid.Column="1"
+                Classes="save"
+                Classes.dirty="{Binding IsDirty}"
+                Content="保存设置"
+                VerticalAlignment="Center"
+                Command="{Binding SaveCommand}" />
+      </Grid>
+    </Border>
+
+    <!-- ==================== 存储清理确认浮层 ==================== -->
+    <!-- 清理是不可撤销操作：统一走「先确认、再执行」，与版本页 / 世界页的删除确认同一个写法。 -->
+    <Border Grid.Row="0"
+            Grid.RowSpan="2"
+            Background="{DynamicResource Surface.Sunken}"
+            IsVisible="{Binding IsStorageCleanConfirmOpen}">
+      <Border Classes="card"
+              Width="430"
+              Padding="22,20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              BoxShadow="{DynamicResource Shadow.Overlay}">
+        <StackPanel Spacing="14">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Path Data="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"
+                  Stroke="{DynamicResource Status.Danger}"
+                  StrokeThickness="1.6"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Width="17" Height="17"
+                  Stretch="Uniform"
+                  VerticalAlignment="Center" />
+            <TextBlock Text="清理存储" Classes="h3" />
+          </StackPanel>
+
+          <TextBlock Text="{Binding StorageCleanConfirmText}"
+                     Classes="secondary"
+                     TextWrapping="Wrap"
+                     LineHeight="20" />
+
+          <Border Classes="sunken" Padding="12,10">
+            <TextBlock Text="回收站里的内容删除后无法恢复。设置、账户、服务器、版本与实例目录不受影响。"
+                       Classes="muted"
+                       TextWrapping="Wrap" />
+          </Border>
+
+          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Classes="ghost" Content="取消" Command="{Binding CancelCleanStorageCommand}" />
+            <Button Classes="danger" Content="确认清理" Command="{Binding ConfirmCleanStorageCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Border>
+  </Grid>
+</UserControl>

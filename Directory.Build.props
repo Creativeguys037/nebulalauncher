@@ -1,0 +1,44 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS8618;CA1716;CA1416</NoWarn>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <!--
+    本机沙箱拒绝 MSBuild 多节点之间的命名管道通信：项目图 ≥3 个时（TestRunner + Tests + Core），
+    裸跑 dotnet run 会停在 restore 之后报「生成失败」而 error 数为 0。关掉项目级并行构建即可。
+    代价是多项目构建串行；本项目项目数少，构建时间差异可忽略。
+  -->
+  <PropertyGroup>
+    <BuildInParallel>false</BuildInParallel>
+  </PropertyGroup>
+
+  <!-- Avalonia 相关项目统一开启编译绑定（类型安全，XAML 绑定错误在编译期暴露）。 -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'NebulaLauncher.App'">
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <!--
+    App 项目抑制 CA1822（成员可标 static）。分析器看不到 XAML，但编译绑定看得到：
+    下面这些成员一旦改成 static，绑定路径就在编译期解析不到，是真实的破坏而非优化。
+      - WorldsViewModel：RequestDeleteWorld / CancelDeleteWorld / RequestDeleteBackup / CancelDeleteBackup
+        （[RelayCommand] 生成实例命令属性，WorldsView.axaml:497/508/589/604 用 $parent[ItemsControl] 取）
+      - SettingsViewModel：ServiceWarning（4 个页面共用）、WindowTitleHint、AppVersion、DotNetVersion
+        （SettingsView 与 Home/Download/Versions 页直接 {Binding ...}）
+    只对 App 项目关闭，Core 与测试项目仍按 latest-recommended 全量检查。
+  -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'NebulaLauncher.App'">
+    <NoWarn>$(NoWarn);CA1822</NoWarn>
+  </PropertyGroup>
+
+</Project>

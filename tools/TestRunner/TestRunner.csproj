@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>NebulaLauncher.TestRunner</RootNamespace>
+    <AssemblyName>NebulaLauncher.TestRunner</AssemblyName>
+    <!-- 测试程序集是 IsTestProject，引用它时会带进 VSTest 相关 targets，这里显式关掉。 -->
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\tests\NebulaLauncher.Tests\NebulaLauncher.Tests.csproj" />
+  </ItemGroup>
+
+</Project>

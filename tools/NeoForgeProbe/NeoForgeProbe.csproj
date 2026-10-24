@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    一次性研究工具：打印 CmlLib NeoForge / Forge 安装器相关类型的真实签名，
+    并实测 NeoForge 版本目录端点的可达性。不进产品、不进解决方案打包。
+    版本号由根 Directory.Packages.props 统一管理（CPM），这里不写 Version。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>NeoForgeProbe</RootNamespace>
+    <AssemblyName>NeoForgeProbe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CmlLib.Core" />
+    <PackageReference Include="CmlLib.Core.Installer.Forge" />
+    <PackageReference Include="CmlLib.Core.Installer.NeoForge" />
+  </ItemGroup>
+
+</Project>
