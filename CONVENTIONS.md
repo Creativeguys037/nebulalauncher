@@ -324,14 +324,14 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 
 `build.ps1` 四种 `-Mode`（默认 `minimal`），RID 默认 `win-x64`，配置 `Release`，输出到 `pub\`（发布前整体删除重建，`-OutDir` 可覆盖）：
 
-| 形态 | 内容 | 实测体积（win-x64） | 前提 |
+| 形态 | 内容 | 实测体积（win-x64，2026-10-24） | 前提 |
 |---|---|---|---|
 | `minimal`（默认） | 框架依赖 + 单文件，原生库外置 | 24.7 MB / 3 文件 | 目标机需 .NET 8 Desktop Runtime |
 | `fdd` | 框架依赖多文件 | 26.2 MB / 48 文件 | 同上 |
 | `folder` | 自包含、不裁剪 | 98.5 MB / 231 文件 | 无 |
 | `portable` | 自包含、裁剪、单个 exe | 21.8 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
 
-体积以本表为准；仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
+下表是最近一次 win-x64 发布的实测记录（2026-10-24 实测，口径对齐到 `ticket/21-doc-alignment` 的 `d375e98`，数字溯源见 `docs/research/release-checklist.md` 的核查记录）；每次发布以 release notes 为准。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
 
 **产物可用 = 两道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 

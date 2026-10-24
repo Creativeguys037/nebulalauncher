@@ -151,6 +151,26 @@ powershell -File build.ps1 -Clean
 - **规避**：内部触发的后台流程要么在方法内部 catch 并落到日志，要么返回可观察的任务；进入 `_ =` 丢弃之前确认它自己兜住了所有异常，并有终态复位（加载态不能只在成功路径里清）。
 - 代码位置：`src/NebulaLauncher.App/Views/WorldsView.axaml.cs WorldsView.OnImportModpackClick（:19）`（`async void` 事件处理器，异常只能靠方法内 try/catch 兜住）、`src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow.FlushAndCloseAsync（:310）`（同为 `async void`，:307 注释写明整段必须 try/catch）；同文件 `:337` 的 `_ = FlushSettingsAsync(reason)` 是丢弃任务实例。
 
+### 2.9 `InvalidatePageCache()` 丢弃当前页，但不走离开生命周期
+- **症状**：在设置页改完数据后需要重载当前页，重载后离开钩子没跑：该停的定时器还在跑、该退的订阅还在。同一份代码在正常切页时表现正常，只有走「失效重载」这条路才漏。
+- **成因**：`MainWindowViewModel.InvalidatePageCache` 先清空页面缓存，再把 `CurrentPage` 置 null 并重新导航；此时「上一页」已经不存在，`OnNavigatedFromAsync` 永远不被调用。释放与离开被当成一件事，但只有后者会走生命周期钩子。
+- **规避**：需要重载当前页时，先显式 await 一次 `OnNavigatedFromAsync` 再清缓存；页面里的订阅与计时器不能只挂在这一条路径上，`Dispose(bool)` 必须再兜一层。位置：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.InvalidatePageCache（:327）`。
+
+### 2.10 页面生命周期 fire-and-forget，连点导航就交错
+- **症状**：快速连点导航时上一页的离开钩子与下一页的进入钩子交错执行，偶发「页面已销毁仍在更新」、加载态卡住、日志出现重复初始化。
+- **成因**：导航路径把生命周期流程当丢弃任务启动，调用方不 await，两次导航的钩子并发跑；既没有串行队列，也没有取消令牌。
+- **规避**：导航入口串行化（同一时刻只允许一个生命周期流程在跑，新导航取消旧的），或者在钩子内部自行节流；不要假设丢弃任务之后钩子按顺序完成。位置：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RunPageLifecycleAsync（:649）`。
+
+### 2.11 页面订阅只在 `Dispose(bool)` 退订，而缓存回收不调 `Dispose`
+- **症状**：账户切换或登录后，已经离开的账户页仍在响应账户变化事件：重复刷新、日志重复、缓存被回收后偶发对象已释放类异常。
+- **成因**：`AccountsViewModel` 在构造函数里订阅 `AccountsChanged`，退订只写在 `Dispose(bool)` 里；而主窗口清空页面缓存时只丢引用、不调页面的 `Dispose`，订阅便永久留在服务上。
+- **规避**：激活期建立的订阅，离开路径也要拆（见 2.7）；或者让缓存回收显式 `Dispose` 页面。位置：`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel.Dispose（:265）`、`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.InvalidatePageCache（:327）`。
+
+### 2.12 `IAccountService.ReloadAsync` 没有生产调用方
+- **症状**：手改 `accounts.json` 或换账户后界面账户列表不刷新，重启才生效；读代码时以为「Reload」会自动发生，排查方向跑偏。
+- **成因**：接口上有 `ReloadAsync` 且有实现，但生产代码零调用；`AccountsViewModel` 里同名的 `ReloadAsync()` 是它自己的私有方法，与接口无关。接口留着一个没人调的方法，会让人误判存在刷新路径。
+- **规避**：需要刷新账户状态就显式调一次并补用例锁住，或者直接删掉这个悬空方法，别让接口承诺不存在的自动刷新。位置：`src/NebulaLauncher.Core/Abstractions/AccountServices.cs IAccountService.ReloadAsync（:47）`、`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.ReloadAsync（:108）`。
+
 ---
 
 ## 3. 文件与路径
@@ -215,6 +235,21 @@ powershell -File build.ps1 -Clean
 - **成因**：导出走的是「复制整个数据目录」的实现，账户文件天然在里面；导入走的是「整体替换」，于是本机私有配置（窗口尺寸、缩放、主题这类机器相关项）被对方的值覆盖。
 - **规避**：配置包绝不含 `accounts.json`；设置导出剔除 4 个机器相关键；导入设置按 9 个白名单键逐键覆盖，不整份替换。实现 `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs ProfileBundleService（:212）`，键集断言见 5.7。
 
+### 3.13 `resourcepacks/<名字>/` 文件夹形态不在扫描范围
+- **症状**：把资源包以文件夹形式放进实例的 `resourcepacks/` 下，启动器里看不到；把同样的内容压成 `.zip` 放进去却能识别。
+- **成因**：内容扫描只枚举文件，不枚举目录；资源包的扩展名判据只认 `.zip` 与 `.resourcepack`。目录本身进不了候选集，于是被静默跳过——不报错、不提示，最容易误判成「用户放错位置」。
+- **规避**：识别资源包时把「目录形态」当独立分支处理（列目录、按 `pack.mcmeta` 判有效），不要指望在扩展名过滤上补特例；要支持就先列目录再过滤。位置：`src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.ScanFiles（:1193）`、`src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.IsContentFile（:1252）`。
+
+### 3.14 唯一化命名是「先查后建」，并发下 TOCTOU
+- **症状**：两个导入或安装流程并发时，偶发一方被覆盖，或者落盘时报「文件已存在」；单线程跑一百次都复现不出来。
+- **成因**：唯一化流程先循环查「名字是否已被占用」，再在之后的步骤里创建目录；检查与创建之间没有原子占位，两个流程可以同时判定同一个名字为空闲。
+- **规避**：用「原子占位」做唯一化——先创建，成功者胜，撞了就换下一个名字重试；不要靠先查后建。位置：`src/NebulaLauncher.Core/Backups/ModpackService.cs ModpackService.ResolveUniqueVersionName（:1798）`、`src/NebulaLauncher.Core/Backups/ModpackService.cs ModpackService.IsVersionNameTaken（:1843）`。
+
+### 3.15 整包安装成功 ≠ 可启动：首启才补 client jar
+- **症状**：整合包安装完成后首次启动，预检报一条「加载器安装可能不完整」的 Warning，日志显示临时下载约 20 MB；断网时首启直接失败。
+- **成因**：整包安装写继承版 `version.json` 时不写 `jar` 字段，补客户端 jar 这一步被推迟到首次启动之前、由启动库完成。安装流程结束时文件并不齐，所以「安装成功」不代表「能启动」。
+- **规避**：预检把它当已知 Warning 呈现而不是错误，修复动作指向 `CrashAnalyzer.Actions.RepairVersion`；要让离线首启可用，就得在安装阶段预取 client jar，别留给首启。位置：`src/NebulaLauncher.Core/Backups/ModpackService.cs ModpackService.WriteInheritedVersionJsonAsync（:584）`、`src/NebulaLauncher.Core/Launching/PreflightChecker.cs PreflightChecker.CheckLoaderAsync（:417）`。
+
 ---
 
 ## 4. UI 与渲染
@@ -269,6 +304,11 @@ powershell -File build.ps1 -Clean
 - **症状**：某些模组/整合包的图标位置是空白，不是首字母占位。
 - **成因**：图标链是两段（下载 → 解码 → 显示），解码器遇到不支持的格式时抛异常或返回坏值，把占位层也一起顶掉。实际数据里 Modrinth 的图标是 webp、CurseForge 有 jpg，扩展名不可靠。
 - **规避**：解码失败返回空值，让首字母占位透出，绝不抛到界面层：`src/NebulaLauncher.App/Views/ModsView.axaml.cs PathToImageConverter（:22）`。
+
+### 4.11 「跟随账户」提示换了账户仍是旧文案
+- **症状**：切换活动账户后，重新打开同一个实例的版本编辑面板，「跟随账户」那一行提示还是上一个账户的说法；改动一下相关输入框才变成新的。
+- **成因**：提示文本每次取值都实时读当前活动账户，但变更通知只在「跟随账户」开关或认证地址字段被 setter 改动时才重发；装载面板时把开关写成它已有的值（通常是 true），属性值没变就不触发通知，提示便不会重算。页面也没有订阅账户变化事件。
+- **规避**：账户切换本身要触发提示重算（订阅账户变化，或让相关 setter 强制通知），不要把刷新押在「开关值变化」这一条路径上。位置：`src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel.EditorAuthServerHint（:1953）`。
 
 ---
 
