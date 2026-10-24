@@ -7,6 +7,12 @@ namespace NebulaLauncher.DocsCheck;
 /// </summary>
 public static class FeatureBlockCatalog
 {
+    /// <summary>
+    /// 探测点数据在仓库里的相对位置。这是仓库约定（票 #8 定的目录布局），不是可配置项：
+    /// 数据文件跟着工具走，装机目录里的副本只作兜底，所以不开放命令行开关。
+    /// </summary>
+    public const string DefaultRelativePath = "tools/DocsCheck/feature-blocks.json";
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,

@@ -51,7 +51,7 @@ public static class DocBudgetChecker
 
         foreach (var document in documents)
         {
-            var fullPath = Path.Combine(repoRoot, document.Replace('/', Path.DirectorySeparatorChar));
+            var fullPath = RepoPaths.Resolve(repoRoot, document);
             if (!File.Exists(fullPath))
             {
                 missing.Add(document);

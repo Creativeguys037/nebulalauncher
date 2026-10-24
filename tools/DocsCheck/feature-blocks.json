@@ -8,7 +8,7 @@
         "entry": "`src/NebulaLauncher.App/Views/VersionsView.axaml VersionsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel`",
         "core": "`src/NebulaLauncher.Core/Installing/InstallService.cs InstallService.InstallAsync`",
-        "storage": "`src/NebulaLauncher.Core/Installing/InstallManifest.cs McInstallManifest.RelativePath`"
+        "storage": "`src/NebulaLauncher.Core/Installing/InstallManifest.cs McInstallManifest.RelativePath`（`install-manifest.json`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallAsync" },
@@ -32,7 +32,7 @@
         "entry": "`src/NebulaLauncher.App/Views/DownloadView.axaml DownloadView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/DownloadViewModel.cs DownloadViewModel`",
         "core": "`src/NebulaLauncher.Core/Downloads/DownloadQueue.cs DownloadQueue.DownloadAsync`",
-        "storage": "`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory`"
+        "storage": "`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory`（`java-cache.json`、`mod-hashes.json`、`mod-projects.json`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Downloads/DownloadQueue.cs", "symbol": "DownloadQueue.DownloadAsync" },
@@ -57,7 +57,7 @@
         "entry": "`src/NebulaLauncher.App/Views/HomeView.axaml HomeView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel`",
         "core": "`src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.LaunchAsync`",
-        "storage": "`src/NebulaLauncher.Core/Instances/InstanceLockService.cs InstanceLockService.LockFileName`"
+        "storage": "`src/NebulaLauncher.Core/Instances/InstanceLockService.cs InstanceLockService.LockFileName`（`.nebula-run.json`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Launching/GameLauncher.cs", "symbol": "GameLauncher.LaunchAsync" },

@@ -19,11 +19,12 @@ public sealed record FeatureDocResult(
 }
 
 /// <summary>
-/// 生成 <c>docs/FEATURES.md</c>：8 块按输入顺序排，每块一句用户视角描述 + 四列表
-/// （入口页面 → ViewModel → Core 服务 → 落盘文件）+ 三态列，顶部写生成命令与生成日期。
+/// 生成 <c>docs/FEATURES.md</c>：块按输入顺序排，每块一句用户视角描述 + 四列表
+/// （入口页面 → ViewModel → Core 服务 → 落盘文件）+ 三态列，顶部写生成命令、生成日期与三态定义。
 ///
 /// 三态来自 <see cref="FeatureStateScanner"/>，只取决于传入的仓库树；四列内容来自
 /// <c>feature-blocks.json</c>，渲染代码里不出现任何具体路径——换一份数据就换一份文档。
+/// 块数同样由数据决定，标题与正文都不写死数字。
 ///
 /// 行数上限 191 是票 #13 的硬约束：其余四份文档 809 行 + 本份 191 行 = 工具总量上限 1000 行。
 /// </summary>
@@ -32,9 +33,24 @@ public static class FeatureDocGenerator
     /// <summary>本份文档的行数上限（票 #13）。</summary>
     public const int MaxLines = 191;
 
-    /// <summary>写进文档顶部的生成命令。改命令行必须同步改这里：文档里的命令要能直接跑。</summary>
-    public const string GenerateCommand =
-        "dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Lead -- --emit-features docs/FEATURES.md";
+    /// <summary>生成命令里 <c>-c</c> 取的环境变量名。</summary>
+    public const string BuildConfigurationVariable = "NEBULA_BUILD_CONFIG";
+
+    /// <summary>环境变量没设时的构建配置。</summary>
+    public const string DefaultBuildConfiguration = "Release";
+
+    /// <summary>
+    /// 写进文档顶部的生成命令。改命令行必须同步改这里：文档里的命令要能直接跑。
+    /// <c>-c</c> 从 <see cref="BuildConfigurationVariable"/> 读，缺省 <see cref="DefaultBuildConfiguration"/>，
+    /// 别再把某一台机器的构建配置写进文档。
+    /// </summary>
+    public static string GenerateCommand =>
+        GenerateCommandFor(Environment.GetEnvironmentVariable(BuildConfigurationVariable));
+
+    /// <summary>按指定构建配置拼生成命令；<paramref name="buildConfiguration"/> 为 null 或空白时用缺省值。</summary>
+    /// <param name="buildConfiguration">构建配置名，如 <c>Release</c>、<c>Lead</c>。</param>
+    public static string GenerateCommandFor(string? buildConfiguration)
+        => $"dotnet run --project tools/DocsCheck/DocsCheck.csproj -c {ConfigurationOrDefault(buildConfiguration)} -- --emit-features docs/FEATURES.md";
 
     private const string TableHeader = "| 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |";
 
@@ -74,12 +90,19 @@ public static class FeatureDocGenerator
     {
         var builder = new StringBuilder();
 
-        Line(builder, "# 功能完成度（8 块三态）");
+        // 块数由数据决定：加一块就写 9 块，不改代码。
+        Line(builder, $"# 功能完成度（{blocks.Count} 块三态）");
         Line(builder, string.Empty);
         Line(builder, "本文件由工具生成，请勿手改。");
         Line(builder, string.Empty);
         Line(builder, $"- 生成命令：`{GenerateCommand}`");
         Line(builder, $"- 生成日期：{generatedOn.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
+        Line(builder, string.Empty);
+        Line(builder, "## 三态定义");
+        Line(builder, string.Empty);
+        Line(builder, "- **已实现**：代码探测点与测试探测点都命中。");
+        Line(builder, "- **待验证**：代码探测点命中，测试探测点缺失。");
+        Line(builder, "- **不存在**：代码探测点未命中。");
 
         for (var index = 0; index < blocks.Count; index++)
         {
@@ -108,6 +131,9 @@ public static class FeatureDocGenerator
         => string.IsNullOrWhiteSpace(block.Summary) ? block.Id : block.Summary;
 
     private static string Cell(string? value) => value ?? string.Empty;
+
+    private static string ConfigurationOrDefault(string? buildConfiguration)
+        => string.IsNullOrWhiteSpace(buildConfiguration) ? DefaultBuildConfiguration : buildConfiguration.Trim();
 
     private static void Line(StringBuilder builder, string text)
         => builder.Append(text).Append('\n');

@@ -1,4 +1,5 @@
 using NebulaLauncher.DocsCheck;
+using static NebulaLauncher.Tests.DocsCheckTestPaths;
 
 namespace NebulaLauncher.Tests;
 
@@ -184,7 +185,7 @@ public sealed class DocsCheck_ReferenceTests
     }
 
     [Fact]
-    public void 缺失文档标记为跳过不算失败()
+    public void 缺失文档默认算失败()
     {
         using var temp = new TempDirectory();
         Write(temp, "docs/PROJECT.md", "`src/App/Foo.cs`\n");
@@ -193,9 +194,25 @@ public sealed class DocsCheck_ReferenceTests
         var report = DocReferenceChecker.Check(temp.Path, ["docs/PROJECT.md", "docs/CODE.md"]);
 
         Assert.Empty(report.Failures);
-        Assert.True(report.Passed);
+        Assert.False(report.Passed);
+        Assert.False(report.AllowMissing);
         Assert.Equal(["docs/CODE.md"], report.MissingDocuments);
         Assert.Equal(["docs/PROJECT.md"], report.ScannedDocuments);
+    }
+
+    [Fact]
+    public void 允许缺失时缺失文档不算失败()
+    {
+        using var temp = new TempDirectory();
+        Write(temp, "docs/PROJECT.md", "`src/App/Foo.cs`\n");
+        Write(temp, "src/App/Foo.cs", "public sealed class Foo { }\n");
+
+        var report = DocReferenceChecker.Check(temp.Path, ["docs/PROJECT.md", "docs/CODE.md"], allowMissing: true);
+
+        Assert.Empty(report.Failures);
+        Assert.True(report.Passed);
+        Assert.True(report.AllowMissing);
+        Assert.Equal(["docs/CODE.md"], report.MissingDocuments);
     }
 
     [Fact]
@@ -249,14 +266,5 @@ public sealed class DocsCheck_ReferenceTests
         var report = DocReferenceChecker.Check(temp.Path, ["docs/CODE.md"]);
 
         Assert.True(report.Passed, string.Join("；", report.Failures.Select(f => f.Reason)));
-    }
-
-    /// <summary>在临时树里写文件，自动建父目录。</summary>
-    private static string Write(TempDirectory temp, string relativePath, string content)
-    {
-        var path = Path.Combine(temp.Path, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, content);
-        return path;
     }
 }

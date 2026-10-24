@@ -24,13 +24,6 @@ public static class CodeProbeResolver
         @"^[A-Za-z_][A-Za-z0-9_]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    /// <summary>探测点是否成立。</summary>
-    public static bool Exists(string repoRoot, CodeProbe probe)
-    {
-        ArgumentNullException.ThrowIfNull(probe);
-        return Exists(repoRoot, probe.Path, probe.Symbol, null);
-    }
-
     /// <summary>路径存在且（可选）符号出现即成立。</summary>
     /// <param name="repoRoot">仓库根绝对路径。</param>
     /// <param name="path">仓库相对路径。</param>
@@ -45,7 +38,7 @@ public static class CodeProbeResolver
         ArgumentNullException.ThrowIfNull(repoRoot);
         ArgumentNullException.ThrowIfNull(path);
 
-        var fullPath = Combine(repoRoot, path);
+        var fullPath = RepoPaths.Resolve(repoRoot, path);
         if (Directory.Exists(fullPath))
         {
             // 目录只判存在性：符号没法在目录里定位。
@@ -104,9 +97,6 @@ public static class CodeProbeResolver
 
         return true;
     }
-
-    private static string Combine(string repoRoot, string path) =>
-        Path.Combine(repoRoot, path.Replace('/', Path.DirectorySeparatorChar));
 
     private static string? ReadText(string fullPath, IDictionary<string, string?>? cache)
     {

@@ -24,8 +24,14 @@ public sealed record TestCountReport(
 public static class TestCountScanner
 {
     /// <summary>
+    /// 测试项目在仓库里的相对位置。仓库约定常量而非配置项：测试只可能在 <c>tests/</c> 下，
+    /// 让它可配只会给「扫错目录却安静通过」留后门。
+    /// </summary>
+    public const string DefaultRelativePath = "tests/NebulaLauncher.Tests";
+
+    /// <summary>
     /// 按字面出现计数（不限定行首）：与历史口径 <c>grep -o '\[Fact\]'</c> 一致，
-    /// 这样统计结果能对上票面记录的 1605 / 757 / 2362 基线。
+    /// 这样统计结果能对上票面记录的基线条数。
     /// </summary>
     private static readonly Regex FactPattern = new(
         @"\[Fact\]",

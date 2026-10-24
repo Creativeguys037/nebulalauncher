@@ -102,6 +102,29 @@ public sealed class DocsCheck_BudgetTests
         Assert.Contains(result.Violations, item => item.Contains("1050", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void 自定义上限真的生效()
+    {
+        // limits 参数不是摆设：传进去就按它判，缺省的 400 / 1000 不再参与。
+        using var temp = new TempDirectory();
+        WriteLines(temp, "docs/PROJECT.md", 120);
+        WriteLines(temp, "docs/CODE.md", 90);
+
+        var result = DocBudgetChecker.Check(
+            temp.Path,
+            ["docs/PROJECT.md", "docs/CODE.md"],
+            new DocBudgetLimits(MaxLinesPerDocument: 100, MaxTotalLines: 150));
+
+        Assert.False(result.Passed);
+        Assert.Equal(100, result.Limits.MaxLinesPerDocument);
+        Assert.Equal(150, result.Limits.MaxTotalLines);
+        Assert.Equal(210, result.TotalLines);
+        Assert.Equal(2, result.Violations.Count);
+        Assert.Contains(result.Violations, item => item.Contains("docs/PROJECT.md", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, item => item.Contains("210", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, item => item.Contains("150", StringComparison.Ordinal));
+    }
+
     private static string WriteLines(TempDirectory temp, string relativePath, int lineCount)
     {
         var path = Path.Combine(temp.Path, relativePath.Replace('/', Path.DirectorySeparatorChar));

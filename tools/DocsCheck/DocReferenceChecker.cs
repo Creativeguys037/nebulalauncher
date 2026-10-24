@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace NebulaLauncher.DocsCheck;
 
 /// <summary>
@@ -46,15 +44,20 @@ public sealed record DocReferenceFailure(
 /// <param name="References">成立的引用（路径与符号都在）。</param>
 /// <param name="Failures">不成立的引用。</param>
 /// <param name="ScannedDocuments">实际读到的文档（相对路径，保持传入顺序）。</param>
-/// <param name="MissingDocuments">不存在、按「缺失（跳过）」处理的文档。</param>
+/// <param name="MissingDocuments">不存在的文档。</param>
+/// <param name="AllowMissing">是否允许文档缺失（<c>--allow-missing</c>）。</param>
 public sealed record DocReferenceReport(
     IReadOnlyList<DocReference> References,
     IReadOnlyList<DocReferenceFailure> Failures,
     IReadOnlyList<string> ScannedDocuments,
-    IReadOnlyList<string> MissingDocuments)
+    IReadOnlyList<string> MissingDocuments,
+    bool AllowMissing)
 {
-    /// <summary>所有引用都成立即为通过；零引用文档天然通过。</summary>
-    public bool Passed => Failures.Count == 0;
+    /// <summary>
+    /// 所有引用都成立，且（除非允许缺失）传入的文档全都存在。
+    /// 默认那五份是必需文档：删掉一份就是文档体系破了，不能安静跳过。
+    /// </summary>
+    public bool Passed => Failures.Count == 0 && (AllowMissing || MissingDocuments.Count == 0);
 }
 
 /// <summary>
@@ -63,30 +66,18 @@ public sealed record DocReferenceReport(
 /// </summary>
 public static class DocReferenceChecker
 {
-    /// <summary>仓库相对路径的根目录前缀（<c>/</c> 分隔，区分大小写）。</summary>
-    private static readonly string[] PathPrefixes = ["src/", "tests/", "tools/", "docs/"];
-
-    /// <summary>行号提示后缀：<c>:105</c> 或 <c>:10-24</c>。</summary>
-    private static readonly Regex LineHintSuffix = new(
-        @"^(?<path>.+?):(?<hint>[0-9]+(?:-[0-9]+)?)$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    /// <summary>反引号单元（不跨行）。</summary>
-    private static readonly Regex BacktickUnit = new(
-        "`([^`\\n]+)`",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    /// <summary>围栏代码块的开闭行（``` 或 ~~~）。</summary>
-    private static readonly Regex FenceLine = new(
-        @"^\s*(```|~~~)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
     /// <summary>
     /// 校验一组文档里的引用。
     /// </summary>
     /// <param name="repoRoot">仓库根绝对路径。</param>
-    /// <param name="documents">文档相对路径（<c>/</c> 分隔）。不存在的文档记入 <see cref="DocReferenceReport.MissingDocuments"/>，不算失败。</param>
-    public static DocReferenceReport Check(string repoRoot, IReadOnlyList<string> documents)
+    /// <param name="documents">文档相对路径（<c>/</c> 分隔）。</param>
+    /// <param name="allowMissing">
+    /// 为 true 时缺失文档记「缺失（跳过）」且不算失败；默认 false，缺失文档算失败（必需文档缺失必须退非零）。
+    /// </param>
+    public static DocReferenceReport Check(
+        string repoRoot,
+        IReadOnlyList<string> documents,
+        bool allowMissing = false)
     {
         ArgumentNullException.ThrowIfNull(repoRoot);
         ArgumentNullException.ThrowIfNull(documents);
@@ -99,7 +90,7 @@ public static class DocReferenceChecker
 
         foreach (var document in documents)
         {
-            var fullPath = Path.Combine(repoRoot, document.Replace('/', Path.DirectorySeparatorChar));
+            var fullPath = RepoPaths.Resolve(repoRoot, document);
             if (!File.Exists(fullPath))
             {
                 missing.Add(document);
@@ -108,41 +99,24 @@ public static class DocReferenceChecker
 
             scanned.Add(document);
 
-            var lines = File.ReadAllLines(fullPath);
-            var inFence = false;
-
-            for (var index = 0; index < lines.Length; index++)
+            foreach (var prose in MarkdownScanner.ProseLines(fullPath))
             {
-                var line = lines[index];
-                if (FenceLine.IsMatch(line))
+                foreach (var unit in MarkdownScanner.BacktickUnits(prose.Text))
                 {
-                    inFence = !inFence;
-                    continue;
-                }
-
-                if (inFence)
-                {
-                    continue;
-                }
-
-                foreach (Match match in BacktickUnit.Matches(line))
-                {
-                    var unit = match.Groups[1].Value.Trim();
-                    if (!TryParseUnit(unit, out var path, out var lineHint, out var symbols))
+                    if (!MarkdownScanner.TryParseUnit(unit, out var path, out var lineHint, out var symbols))
                     {
                         continue;
                     }
 
-                    var referencePath = ResolveReferencePath(repoRoot, path);
-                    if (referencePath is null)
+                    if (!ReferenceExists(repoRoot, path))
                     {
                         // 以 src/、tests/、tools/、docs/ 开头但文件不存在：算引用，报路径不存在。
                         // 只有以 .md 结尾的路径允许「不存在即跳过」，因为它本来就不一定是引用。
-                        if (HasRepoPrefix(path))
+                        if (MarkdownScanner.HasRepoPrefix(path))
                         {
                             failures.Add(new DocReferenceFailure(
                                 document,
-                                index + 1,
+                                prose.Number,
                                 unit,
                                 path,
                                 DocReferenceFailure.PathMissing));
@@ -151,95 +125,42 @@ public static class DocReferenceChecker
                         continue;
                     }
 
-                    var failuresBefore = failures.Count;
-                    foreach (var symbol in symbols)
+                    if (SymbolsMissing(repoRoot, path, symbols, fileTextCache))
                     {
-                        if (!SymbolExists(repoRoot, referencePath, symbol, fileTextCache))
-                        {
-                            failures.Add(new DocReferenceFailure(
-                                document,
-                                index + 1,
-                                unit,
-                                path,
-                                DocReferenceFailure.SymbolMissing));
-                            break;
-                        }
+                        failures.Add(new DocReferenceFailure(
+                            document,
+                            prose.Number,
+                            unit,
+                            path,
+                            DocReferenceFailure.SymbolMissing));
+                        continue;
                     }
 
-                    if (failures.Count == failuresBefore)
-                    {
-                        references.Add(new DocReference(document, index + 1, unit, path, lineHint, symbols));
-                    }
+                    references.Add(new DocReference(document, prose.Number, unit, path, lineHint, symbols));
                 }
             }
         }
 
-        return new DocReferenceReport(references, failures, scanned, missing);
+        return new DocReferenceReport(references, failures, scanned, missing, allowMissing);
     }
 
-    /// <summary>
-    /// 把单元拆成路径、行号提示与符号列表；第一个 token 不是仓库相对路径时返回 false（跳过）。
-    /// </summary>
-    private static bool TryParseUnit(
-        string unit,
-        out string path,
-        out string? lineHint,
-        out IReadOnlyList<string> symbols)
+    /// <summary>路径存在（文件或目录）。</summary>
+    private static bool ReferenceExists(string repoRoot, string path)
     {
-        path = string.Empty;
-        lineHint = null;
-        symbols = [];
-
-        if (unit.Length == 0)
-        {
-            return false;
-        }
-
-        var tokens = unit.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length == 0)
-        {
-            return false;
-        }
-
-        var first = tokens[0];
-        var hintMatch = LineHintSuffix.Match(first);
-        if (hintMatch.Success)
-        {
-            path = hintMatch.Groups["path"].Value;
-            lineHint = hintMatch.Groups["hint"].Value;
-        }
-        else
-        {
-            path = first;
-        }
-
-        if (!LooksLikeRepoRelativePath(path))
-        {
-            path = string.Empty;
-            lineHint = null;
-            return false;
-        }
-
-        var symbolTokens = new List<string>(tokens.Length - 1);
-        for (var index = 1; index < tokens.Length; index++)
-        {
-            symbolTokens.Add(tokens[index]);
-        }
-
-        symbols = symbolTokens;
-        return true;
+        var fullPath = RepoPaths.Resolve(repoRoot, path);
+        return File.Exists(fullPath) || Directory.Exists(fullPath);
     }
 
-    /// <summary>形如 <c>src/</c>、<c>tests/</c>、<c>tools/</c>、<c>docs/</c> 开头，或以 <c>.md</c> 结尾。</summary>
-    private static bool LooksLikeRepoRelativePath(string path) =>
-        HasRepoPrefix(path) || path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>以 <c>src/</c>、<c>tests/</c>、<c>tools/</c>、<c>docs/</c> 开头：一定算引用，不存在就报错。</summary>
-    private static bool HasRepoPrefix(string path)
+    /// <summary>符号判定交给 <see cref="CodeProbeResolver"/>：引用与三态扫描共用同一份符号规则。</summary>
+    private static bool SymbolsMissing(
+        string repoRoot,
+        string referencePath,
+        IReadOnlyList<string> symbols,
+        Dictionary<string, string?> fileTextCache)
     {
-        foreach (var prefix in PathPrefixes)
+        foreach (var symbol in symbols)
         {
-            if (path.StartsWith(prefix, StringComparison.Ordinal))
+            if (!CodeProbeResolver.Exists(repoRoot, referencePath, symbol, fileTextCache))
             {
                 return true;
             }
@@ -247,21 +168,4 @@ public static class DocReferenceChecker
 
         return false;
     }
-
-    /// <summary>路径存在（文件或目录）则返回仓库相对路径，否则返回 null。</summary>
-    private static string? ResolveReferencePath(string repoRoot, string path)
-    {
-        var fullPath = Path.Combine(repoRoot, path.Replace('/', Path.DirectorySeparatorChar));
-        return File.Exists(fullPath) || Directory.Exists(fullPath) ? path : null;
-    }
-
-    /// <summary>
-    /// 符号判定交给 <see cref="CodeProbeResolver"/>：引用与三态扫描共用同一份符号规则。
-    /// </summary>
-    private static bool SymbolExists(
-        string repoRoot,
-        string referencePath,
-        string symbol,
-        Dictionary<string, string?> fileTextCache) =>
-        CodeProbeResolver.Exists(repoRoot, referencePath, symbol, fileTextCache);
 }

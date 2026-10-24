@@ -1,4 +1,5 @@
 using NebulaLauncher.DocsCheck;
+using static NebulaLauncher.Tests.DocsCheckTestPaths;
 
 namespace NebulaLauncher.Tests;
 
@@ -6,16 +7,16 @@ namespace NebulaLauncher.Tests;
 /// 测试数统计（票 #8）：扫 <c>tests/NebulaLauncher.Tests/*.cs</c> 顶层，计 Fact 属性数
 /// 加 Theory 下每个 InlineData 数，排除 obj / bin。
 ///
-/// 票里记录的口径基线是 1605 Fact + 757 InlineData = 2362（本票新增测试之前）；
-/// 本票自己也新增 Fact 测试，所以这里锁 InlineData 基线、Fact 只锁「不低于基线」。
+/// 票面记录的口径快照是 1605 Fact + 757 InlineData = 2362（本票新增测试之前）；
+/// 本票自己也新增 Fact 测试，所以这里锁 InlineData 精确值、Fact 只锁「不低于基线」的下限。
 ///
 /// 注意：样例文本一律用 <see cref="Attribute(string, string)"/> 拼接，不在测试源码里写字面属性——
 /// 扫描按字面匹配，写进去会虚增真实仓库的统计。
 /// </summary>
 public sealed class DocsCheck_CountTests
 {
-    /// <summary>票 #8 记录的口径真值（本票新增测试之前）。</summary>
-    private const int BaselineFacts = 1605;
+    /// <summary>票 #8 记录的口径真值（本票新增测试之后、含 DocsCheck 自身的 Fact）。</summary>
+    private const int BaselineFacts = 1658;
 
     private const int BaselineInlineData = 757;
 
@@ -86,12 +87,4 @@ public sealed class DocsCheck_CountTests
 
     /// <summary>拼出属性文本，避免测试源码自己出现字面属性而被算进真实仓库统计。</summary>
     private static string Attribute(string name, string arguments = "") => "[" + name + arguments + "]";
-
-    private static string Write(TempDirectory temp, string relativePath, string content)
-    {
-        var path = Path.Combine(temp.Path, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, content);
-        return path;
-    }
 }

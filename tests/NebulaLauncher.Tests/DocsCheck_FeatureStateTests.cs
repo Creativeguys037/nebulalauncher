@@ -1,4 +1,5 @@
 using NebulaLauncher.DocsCheck;
+using static NebulaLauncher.Tests.DocsCheckTestPaths;
 
 namespace NebulaLauncher.Tests;
 
@@ -225,26 +226,5 @@ public sealed class DocsCheck_FeatureStateTests
         Assert.Equal("已实现", FeatureStates.Text(FeatureState.Implemented));
         Assert.Equal("待验证", FeatureStates.Text(FeatureState.Pending));
         Assert.Equal("不存在", FeatureStates.Text(FeatureState.Missing));
-    }
-
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "NebulaLauncher.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        Assert.NotNull(directory);
-        return directory!.FullName;
-    }
-
-    /// <summary>在临时树里写文件，自动建父目录。</summary>
-    private static string Write(TempDirectory temp, string relativePath, string content)
-    {
-        var path = Path.Combine(temp.Path, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, content);
-        return path;
     }
 }

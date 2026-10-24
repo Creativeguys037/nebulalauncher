@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using NebulaLauncher.DocsCheck;
+using static NebulaLauncher.Tests.DocsCheckTestPaths;
 
 namespace NebulaLauncher.Tests;
 
@@ -12,18 +13,11 @@ public sealed class DocsCheck_FeatureDocTests
 {
     private static readonly DateOnly FixedDate = new(2026, 10, 24);
 
-    /// <summary>票面钉死的 8 块完整名，顺序即渲染顺序。</summary>
-    private static readonly string[] FullNames =
-    [
-        "装得上（安装与修复）",
-        "下得动（下载与换源）",
-        "开得起来（启动与运行时）",
-        "管得住内容（模组与整合包）",
-        "存得下（实例与世界）",
-        "连得上（账户与服务器）",
-        "看得见（日志与崩溃）",
-        "改得动（设置与数据）",
-    ];
+    /// <summary>块名与顺序只从 feature-blocks.json 读，测试里不再抄一份名单。</summary>
+    private static string[] FullNames
+        => LoadRepoBlocks()
+            .Select(block => string.IsNullOrWhiteSpace(block.Title) ? block.Id : $"{block.Id}（{block.Title}）")
+            .ToArray();
 
     private const string TableHeader = "| 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |";
 
@@ -62,13 +56,58 @@ public sealed class DocsCheck_FeatureDocTests
 
         Assert.Contains("本文件由工具生成，请勿手改", result.Markdown);
         // 命令原文钉死：文档顶部的命令必须能直接跑，改命令行就要同步改这里。
-        Assert.Contains(
-            "dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Lead -- --emit-features docs/FEATURES.md",
-            result.Markdown);
+        Assert.Contains(FeatureDocGenerator.GenerateCommand, result.Markdown);
         Assert.Contains("2026-10-24", result.Markdown);
         Assert.True(
             result.Markdown.IndexOf("生成命令", StringComparison.Ordinal)
                 < result.Markdown.IndexOf("## 1. ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 生成命令的构建配置来自环境变量且缺省为Release()
+    {
+        // -c 不再写死某一台机器的配置：读 NEBULA_BUILD_CONFIG，没设就用 Release。
+        Assert.Equal(
+            "dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-features docs/FEATURES.md",
+            FeatureDocGenerator.GenerateCommandFor(null));
+        Assert.Equal(
+            "dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Lead -- --emit-features docs/FEATURES.md",
+            FeatureDocGenerator.GenerateCommandFor("Lead"));
+        Assert.Equal(FeatureDocGenerator.DefaultBuildConfiguration, "Release");
+        Assert.Equal("NEBULA_BUILD_CONFIG", FeatureDocGenerator.BuildConfigurationVariable);
+        Assert.Contains("-c ", FeatureDocGenerator.GenerateCommand);
+    }
+
+    [Fact]
+    public void 顶部写三态定义且由生成器渲染()
+    {
+        using var temp = new TempDirectory();
+        var blocks = LoadRepoBlocks();
+
+        var markdown = FeatureDocGenerator.Generate(temp.Path, blocks, FixedDate).Markdown;
+
+        var definition = markdown.IndexOf("## 三态定义", StringComparison.Ordinal);
+        Assert.True(definition > 0, "缺少三态定义段");
+        Assert.True(
+            definition > markdown.IndexOf("生成日期", StringComparison.Ordinal),
+            "三态定义段应在生成命令与日期之后");
+        Assert.Contains("**已实现**：代码探测点与测试探测点都命中", markdown);
+        Assert.Contains("**待验证**：代码探测点命中，测试探测点缺失", markdown);
+        Assert.Contains("**不存在**：代码探测点未命中", markdown);
+    }
+
+    [Fact]
+    public void 标题块数按传入数据渲染()
+    {
+        using var temp = new TempDirectory();
+        var blocks = LoadRepoBlocks();
+        var subset = blocks.Take(3).ToArray();
+
+        var markdown = FeatureDocGenerator.Generate(temp.Path, subset, FixedDate).Markdown;
+
+        Assert.StartsWith("# 功能完成度（3 块三态）", markdown, StringComparison.Ordinal);
+        Assert.DoesNotContain("（8 块三态）", markdown);
+        Assert.Equal(subset.Select(block => block.Id).ToArray(), Headings(markdown).Select(name => name.Split('（')[0]).ToArray());
     }
 
     [Fact]
@@ -120,7 +159,7 @@ public sealed class DocsCheck_FeatureDocTests
     {
         using var temp = new TempDirectory();
 
-        var options = DocCheckCommand.Parse(["--emit-features", "docs/FEATURES.md"], temp.Path);
+        var options = DocCheckOptions.Parse(["--emit-features", "docs/FEATURES.md"], temp.Path);
 
         Assert.Equal(Path.GetFullPath("docs/FEATURES.md", temp.Path), options.EmitFeatures);
     }
@@ -161,26 +200,5 @@ public sealed class DocsCheck_FeatureDocTests
         }
 
         return count;
-    }
-
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "NebulaLauncher.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        Assert.NotNull(directory);
-        return directory!.FullName;
-    }
-
-    /// <summary>在临时树里写文件，自动建父目录。</summary>
-    private static string Write(TempDirectory temp, string relativePath, string content)
-    {
-        var path = Path.Combine(temp.Path, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, content);
-        return path;
     }
 }
