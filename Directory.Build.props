@@ -4,7 +4,7 @@
     <!--
       对外版本号的唯一来源。它同时决定 AssemblyVersion、FileVersion 与 InformationalVersion，
       设置页「关于」与崩溃导出都从程序集信息里读，不再各处硬编码或从开发轮次号拼。
-      发版改这一行；CONVENTIONS.md §8.6 的 tag 必须与它一致（docs 校验会报漂移）。
+      发版改这一行；CONVENTIONS.md §8.6 的发布目录、zip 名与 git tag 都跟着它走。
     -->
     <Version>1.0.0</Version>
     <!--
