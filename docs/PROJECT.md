@@ -129,24 +129,24 @@ xUnit 用例数 = `[Fact]` 1605 + `[InlineData]` 757 = **2362**。每个 `[Inlin
 
 `build.ps1` 提供四种 `-Mode`，参数默认是 `minimal`（`build.ps1:10`；脚本头注释把 `fdd` 写成「默认」，与参数定义不一致，以参数定义为准）。四种形态及实测体积如下（win-x64）：
 
-- **minimal（默认）**：框架依赖 + 单文件，托管程序集打进 exe，原生库外置。R59 实测 **24.7 MB / 3 个文件**，目标机需要 .NET 8 Desktop Runtime（`docs/HANDOVER-2026-10-24-R59.md:103`）。`PUBLISH-CHECK` 早前记录 23.4 MB，脚本注释里的 21.1 MB 是剔除 ANGLE 之前的旧值（`docs/PUBLISH-CHECK.md:26`）。
+- **minimal（默认）**：框架依赖 + 单文件，托管程序集打进 exe，原生库外置。R59 实测 **24.7 MB / 3 个文件**，目标机需要 .NET 8 Desktop Runtime（R59 交接记录）。早前的发布检查记录 23.4 MB，脚本注释里的 21.1 MB 是剔除 ANGLE 之前的旧值。
 - **fdd**：框架依赖多文件。**26.2 MB / 48 个文件**，同样需要 .NET 8 Desktop Runtime（`build.ps1:23`）。
 - **folder**：自包含、不裁剪。**98.5 MB / 231 个文件**，任何机器双击即用（`build.ps1:26`）。
 - **portable**：自包含、裁剪、压缩成单个 exe。**21.8 MB / 1 个文件**；首次启动要把原生库解压到 `%TEMP%\.net\<app>`，该目录被安防软件拦截时启动会直接失败（`build.ps1:27`）。
 
 体积差距来自运行时：PCL 用系统自带的 .NET Framework 4.8，HMCL 依赖用户已有的 Java，所以它们能做到十几 MB；.NET 8 不在 Windows 自带组件里，自包含必然多带几十 MB（`build.ps1:32`）。
 
-发布脚本有两道产物自检：`--probe-dir` 断言数据目录可写并打印 `writable=YES`，`--screenshot` 要求 20 秒内退出且 PNG 大于 10 KB。两道关堵的都是「退出码 0 但启动不起来」（`build.ps1:39`、`docs/PUBLISH-CHECK.md:20`）。
+发布脚本有两道产物自检：`--probe-dir` 断言数据目录可写并打印 `writable=YES`，`--screenshot` 要求 20 秒内退出且 PNG 大于 10 KB。两道关堵的都是「退出码 0 但启动不起来」（`build.ps1:39`；早前发布检查记录也列过同一条）。
 
 ### 已发布版本的口径
 
 仓库没有产品语义版本号：App 与 Core 的 csproj、`Directory.Build.props` 都没有 `<Version>`，也没有 git tag。关于页显示的 `AppVersion` 读程序集的 `AssemblyInformationalVersionAttribute`，有 `+hash` 后缀时把它剥掉（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs:2114 SettingsViewModel.AppVersion`）。
 
-实际发布按开发轮次标识：产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里），交接文档用 `pub-rNN` 指代，当前最新是 R59（`docs/HANDOVER-2026-10-24-R59.md:103`）。因此对外描述版本时，引用轮次号而不是编一个「v1.x」。
+实际发布按开发轮次标识：产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里），交接文档用 `pub-rNN` 指代，当前最新是 R59（R59 交接记录）。因此对外描述版本时，引用轮次号而不是编一个「v1.x」。
 
 ## 明确不做的事：12 条逐条复核
 
-来源是 `docs/FINAL-SCOPE.md` §2 的 12 条「明确不做」。2026-10-24 逐条对照 `src/` 复核，结论分三类：仍成立、改判、删除。
+来源是已删的最终范围清单（FINAL-SCOPE）§2 的 12 条「明确不做」。2026-10-24 逐条对照 `src/` 复核，结论分三类：仍成立、改判、删除。
 
 复核结果：8 条仍成立（第 2、3、4、5、7、9、10、12 条），4 条改判（第 1、6、8、11 条），没有需要删除的条目。其中第 8 与第 12 条在原文里自相矛盾，本文给出统一结论。
 
@@ -194,7 +194,7 @@ xUnit 用例数 = `[Fact]` 1605 + `[InlineData]` 757 = **2362**。每个 `[Inlin
 
 **背景音乐没做。** 仓库里没有 `MediaPlayer`、NAudio、WaveOut 之类的播放器代码。
 
-`FINAL-SCOPE` 第 8 条写「背景图片/音乐不做」，第 12 条又括注「背景图片已实现」，两处矛盾。统一结论：**背景图片已做，背景音乐不做。**
+已删的最终范围清单第 8 条写「背景图片/音乐不做」，第 12 条又括注「背景图片已实现」，两处矛盾。统一结论：**背景图片已做，背景音乐不做。**
 
 ### 9. 分片下载阶梯并发 —— 不做
 
@@ -223,7 +223,7 @@ xUnit 用例数 = `[Fact]` 1605 + `[InlineData]` 757 = **2362**。每个 `[Inlin
 - 微软账户的真实登录需要一次人工授权才能在实机验收；代码侧只覆盖到设备码流程与令牌持久化（`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs:45 MicrosoftDeviceCodeAuth`）。
 - macOS 没有发布物与实机验收，见第 1 条。
 - `portable` 形态依赖 `%TEMP%\.net\<app>` 可写；该路径被安防软件拦截时启动失败，改用 `fdd` / `folder`。
-- 仓内仍有旧口径：`FINAL-SCOPE` 的测试数 2235、页面名「实例/存档/关于」，README 的静态能力矩阵停在早期轮次。本文与上面的测试命令是当前口径；发现冲突时以代码与本文为准。
+- 仓内仍有旧口径：已删的最终范围清单里的测试数 2235、页面名「实例/存档/关于」，README 的静态能力矩阵停在早期轮次。本文与上面的测试命令是当前口径；发现冲突时以代码与本文为准。
 
 ## 核对方式
 
