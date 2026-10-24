@@ -6,6 +6,10 @@ param(
     # 跳过发布产物的两道自检（--probe-dir / --screenshot）。只在你明确知道产物可用、
     # 或者环境跑不了 GUI（无桌面）时使用；日常发布不要加。
     [switch]$SkipVerify,
+
+    # 只跳过「git tag 与仓库级版本号一致」这一道发布前置校验，其余发布自检（产物 --probe-dir /
+    # --screenshot）照常执行。用于还没打 tag 的本地试发布；正式发版不要加。
+    [switch]$AllowUntagged,
     [ValidateSet('minimal', 'fdd', 'portable', 'folder')]
     [string]$Mode = 'minimal',
     [string]$Runtime = 'win-x64',
@@ -34,6 +38,8 @@ param(
 # .NET 8 不在 Windows 自带组件里，所以自包含必然多出几十 MB 运行时。
 #
 # 发布自检（原理与取舍见 CONVENTIONS.md §8.5 与 §8.6）：
+#   - 发布前置：HEAD 上必须存在精确匹配 v<Version> 的 tag（git describe --tags --exact-match）；
+#     Version 取自 Directory.Build.props。对不上直接失败，且不动旧发布目录。-AllowUntagged 只跳过这一道。
 #   - 前置：obj\<Configuration> 里的 XAML 中间产物比 *.axaml 源旧时，只清 XAML 相关产物再构建。
 #     不删整个 obj —— 那会让 publish 重走 restore + trim，本机实测在 ILLink 阶段失败。
 #   - 后置：产物跑 --probe-dir（断言 writable=YES）与 --screenshot（20 秒内退出且 PNG > 10KB）。
@@ -280,6 +286,70 @@ function Invoke-PublishVerify {
     Write-Host '[build] 已清理验证残留（失败时这些文件会保留，便于排查）' -ForegroundColor DarkGray
 }
 
+# ---- 发布前置：git tag 必须与仓库级版本号一致 ----
+#
+# 堵的是「打的 tag 和产物里报的版本对不上」：产物里的版本来自 Directory.Build.props 的 <Version>，
+# tag 来自发布者手动敲的 `git tag -a`，两边没有任何东西保证一致。发布前在这里比对，对不上就不发布。
+# 必须在删除旧发布目录之前跑：tag 打错时旧产物要原样留着。
+function Assert-ReleaseTag {
+    param([switch]$Skip)
+
+    $propsPath = Join-Path $root 'Directory.Build.props'
+    if (-not (Test-Path $propsPath)) {
+        throw "找不到仓库级版本来源：$propsPath，无法校验发布 tag"
+    }
+
+    $version = $null
+    try {
+        [xml]$props = Get-Content -Path $propsPath -Raw -Encoding utf8
+    }
+    catch {
+        throw "无法解析 $propsPath（读 <Version>）：$($_.Exception.Message)"
+    }
+
+    # PropertyGroup 是数组（文件里有多个），取第一个带非空 <Version> 的。
+    foreach ($group in @($props.Project.PropertyGroup)) {
+        if ($null -eq $group) { continue }
+        $candidate = [string]$group.Version
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            $version = $candidate.Trim()
+            break
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "在 $propsPath 里读不到非空的 <Version>，无法校验发布 tag"
+    }
+
+    $expectedTag = "v$version"
+
+    if ($Skip) {
+        Write-Host "[build] 已跳过 tag 校验（-AllowUntagged）：期望 tag 为 $expectedTag；产物自检照常执行" -ForegroundColor Yellow
+        return
+    }
+
+    # 用退出码判断结果：外部命令的非 0 退出不会抛异常。关掉「原生命令错误即抛」的偏好变量，
+    # 免得无 tag 的 128 被当成异常、丢掉期望 tag 这条提示。
+    $PSNativeCommandUseErrorActionPreference = $false
+
+    if ($null -eq (Get-Command git -ErrorAction SilentlyContinue)) {
+        throw "找不到 git 命令，无法校验发布 tag。期望 tag: $expectedTag"
+    }
+
+    $describe = @(& git describe --tags --exact-match 2>$null)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "当前 HEAD 上没有精确匹配的 git tag（git describe --tags --exact-match 退出码 $exitCode）。期望 tag: $expectedTag"
+    }
+
+    $actualTag = if ($describe.Count -gt 0) { ([string]$describe[0]).Trim() } else { '' }
+    if ($actualTag -ne $expectedTag) {
+        throw "git tag 与仓库级版本号不一致：HEAD 上的 tag 是 '$actualTag'，期望 tag: $expectedTag（改 Directory.Build.props 的 <Version>，或按版本重打 tag）"
+    }
+
+    Write-Host "[build] tag 校验通过：$actualTag 与 <Version> $version 一致" -ForegroundColor Green
+}
+
 if ($Clean) {
     Get-ChildItem -Path $root -Recurse -Directory -Include bin, obj |
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
@@ -308,6 +378,9 @@ try {
     }
 
     if ($Publish) {
+        # 发布前置：tag 与版本对不上就到此为止，不删旧产物、不构建。
+        Assert-ReleaseTag -Skip:$AllowUntagged
+
         $outDir = if ($OutDir) { $OutDir } else { "$root\pub" }
         $outDir = [System.IO.Path]::GetFullPath($outDir)
 
