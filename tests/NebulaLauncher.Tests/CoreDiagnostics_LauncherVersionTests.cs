@@ -1,5 +1,10 @@
+using System.IO.Compression;
 using System.Reflection;
+using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Diagnostics;
+using NebulaLauncher.Core.Launching;
+using NebulaLauncher.Core.Logging;
+using NebulaLauncher.Core.Models;
 using NebulaLauncher.ViewModels;
 using Xunit;
 
@@ -117,5 +122,56 @@ public class CoreDiagnostics_LauncherVersionTests
     {
         Assert.Null(DiagnosticsSnapshot.DisplayVersion(null));
         Assert.Equal(string.Empty, DiagnosticsSnapshot.DisplayVersion(string.Empty));
+    }
+
+    /// <summary>
+    /// AC：崩溃导出里的版本号与设置页一致。首页送进导出的就是 <see cref="DiagnosticsSnapshot.DisplayVersionOf"/>，
+    /// 而 <c>CrashExportService</c> 只做原样拼接（不自己补前缀），所以落盘的 analysis 文本与 system.txt
+    /// 都应是同一个 <c>v1.0.0</c>，并且只出现一个 <c>v</c>——两处各加一次前缀就会变成 <c>vv1.0.0</c>。
+    /// 这条走 Core 的公共入口，不实例化任何 Avalonia 类型。
+    /// </summary>
+    [Fact]
+    public async Task 崩溃导出的版本号与设置页同口径()
+    {
+        using var temp = new TempDirectory();
+        var paths = new FakeLauncherPaths(temp.Path);
+        Directory.CreateDirectory(paths.LogsDirectory);
+        File.WriteAllText(
+            Path.Combine(paths.LogsDirectory, "launcher-20261024.log"),
+            "2026-10-24 20:00:00.000 [INFO ] 测试" + Environment.NewLine);
+
+        var expected = DiagnosticsSnapshot.DisplayVersionOf(typeof(SettingsViewModel).Assembly);
+        Assert.Equal("v1.0.0", expected);
+
+        var request = new CrashExportRequest(
+            new CrashReport(IsCrash: true, Summary: "测试用结论。", Suggestions: []),
+            GameOutputLines: ["游戏异常退出，退出码 1"],
+            HsErrText: null,
+            System: new DiagnosticsInput
+            {
+                LauncherVersion = expected,
+                GeneratedAt = new DateTimeOffset(2026, 10, 24, 20, 0, 0, TimeSpan.FromHours(8)),
+            });
+
+        var service = new CrashExportService(paths, new LauncherLogReader(paths));
+        var result = await service.ExportAsync(request, temp.Combine("export"));
+
+        Assert.True(result.Success, result.Error);
+
+        var analysis = ReadZipEntry(result.ArchivePath!, "crash-analysis.txt");
+        var system = ReadZipEntry(result.ArchivePath!, "system.txt");
+
+        Assert.Contains("启动器版本: v1.0.0", analysis, StringComparison.Ordinal);
+        Assert.Contains("版本: v1.0.0", system, StringComparison.Ordinal);
+        Assert.DoesNotContain("vv", analysis, StringComparison.Ordinal);
+        Assert.DoesNotContain("vv", system, StringComparison.Ordinal);
+    }
+
+    private static string ReadZipEntry(string archivePath, string name)
+    {
+        using var archive = ZipFile.OpenRead(archivePath);
+        var entry = archive.GetEntry(name) ?? throw new InvalidOperationException("导出包里缺少条目: " + name);
+        using var reader = new StreamReader(entry.Open());
+        return reader.ReadToEnd();
     }
 }
