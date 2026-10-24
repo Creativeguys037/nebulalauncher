@@ -1,11 +1,13 @@
 # v1.0.0 发布清单
 
+> 历史说明：本文出现的 `docs/FINAL-SCOPE.md`、`docs/EXTENSIONS.md`、`docs/HANDOVER.md`、`docs/PUBLISH-CHECK.md` 等 `docs/` 下旧文档路径，都是 2026-10-24 收口删除前的文件名，这里只作历史核对对象的记录，正文路径不改。
+
 > 调研基准：本地仓库 `D:\agent_workspace\NebulaLauncher`，工作区 = `initial commit` `7440567`（2026-10-24 15:47:15 +0800），`origin/master` 与之相同，无 tag。
 > 本轮为只读调研，未构建、未提交、未执行任何 `gh release` 命令。所有数字均为磁盘实测。
 
 ## 结论（3 句以内）
 
-现有 `docs/PUBLISH-CHECK.md` 的**流程判据（脚本行为、两道产物关、失败条件）全部仍然成立**，但其中的**体积数字全部过期**，且 HANDOVER R59 记录的 SHA256 在磁盘上已无对应文件可复核。
+现有 docs/PUBLISH-CHECK.md 的**流程判据（脚本行为、两道产物关、失败条件）全部仍然成立**，但其中的**体积数字全部过期**，且 HANDOVER R59 记录的 SHA256 在磁盘上已无对应文件可复核。
 产物形态建议：`minimal`（框架依赖、24.72 MiB / 3 文件）做 v1.0.0 主产物，加发 `portable`（自包含单文件）做免装运行时备选，`fdd` / `folder` 不发。
 阻塞项有三个：`<Version>` 在任何构建文件里都不存在（版本号只靠 SDK 默认值"碰巧"是 1.0.0）、GitHub Release 在 PRIVATE 仓库下匿名不可见、exe 未签名。
 
@@ -13,7 +15,7 @@
 
 ## A. 现有判据核对（逐条：成立 / 过期 / 缺失）
 
-### A.1 `docs/PUBLISH-CHECK.md` §1「`build.ps1` 实际行为」
+### A.1 docs/PUBLISH-CHECK.md §1「`build.ps1` 实际行为」
 
 | 行 | 判据 | 结论 | 证据 |
 |---|---|---|---|
@@ -30,7 +32,7 @@
 | 行 | 文档写的 | 实测（`D:\agent_workspace\pub\r61\`） | 结论 |
 |---|---|---|---|
 | :26 | `NebulaLauncher.exe` 13.4 MB + `libSkiaSharp.dll` 9.0 MB + `libHarfBuzzSharp.dll` 1.8 MB = **23.4 MB / 3 文件** | exe **14,701,210 B**（14.02 MiB）+ Skia **9,414,216 B**（8.98 MiB）+ HarfBuzz **1,804,872 B**（1.72 MiB）= **25,921,298 B / 3 文件（24.72 MiB / 25.92 MB）** | **过期**。exe 单项就差了 1.3 MB |
-| :27 | `-Mode fdd` **23.4 MB / 47 文件** | 无产物可测；`build.ps1:23` 头注释写 **26.2 MB / 48 文件**，`docs/HANDOVER.md:125` 同 26.2/48 | **自相矛盾 → 未确定**，发布前必须重测一次 |
+| :27 | `-Mode fdd` **23.4 MB / 47 文件** | 无产物可测；`build.ps1:23` 头注释写 **26.2 MB / 48 文件**，docs/HANDOVER.md:125 同 26.2/48 | **自相矛盾 → 未确定**，发布前必须重测一次 |
 | :28 | 不混入 `tools/`、`Extras/`、`docs/`、`*.Tests` | 无法从 r60/r61 直接证伪；`grep -ac "CmlLib"` 命中 188 次、`"NebulaLauncher.Core"` 命中 10 次，说明 exe 是单文件 bundle、托管程序集未压缩嵌入 | **需重跑**（低成本，`ls` 3 个文件即可） |
 | :29-30 | 未清理 obj 直接 publish → 进程静默退出（exit 0、无窗口、不产图） | 属历史问题描述；`build.ps1:294` 的 `-Force` 已从根上挡住 | **已过期（保留为背景说明可以，不能当现行判据）** |
 
@@ -38,7 +40,7 @@
 
 | 行 | 判据 | 结论 | 证据 |
 |---|---|---|---|
-| :47 | 发布不再必须手写 `-Clean` | **成立** | `build.ps1:294`。**但文档间冲突**：`README.md:158`「发布必须带 `-Clean`」、`docs/HANDOVER.md:778`「发布必须 `-Clean`」仍在，会误导执行者 |
+| :47 | 发布不再必须手写 `-Clean` | **成立** | `build.ps1:294`。**但文档间冲突**：`README.md:158`「发布必须带 `-Clean`」、docs/HANDOVER.md:778「发布必须 `-Clean`」仍在，会误导执行者 |
 | :49-50 | 拿到别人的产物仍要自己跑 `--probe-dir` + `--screenshot` | **成立**（`build.ps1` 的自检只对本次发布负责） | `build.ps1:149-281` 作用范围限于 `$OutDir` |
 | :54-56 | XAML 过期判据：`*.axaml` 最新 mtime vs `obj/<Config>` 下名为 `Avalonia` 的目录，2 秒容差 | **成立** | `build.ps1:59-65`（`Get-XamlSourceTime`，排除 `bin`/`obj`）、`:79-81`（`$_.Name -eq 'Avalonia'`）、`:101`（`FromSeconds(2)`）、`:93-94`/`:132-134`（连 `NebulaLauncher.dll` 一起删） |
 | :61 | 成功路径清掉 `.verify*` / `.probe*` / `nebula-probe-dir.txt`，发布目录仍是 3 文件 | **成立** | `build.ps1:278-280` |
@@ -60,7 +62,7 @@
 4. **tag / 提交前置条件**：当前 `git status` 有未提交项：` M docs/agents/workspace.yaml`、`?? AGENTS.md`、`?? docs/agents/domain.md`、`?? docs/agents/issue-tracker.md`、`?? docs/agents/triage-labels.md`。打 tag 前必须先决定这些是否入库。
 5. **`-SkipVerify` 禁令**：`build.ps1:7` 有注释，PUBLISH-CHECK 未写进清单。正式发版**不得**加该参数。
 6. **产物目录命名规范**：现有 `pub\r59`—`pub\r62` 无人能对应到轮次与内容（见 C 节）。
-7. **R59 产物不可复核（硬发现）**：`D:\agent_workspace\pub\r59\` 实测为空目录；`docs/HANDOVER-2026-10-24-R59.md:103` 声称的 SHA256 `1C52BDB4ACFA402CB091D8B8C5D86892DA29C9E3A9AFEFAEA90CCB13D0CC396B` 在盘上找不到对应文件。现存 `r60`/`r61` 的 exe 是**另一个**哈希：
+7. **R59 产物不可复核（硬发现）**：`D:\agent_workspace\pub\r59\` 实测为空目录；docs/HANDOVER-2026-10-24-R59.md:103 声称的 SHA256 `1C52BDB4ACFA402CB091D8B8C5D86892DA29C9E3A9AFEFAEA90CCB13D0CC396B` 在盘上找不到对应文件。现存 `r60`/`r61` 的 exe 是**另一个**哈希：
 
 ```
 $ sha256sum pub/r60/NebulaLauncher.exe pub/r61/NebulaLauncher.exe
@@ -92,18 +94,18 @@ $ grep -ac "NebulaLauncher.Core"  pub/r61/NebulaLauncher.exe   → 10    (对照
 | `portable` | 是 + 裁剪 + 压缩单文件 | 1 | 21.8 MB（未实测） | `build.ps1:347-356`、`:27` |
 | `folder` | 是，不单文件 | 231 | 98.5 MB（未实测） | `build.ps1:360-362`、`:26` |
 
-`minimal` 是**框架依赖**：目标机必须有 .NET 8 Desktop Runtime。仓库自己写明了这个前提的代价——`README.md:181-182`「.NET 8 不在 Windows 自带组件里，由用户自行安装」；`build.ps1:383` 在 fdd 分支打印「目标机需要 .NET 8 Desktop Runtime」。而"目标机缺 .NET 8 时的提示"在 `docs/PUBLISH-CHECK.md:108` §5 明确列为**未验证**。
+`minimal` 是**框架依赖**：目标机必须有 .NET 8 Desktop Runtime。仓库自己写明了这个前提的代价——`README.md:181-182`「.NET 8 不在 Windows 自带组件里，由用户自行安装」；`build.ps1:383` 在 fdd 分支打印「目标机需要 .NET 8 Desktop Runtime」。而"目标机缺 .NET 8 时的提示"在 docs/PUBLISH-CHECK.md:108 §5 明确列为**未验证**。
 
 ### B.2 结论
 
-1. **`minimal` 必须是 v1.0.0 主产物**。理由：它是历史上唯一被连续实测过的形态（`docs/PUBLISH-CHECK.md:92-99` 记录了五十四轮 PNG 尺寸序列，每轮都有 `writable=YES` + PNG 证据）。1.0.0 不该拿未经实测的形态当主交付。
-2. **必须加发一个 self-contained 形态**，理由是首启成功率：1.0.0 的用户多半没装 .NET 8 Desktop Runtime，而缺运行时的降级行为在全仓库是**未验证项**（`docs/PUBLISH-CHECK.md:108`）。
+1. **`minimal` 必须是 v1.0.0 主产物**。理由：它是历史上唯一被连续实测过的形态（docs/PUBLISH-CHECK.md:92-99 记录了五十四轮 PNG 尺寸序列，每轮都有 `writable=YES` + PNG 证据）。1.0.0 不该拿未经实测的形态当主交付。
+2. **必须加发一个 self-contained 形态**，理由是首启成功率：1.0.0 的用户多半没装 .NET 8 Desktop Runtime，而缺运行时的降级行为在全仓库是**未验证项**（docs/PUBLISH-CHECK.md:108）。
 3. 自包含三选一取 **`portable`**：
    - `folder`（98.5 MB / 231 文件）体积是 minimal 的 4 倍，还要用户解压 231 个文件，对 1.0.0 不划算；
    - `fdd`（与 minimal 同为框架依赖、体积更大、文件更多）**没有任何优势，不发**；
    - `portable` 只有 1 个文件、约 21.8 MB，是唯一能"双击即用、免装运行时"的形态。
 4. **`portable` 的已知限制必须写进 Release 说明**：首次启动要把原生库解压到 `%TEMP%\.net\<app>`，该目录被安全软件拦截时会直接启动失败；`build.ps1:28-30` 明写「实测本机就是这种情况」，`README.md:171-179` 给出兜底 `DOTNET_BUNDLE_EXTRACT_BASE_DIR`。
-5. **附带条件**：`portable` 与 `folder` 在 `docs/PUBLISH-CHECK.md:107` 标为"未验证"。因此 `portable` 只有在发布前用 `build.ps1` 的**默认两道关**（不加 `-SkipVerify`）跑通才发；跑不通就只发 `minimal`，把自包含推迟到 1.0.1。
+5. **附带条件**：`portable` 与 `folder` 在 docs/PUBLISH-CHECK.md:107 标为"未验证"。因此 `portable` 只有在发布前用 `build.ps1` 的**默认两道关**（不加 `-SkipVerify`）跑通才发；跑不通就只发 `minimal`，把自包含推迟到 1.0.1。
 
 ### B.3 不需要的东西
 
@@ -142,7 +144,7 @@ D:\agent_workspace\pub\v1.0.0\
 
 命名规则：
 
-- 版本标识用 `v1.0.0`，**不再用轮次号**。轮次号只属于 `docs/HANDOVER-*.md`，不进文件系统。
+- 版本标识用 `v1.0.0`，**不再用轮次号**。轮次号只属于 docs/HANDOVER-*.md，不进文件系统。
 - 附件名三段固定：`<产品>-<版本>-<RID>[-portable].<ext>`，全小写 RID，全 ASCII，不含空格。
 - 目录内的可执行文件名保持 `NebulaLauncher.exe`（`build.ps1:152` 与自检的 `Join-Path $OutDir 'NebulaLauncher.exe'` 硬编码这个名字，改名会让自检失效）。
 
@@ -235,7 +237,7 @@ CompanyName   = NebulaLauncher
 | 启动日志里的 `GameLauncherVersion` | `src/NebulaLauncher.Core/Launching/GameLauncher.cs:979` | `GetName().Version?.ToString(3) ?? "1.0.0"` → 得 `1.0.0` | 不需要 |
 | Win32 应用清单 | `src/NebulaLauncher.App/app.manifest:3` `<assemblyIdentity version="1.0.0.0" …>` | 原生 SxS manifest，**不参与**托管程序集版本 | **可不动**（现值恰好一致；改了也不会影响上面四处） |
 
-**关于页说明**：仓库**没有独立的 About 页**（`ls src/NebulaLauncher.App/Views` 共 16 个 `.axaml`，无 `AboutView`）。`docs/FINAL-SCOPE.md:12` 说的"关于"是设置页的一个分区，代码里对应 `SettingsViewModel.cs:2112` 的注释 `// ---------------- 关于 ----------------`，界面在 `SettingsView.axaml:1500-1510`（`版本` / `.NET` 两行）。所以"写进关于页"= 已存在的 `SettingsView.axaml:1507`，无需新增界面。
+**关于页说明**：仓库**没有独立的 About 页**（`ls src/NebulaLauncher.App/Views` 共 16 个 `.axaml`，无 `AboutView`）。docs/FINAL-SCOPE.md:12 说的"关于"是设置页的一个分区，代码里对应 `SettingsViewModel.cs:2112` 的注释 `// ---------------- 关于 ----------------`，界面在 `SettingsView.axaml:1500-1510`（`版本` / `.NET` 两行）。所以"写进关于页"= 已存在的 `SettingsView.axaml:1507`，无需新增界面。
 
 ### D.4 验证命令
 
@@ -268,11 +270,11 @@ CompanyName   = NebulaLauncher
 
 ### E.3 Release 说明结构（中文，面向用户）
 
-建议文件：`docs/release-notes/v1.0.0.md`（本轮未创建，需 lead 决定后新建）。七段：
+建议文件：docs/release-notes/v1.0.0.md（本轮未创建，需 lead 决定后新建）。七段：
 
 1. **一句话定位**
    `Nebula Launcher 1.0.0 —— 面向 Windows 的 Minecraft 启动器首个正式版：原版 / Fabric / Quilt / Forge / NeoForge 安装与启动、账户、实例隔离、模组与整合包、存档备份、崩溃归因，全部在一个原生界面里。`
-2. **本版功能摘要**（6–8 条，只写用户能感知的；素材取 `docs/HANDOVER.md:25-35` 的模块表 + `docs/FINAL-SCOPE.md:10-28`）：版本安装与启动、账户（微软设备码 / 离线 / 第三方验证）、实例隔离与组件修复、模组与整合包（Modrinth + CurseForge 双源）、存档备份与世界编辑、崩溃归因（75 条规则）与日志中心、主题与托盘。
+2. **本版功能摘要**（6–8 条，只写用户能感知的；素材取 docs/HANDOVER.md:25-35 的模块表 + docs/FINAL-SCOPE.md:10-28）：版本安装与启动、账户（微软设备码 / 离线 / 第三方验证）、实例隔离与组件修复、模组与整合包（Modrinth + CurseForge 双源）、存档备份与世界编辑、崩溃归因（75 条规则）与日志中心、主题与托盘。
 3. **系统要求**
    `Windows 10 1809 及以上 / x64；.NET 8 Desktop Runtime（框架依赖版必需，下载地址 https://dotnet.microsoft.com/download/dotnet/8.0）；至少 200 MB 可用空间；启动 Minecraft 另需相应版本的 Java（启动器可在缺 Java 时一键安装）。`
 4. **安装与运行**（两个附件分别说明）
@@ -280,8 +282,8 @@ CompanyName   = NebulaLauncher
    - `NebulaLauncher-v1.0.0-win-x64-portable.exe`：单文件，免装运行时；首次启动会解压到 `%TEMP%\.net\NebulaLauncher`，若被安全软件拦截，设置环境变量 `DOTNET_BUNDLE_EXTRACT_BASE_DIR` 指向可写目录后再启动。
 5. **已知限制**（每条都在文档里有出处，不要写没有出处的限制）
    - exe 未做代码签名，Windows SmartScreen 会提示"未知发布者"。
-   - 真实双击首启未在交互桌面上验收（`docs/PUBLISH-CHECK.md:104-105`）。
-   - 真实微软账户登录、Forge 真机启动未验（`docs/HANDOVER.md:38`、`docs/HANDOVER-2026-10-24-R59.md:120-122`）。
+   - 真实双击首启未在交互桌面上验收（docs/PUBLISH-CHECK.md:104-105）。
+   - 真实微软账户登录、Forge 真机启动未验（docs/HANDOVER.md:38、docs/HANDOVER-2026-10-24-R59.md:120-122）。
    - macOS 未适配（`README.md:3`）。
    - 便携单文件版依赖 `%TEMP%` 可写（`README.md:171-179`）。
 6. **校验和**：贴 `SHA256SUMS.txt` 的全部内容（见 F 节），并给一行验证命令。
@@ -373,8 +375,8 @@ Get-FileHash .\NebulaLauncher-v1.0.0-win-x64.zip -Algorithm SHA256
 4. **[阻塞] 执行构建**（G.1 的两条 `build.ps1` 命令）。不要加 `-SkipVerify`。
 5. **[阻塞] 核对版本号**：`(Get-Item …\NebulaLauncher.exe).VersionInfo` → `FileVersion=1.0.0.0`、`ProductVersion=1.0.0`（D.4）。
 6. **[阻塞] 生成 `SHA256SUMS.txt` 并打包 zip**（F.1 + C.3 第 5 步）。
-7. **真机验收（必须人在有交互桌面的机器上做）**：双击 `NebulaLauncher.exe` → 窗口出现、首页渲染、首启引导正常；关掉再开一次；托盘图标与"关闭到托盘"；中文+空格路径下启动一次。依据：`docs/PUBLISH-CHECK.md:104-105` 明确「本会话没有交互桌面，窗口能不能开出来只能间接由截图模式证明」。
-8. **干净机验收（无 .NET 8 的机器）**：① 框架依赖版：确认缺运行时的提示文案与跳转正常（`docs/PUBLISH-CHECK.md:108` 的未验证项）；② portable 版：确认能起来、`%TEMP%\.net\NebulaLauncher` 能建。
+7. **真机验收（必须人在有交互桌面的机器上做）**：双击 `NebulaLauncher.exe` → 窗口出现、首页渲染、首启引导正常；关掉再开一次；托盘图标与"关闭到托盘"；中文+空格路径下启动一次。依据：docs/PUBLISH-CHECK.md:104-105 明确「本会话没有交互桌面，窗口能不能开出来只能间接由截图模式证明」。
+8. **干净机验收（无 .NET 8 的机器）**：① 框架依赖版：确认缺运行时的提示文案与跳转正常（docs/PUBLISH-CHECK.md:108 的未验证项）；② portable 版：确认能起来、`%TEMP%\.net\NebulaLauncher` 能建。
 9. **[阻塞] 打 tag 并推送**：`git tag -a v1.0.0 -m "…"` + `git push origin v1.0.0`（写操作，需人执行）。
 10. **[阻塞] 建 draft Release**：E.4 第 2 步的 `gh release create`。
 11. **人工审阅 draft**：附件 3 个、notes 七段齐全、§6 校验和与 `SHA256SUMS.txt` 逐字一致、§7 未签名说明在。
@@ -406,33 +408,33 @@ Get-FileHash .\NebulaLauncher-v1.0.0-win-x64.zip -Algorithm SHA256
 
 ### H.4 CHANGELOG（建议不加）
 
-- 仓库无 `CHANGELOG.md`。已有的变更记录在 `docs/HANDOVER-*.md`（逐轮）与 `docs/PCL2-PORTING.md`（功能对照），但都是**面向开发者**的。
-- 建议：1.0.0 不引入 `CHANGELOG.md`，把 Release notes 当唯一面向用户的变更说明，避免两份文档同时维护。若坚持要，则以 `docs/release-notes/` 目录按版本号累积，每份 notes 即一条 CHANGELOG 记录。**未决**。
+- 仓库无 `CHANGELOG.md`。已有的变更记录在 docs/HANDOVER-*.md（逐轮）与 docs/PCL2-PORTING.md（功能对照），但都是**面向开发者**的。
+- 建议：1.0.0 不引入 `CHANGELOG.md`，把 Release notes 当唯一面向用户的变更说明，避免两份文档同时维护。若坚持要，则以 docs/release-notes/ 目录按版本号累积，每份 notes 即一条 CHANGELOG 记录。**未决**。
 
 ### H.5 R59 产物哈希不可复核（已在 A.5.7 举证）
 
-`docs/HANDOVER-2026-10-24-R59.md:103` 的 `1C52BDB4ACFA402CB091D8B8C5D86892DA29C9E3A9AFEFAEA90CCB13D0CC396B` 在磁盘上无对应文件；现存产物哈希是 `0906b7a8…` 且不含 R59 代码。**必须在 v1.0.0 构建后作废这条记录**，并在新的 HANDOVER 里写新哈希 + 产物路径（路径要写 `v1.0.0` 而不是轮次号）。
+docs/HANDOVER-2026-10-24-R59.md:103 的 `1C52BDB4ACFA402CB091D8B8C5D86892DA29C9E3A9AFEFAEA90CCB13D0CC396B` 在磁盘上无对应文件；现存产物哈希是 `0906b7a8…` 且不含 R59 代码。**必须在 v1.0.0 构建后作废这条记录**，并在新的 HANDOVER 里写新哈希 + 产物路径（路径要写 `v1.0.0` 而不是轮次号）。
 
 ### H.6 文档里的体积数字四套并存（会误导验收）
 
 | 位置 | 写的 minimal 体积 |
 |---|---|
 | `build.ps1:339` 注释 | 21.1 MB / 3 文件（10.4 + 9.0 + 1.7） |
-| `docs/HANDOVER.md:124` | 22.7 MB / 3 文件 |
-| `docs/PUBLISH-CHECK.md:26` | 23.4 MB / 3 文件（13.4 + 9.0 + 1.8） |
-| `docs/HANDOVER.md:20` | 23.7 MB |
-| `docs/HANDOVER-2026-10-24-R59.md:103` | 24.7 MB / 3 文件 |
+| docs/HANDOVER.md:124 | 22.7 MB / 3 文件 |
+| docs/PUBLISH-CHECK.md:26 | 23.4 MB / 3 文件（13.4 + 9.0 + 1.8） |
+| docs/HANDOVER.md:20 | 23.7 MB |
+| docs/HANDOVER-2026-10-24-R59.md:103 | 24.7 MB / 3 文件 |
 | **实测 r60/r61** | **24.72 MiB（25,921,298 B）/ 3 文件** |
 
 建议 v1.0.0 定稿后一次性对齐这五处（以及 `README.md:155` 的 23.4 MB、`:164` 的「单个 exe 10.3 MB」）。本轮只读，未改。
 
-### H.7 `portable` / `folder` 从未验证（`docs/PUBLISH-CHECK.md:107`）
+### H.7 `portable` / `folder` 从未验证（docs/PUBLISH-CHECK.md:107）
 
-`portable` 要进 v1.0.0，必须先用 `build.ps1` 默认两道关跑一遍（不加 `-SkipVerify`）；`folder` 建议直接不发。另一个未知数：`portable` 走 `PublishTrimmed=true` + `TrimMode=partial`（`build.ps1:351-352`），裁剪掉的首启路径在仓库里没有任何验证记录（`docs/HANDOVER.md:1295` 明确「发布自检的 portable 形态 … 未测」）。
+`portable` 要进 v1.0.0，必须先用 `build.ps1` 默认两道关跑一遍（不加 `-SkipVerify`）；`folder` 建议直接不发。另一个未知数：`portable` 走 `PublishTrimmed=true` + `TrimMode=partial`（`build.ps1:351-352`），裁剪掉的首启路径在仓库里没有任何验证记录（docs/HANDOVER.md:1295 明确「发布自检的 portable 形态 … 未测」）。
 
 ### H.8 `-Mode fdd` 的文件数/体积自相矛盾
 
-`docs/PUBLISH-CHECK.md:27` 写 47 文件 / 23.4 MB，`build.ps1:23` 与 `docs/HANDOVER.md:125` 写 48 文件 / 26.2 MB。两者都没留实测环境。因为 B 节建议**不发 fdd**，这条不影响 v1.0.0；但若有人后续按 PUBLISH-CHECK 说"fdd 已实测通过"就会误判。**未确定**。
+docs/PUBLISH-CHECK.md:27 写 47 文件 / 23.4 MB，`build.ps1:23` 与 docs/HANDOVER.md:125 写 48 文件 / 26.2 MB。两者都没留实测环境。因为 B 节建议**不发 fdd**，这条不影响 v1.0.0；但若有人后续按 PUBLISH-CHECK 说"fdd 已实测通过"就会误判。**未确定**。
 
 ### H.9 构建环境依赖未固化
 
