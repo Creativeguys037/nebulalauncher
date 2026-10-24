@@ -136,13 +136,13 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 体积差距来自运行时：PCL 用系统自带的 .NET Framework 4.8，HMCL 依赖用户已有的 Java，所以它们能做到十几 MB；.NET 8 不在 Windows 自带组件里，自包含必然多带几十 MB（`build.ps1:32`）。
 
-发布脚本有两道产物自检：`--probe-dir` 断言数据目录可写并打印 `writable=YES`，`--screenshot` 要求 20 秒内退出且 PNG 大于 10 KB。两道关堵的都是「退出码 0 但启动不起来」（`build.ps1:39`；早前发布检查记录也列过同一条）。
+发布脚本有三道产物自检：`--probe-dir` 断言数据目录可写并打印 `writable=YES`，`--selftest-json` 在真实产物里跑七条 JSON 落盘往返并要求 `json-selfcheck.summary=7/7`，`--screenshot` 要求 20 秒内退出且 PNG 大于 10 KB。三道关堵的都是「退出码 0 但用不了」——前两条挡「启动不起来」，第三条挡「启动得起来但设置存不住」（`build.ps1:39`；早前发布检查记录也列过同一条）。
 
 ### 已发布版本的口径
 
-版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.0</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它走 `DiagnosticsSnapshot.DisplayVersionOf`：读程序集的 `AssemblyInformationalVersionAttribute`、在 `+` 处截断构建哈希、再补 `v` 前缀（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2119）`）。
+版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.1</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它走 `DiagnosticsSnapshot.DisplayVersionOf`：读程序集的 `AssemblyInformationalVersionAttribute`、在 `+` 处截断构建哈希、再补 `v` 前缀（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2119）`）。
 
-对外描述版本一律用发布号 `v1.0.0`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
+对外描述版本一律用发布号 `v1.0.1`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
 
 历史轮次记录没有删：`docs/research/` 下的旧审计与验收记录、以及 git 历史里的 R59 / `pub-rNN` 提交，都按原文留在原处，不回头改写。它们只作开发过程标识，不再是任何对外口径，也不参与版本号校验。
 

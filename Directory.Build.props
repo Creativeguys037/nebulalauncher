@@ -6,7 +6,7 @@
       设置页「关于」与崩溃导出都从程序集信息里读，不再各处硬编码或从开发轮次号拼。
       发版改这一行；CONVENTIONS.md §8.6 的发布目录、zip 名与 git tag 都跟着它走。
     -->
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <!--
       SDK 默认会把 `<Version>+<commit sha>` 写进 InformationalVersion。这会让「唯一来源」变成两个值：
       同一份 Version 在打包机上产出 `1.0.0+a1b2c3`、在别处产出 `1.0.0`，也逼着上报口径多剥一层。

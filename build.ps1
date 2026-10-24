@@ -24,7 +24,7 @@ param(
 # Nebula Launcher 构建脚本。
 #
 # 发布形态（win-x64；体积随运行时版本与构建机变化，不在这里写死，实测值见
-# docs/release-notes/v1.0.0.md 与本脚本 -Publish 时打印的 [build] <模式> -> <目录> (<N> MB, <M> 个文件)）：
+# docs/release-notes/v1.0.1.md 与本脚本 -Publish 时打印的 [build] <模式> -> <目录> (<N> MB, <M> 个文件)）：
 #   fdd       几十 MB，数十个文件。框架依赖。
 #                      双击即用、无解压步骤、启动快；目标机需要 .NET 8 Desktop Runtime
 #                      （Windows 上很常见，启动器也会在缺失时提示）。
@@ -141,7 +141,7 @@ function Clear-StaleXamlIntermediates {
     }
 }
 
-# ---- 后置自检：发布产物能不能执行（--probe-dir）与能不能渲染（--screenshot） ----
+# ---- 后置自检：产物能不能执行（--probe-dir）、JSON 通路通不通（--selftest-json）、能不能渲染（--screenshot） ----
 function Stop-Verify {
     param([string]$Stage, [string[]]$Details)
 
@@ -161,8 +161,16 @@ function Invoke-PublishVerify {
         Stop-Verify 'probe-dir' @("找不到产物：$exe")
     }
 
+    # portable 是压缩单文件，运行时要先解包到 DOTNET_BUNDLE_EXTRACT_BASE_DIR（默认 %TEMP%\.net）。
+    # 本机安全软件会拦这个 exe 写临时目录，表现是第 1 关直接报
+    # "Failed to create directory [C:\...\Temp\.net\NebulaLauncher\<pid>] for extracting bundled files"，
+    # 与产物好坏无关（同一份产物手工设这个变量重跑即通过）。
+    # 自检把解包目录钉在产物目录里，判定结果就只反映产物本身。
+    $bundleDir = Join-Path $OutDir '.bundle'
+    $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $bundleDir
+
     # ---- 第 1 关：--probe-dir，断言 writable=YES ----
-    Write-Host '[build] 自检 1/2：--probe-dir' -ForegroundColor DarkGray
+    Write-Host '[build] 自检 1/3：--probe-dir' -ForegroundColor DarkGray
 
     # 应用会把探测结果同时写进 exe 同级的 nebula-probe-dir.txt（无控制台时的落点），
     # 两路都读：stdout 重定向在 WinExe 下不保证有内容。
@@ -201,7 +209,55 @@ function Invoke-PublishVerify {
         Stop-Verify 'probe-dir' @("输出里没有 writable=YES", '实际输出：', $outputText)
     }
 
-    Write-Host '[build] 自检 1/2 通过：writable=YES' -ForegroundColor Green
+    Write-Host '[build] 自检 1/3 通过：writable=YES' -ForegroundColor Green
+    # ---- 第 2 关：--selftest-json，断言所有 JSON 落盘通路都通过 ----
+    #
+    # 堵的是 #26：PublishTrimmed=true 关掉 System.Text.Json 的反射元数据后，
+    # settings.json / servers.json / 实例 / java-paths 这些写入路径会失败，
+    # 而第 1 关（--probe-dir）和第 3 关（--screenshot）都不碰序列化，坏产物照样能过。
+    Write-Host '[build] 自检 2/3：--selftest-json' -ForegroundColor DarkGray
+
+    # 与应用自己的落盘文件同样读两路：WinExe 下 stdout 重定向不保证有内容。
+    $selfTxt = Join-Path $OutDir 'nebula-selftest-json.txt'
+    if (Test-Path $selfTxt) { Remove-Item $selfTxt -Force -ErrorAction SilentlyContinue }
+    $selfOut = Join-Path $OutDir '.selftest.stdout.txt'
+    $selfErr = Join-Path $OutDir '.selftest.stderr.txt'
+    Remove-Item $selfOut, $selfErr -Force -ErrorAction SilentlyContinue
+
+    $proc = Start-Process -FilePath $exe -ArgumentList @('--selftest-json') -PassThru `
+        -RedirectStandardOutput $selfOut -RedirectStandardError $selfErr
+
+    if (-not $proc.WaitForExit(120000)) {
+        try { $proc.Kill() } catch { }
+        Stop-Verify 'selftest-json' @('120 秒内没有退出（进程挂住），已强制结束')
+    }
+
+    $code = $proc.ExitCode
+    $selfLines = @()
+    foreach ($path in @($selfTxt, $selfOut, $selfErr)) {
+        if (Test-Path $path) {
+            $text = Get-Content $path -Raw -ErrorAction SilentlyContinue
+            if (-not [string]::IsNullOrWhiteSpace($text)) { $selfLines += $text.Trim() }
+        }
+    }
+
+    $selfText = ($selfLines -join "`n")
+    if ([string]::IsNullOrWhiteSpace($selfText)) {
+        $selfText = '(stdout / stderr / nebula-selftest-json.txt 三处都没有内容)'
+    }
+
+    if ($code -ne 0) {
+        Stop-Verify 'selftest-json' @("exit code=$code（期望 0）", '实际输出：', $selfText)
+    }
+    if ($selfText -match 'json-selfcheck\.FAIL') {
+        Stop-Verify 'selftest-json' @('有 JSON 通路失败：', $selfText)
+    }
+    if ($selfText -notmatch 'json-selfcheck\.summary=(\d+)/\1') {
+        Stop-Verify 'selftest-json' @('没有 summary 行，或 passed 与 total 不等：', $selfText)
+    }
+
+    $summaryLine = ($selfText -split "`n" | Where-Object { $_ -match 'json-selfcheck\.summary=' } | Select-Object -First 1)
+    Write-Host "[build] 自检 2/3 通过：$summaryLine" -ForegroundColor Green
 
     # ---- 第 2 关：--screenshot，断言 20 秒内退出且 PNG > 10KB ----
     #
@@ -210,7 +266,7 @@ function Invoke-PublishVerify {
     #
     # 截图本身有偶发失败：本机实测约一次 0xE0434352（.NET 未处理异常，日志里没有错误行），
     # 同一份产物重跑即成功（历史交接记录里记着这条）。坏产物则会稳定失败，所以重试不会放过真问题。
-    Write-Host '[build] 自检 2/2：--screenshot（20 秒超时）' -ForegroundColor DarkGray
+    Write-Host '[build] 自检 3/3：--screenshot（20 秒超时）' -ForegroundColor DarkGray
 
     $dataDir = Join-Path $OutDir '.verify'
 
@@ -278,12 +334,13 @@ function Invoke-PublishVerify {
         Stop-Verify 'screenshot' $failure
     }
 
-    Write-Host "[build] 自检 2/2 通过：PNG $bytes 字节" -ForegroundColor Green
+    Write-Host "[build] 自检 3/3 通过：PNG $bytes 字节" -ForegroundColor Green
 
     # 成功时清掉验证残留：发布目录要能直接分发，不带 .verify / 截图 / 日志 / 探测输出。
     # 失败路径不清理（Stop-Verify 之前就 throw 了），现场留给排查。
     Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item $png, $pngError, $shotOut, $shotErr, $probeTxt, $stdout, $stderr -Force -ErrorAction SilentlyContinue
+    Remove-Item $bundleDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $png, $pngError, $shotOut, $shotErr, $probeTxt, $stdout, $stderr, $selfTxt, $selfOut, $selfErr -Force -ErrorAction SilentlyContinue
     Write-Host '[build] 已清理验证残留（失败时这些文件会保留，便于排查）' -ForegroundColor DarkGray
 }
 
@@ -452,7 +509,7 @@ try {
         Write-Host "[build] 运行: $(Join-Path $outDir 'NebulaLauncher.exe')" -ForegroundColor Green
 
         if ($Mode -eq 'portable') {
-            Write-Host "[build] 注意：portable 需要 %TEMP%\.net\<app> 可写。被安全软件拦截时启用会失败，改用 -Mode fdd 或 -Mode folder。" -ForegroundColor DarkGray
+            Write-Host "[build] 注意：portable 需要 %TEMP%\.net\<app> 可写（发布自检不受此限，它把解包目录钉在产物目录）。被安全软件拦截时启用会失败，改用 -Mode fdd 或 -Mode folder。" -ForegroundColor DarkGray
         }
         if ($Mode -eq 'fdd') {
             Write-Host "[build] 目标机需要 .NET 8 Desktop Runtime。" -ForegroundColor DarkGray

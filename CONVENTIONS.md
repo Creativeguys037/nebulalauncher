@@ -57,6 +57,17 @@ tools/DocsCheck/             文档引用 / 行数预算 / 功能三态校验（
 - 注释用中文，只写「为什么」，不写「做了什么」。公开 API 写 `///` 摘要。
 - 不引新 NuGet 包。确需新增，先改 `Directory.Packages.props` 并在群里说。
 
+### 3.1 JSON 落盘代码的写法
+
+裁剪发布（`-Mode portable`）关掉了 System.Text.Json 的反射元数据，裸反射调用只在真实产物里炸，编译期与单测都看不见（见 `docs/PITFALLS.md` 3.16、3.17）。改任何落盘 / HTTP JSON 代码时按四条写：
+
+- **每个落盘类型在定义它的那个文件尾登记 `JsonSerializerContext`**，不集中到一处：`[JsonSerializable(typeof(AppSettings))] internal sealed partial class SettingsJsonContext : JsonSerializerContext { }`。被登记的类型必须是 `internal`（或 `public`）且位于命名空间层——source generator 引用不到 `private` 嵌套类型，也引用不到匿名类型。
+- **调用点用 `options.Of<T>()` 取元数据**（`src/NebulaLauncher.Core/Serialization/JsonMeta.cs JsonMeta.Of（:30）`），例如 `JsonSerializer.Serialize(persisted, JsonOptions.Of<AppSettings>())`。这份 `JsonSerializerOptions` 必须挂 `TypeInfoResolver = new XxxJsonContext()`；**不要用 `SomeJsonContext.Default.T`**——它携带的是生成器默认口径，会把这份 options 的命名策略、大小写不敏感、枚举转换器与注释容错一起换掉（`docs/PITFALLS.md` 3.17）。
+- **匿名类型不能直接序列化**：HTTP 请求体一律写 `internal sealed record`，字段名用 `[property: JsonPropertyName("...")]` 钉死——record 参数名默认按 PascalCase 落盘，而 API 要的是小写驼峰。
+- **枚举转换器用泛型版本**：写 `JsonStringEnumConverter<DownloadSource>` 而不是 `JsonStringEnumConverter`（后者靠运行时反射枚举字段，AOT / 裁剪下过不了 IL3050）；手写转换器要排在通用转换器前面，否则 `"BmclApi"` 这类历史名会被当成未知值。
+
+两道闸：`src/NebulaLauncher.Core/NebulaLauncher.Core.csproj` 开着 `<IsAotCompatible>true</IsAotCompatible>`，漏改在 `dotnet build` 期报 IL2026 / IL2072 / IL3050；发布自检第 2 关 `--selftest-json`（§8.5）在真实裁剪产物上再验七条落盘通路，新增落盘文件要同步加进 `src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`。
+
 ## 4. XAML 规范
 
 - `<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>` 已开。
@@ -280,10 +291,10 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-featu
 默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。约束层（`CONVENTIONS.md`、`README.md`、`AGENTS.md`）与证据链（`docs/agents/`、`docs/research/`、`docs/release-notes/`）不占这 1000 行额度，但引用照样要校验：`--evidence <路径>...` 只做引用与链接校验、不进行数预算。全仓 16 份文档的口径是：
 
 ```powershell
-dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.0.0.md
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.0.1.md
 ```
 
-release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.0.0.md` 的 8 条已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
+release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.0.1.md` 的 8 条已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
 
 退出码：
 
@@ -328,25 +339,28 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 
 `build.ps1` 四种 `-Mode`（默认 `minimal`），RID 默认 `win-x64`，配置 `Release`，输出到 `pub\`（发布前整体删除重建，`-OutDir` 可覆盖）：
 
-| 形态 | 内容 | 实测体积（win-x64，2026-10-24） | 前提 |
+| 形态 | 内容 | 实测体积（win-x64，2026-10-25） | 前提 |
 |---|---|---|---|
 | `minimal`（默认） | 框架依赖 + 单文件，原生库外置 | 24.7 MB / 3 文件 | 目标机需 .NET 8 Desktop Runtime |
 | `fdd` | 框架依赖多文件 | 26.2 MB / 48 文件 | 同上 |
 | `folder` | 自包含、不裁剪 | 98.5 MB / 231 文件 | 无 |
 | `portable` | 自包含、裁剪、单个 exe | 23.8 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
 
-这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-24 的 `v1.0.0` 发布前实测（`minimal` 解压后 25,926,442 字节 / 3 文件，`portable` 24,958,622 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
+这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-25 的 `v1.0.1` 发布前实测（`minimal` 解压后 {{MIN_EXTRACTED}} 字节 / 3 文件，`portable` {{PORTABLE_BYTES}} 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径；`v1.0.0` 的对应数字是 `minimal` 25,926,442 字节 / `portable` 24,958,622 字节（那时 JSON 通路在便携版里是坏的，见 `docs/PITFALLS.md` 3.16）。
 
-**产物可用 = 两道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
+**产物可用 = 三道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
 1. `<out>\NebulaLauncher.exe --probe-dir <out>`：30 秒内退出码 0 且输出含 `writable=YES`。
-2. `--data-dir <out>\.verify --screenshot <out>\.verify.png --page home`：20 秒内退出码 0 且 PNG > 10240 字节。
+2. `<out>\NebulaLauncher.exe --selftest-json`：120 秒内退出码 0、输出里没有 `json-selfcheck.FAIL`、且 `json-selfcheck.summary=<N>/<N>` 的两个数字相同——它在真实产物里跑七条 JSON 落盘往返（`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`）。
+3. `--data-dir <out>\.verify --screenshot <out>\.verify.png --page home`：20 秒内退出码 0 且 PNG > 10240 字节。
 
-两道关堵的都是「退出码 0 但启动不起来」：`obj/<Configuration>` 里留着过期 XAML 中间产物时，publish 出的 exe 会静默退出（exit 0、无窗口、不产图），而同一二进制的 `--probe-dir` 却正常。脚本自己在构建前做过期检测并只清过期的 XAML 中间产物；不确定时加 `-Clean` 做完全清理。`-SkipVerify` 只用于本地试验，**正式发版不得加**。
+三道关堵的都是「退出码 0 但用不了」：前两条分别挡「启动不起来」和「启动了但设置存不住」——裁剪发布关掉 System.Text.Json 反射元数据时，只有真跑一遍落盘才会露（见 `docs/PITFALLS.md` 3.16）；第三条挡「启得起来但不渲染」：`obj/<Configuration>` 里留着过期 XAML 中间产物时，publish 出的 exe 会静默退出（exit 0、无窗口、不产图），而同一二进制的 `--probe-dir` 却正常。脚本自己在构建前做过期检测并只清过期的 XAML 中间产物；不确定时加 `-Clean` 做完全清理。`-SkipVerify` 只用于本地试验，**正式发版不得加**。
+
+第 2 关把单文件解包目录钉在产物目录（`DOTNET_BUNDLE_EXTRACT_BASE_DIR`），所以它的结论只反映产物本身，不受 `%TEMP%\.net` 可写性影响：早前便携版在 `%TEMP%` 被拒时，第 1 关直接报 `Failure processing application bundle.`、exit -2147450720。
 
 一个环境事实：这个 exe 写 `%TEMP%` 会被系统拒绝（`UnauthorizedAccessException`），所以自检的验证文件都落在产物目录里。
 
-**发布前置：HEAD 必须精确 tag 到 `v<Version>`。** `-Publish` 的第一件事是读 `Directory.Build.props` 的 `<Version>`、算出期望 tag（如 `v1.0.0`），再比对 `git describe --tags --exact-match` 的输出；没有 tag、或 tag 名与版本对不上，都在删除旧产物与 publish 之前失败，非 0 退出并打印「期望 tag: v1.0.0」。所以流程是**先打 tag 再构建**，§8.7 里的 `git tag -a` 因此提前成 §8.6 的第一步。`-AllowUntagged` 只跳过这一道，产物自检照跑；它只用于本地试验，**正式发版不得加**。
+**发布前置：HEAD 必须精确 tag 到 `v<Version>`。** `-Publish` 的第一件事是读 `Directory.Build.props` 的 `<Version>`、算出期望 tag（如 `v1.0.1`），再比对 `git describe --tags --exact-match` 的输出；没有 tag、或 tag 名与版本对不上，都在删除旧产物与 publish 之前失败，非 0 退出并打印「期望 tag: v1.0.1」。所以流程是**先打 tag 再构建**，§8.7 里的 `git tag -a` 因此提前成 §8.6 的第一步。`-AllowUntagged` 只跳过这一道，产物自检照跑；它只用于本地试验，**正式发版不得加**。
 
 ### 8.6 发布命令（照抄）
 
@@ -358,23 +372,23 @@ $env:AVALONIA_TELEMETRY_OPTOUT='1'
 # 0) 先打本地 tag：-Publish 会校验 HEAD 上的 tag 与 <Version> 一致（不打就失败）
 git status --short            # 必须为空或只剩已决定的改动
 git log --oneline -1          # HEAD 是定稿提交
-git tag -l v1.0.0             # 必须为空
-git tag -a v1.0.0 -m "Nebula Launcher v1.0.0"
+git tag -l v1.0.1             # 必须为空
+git tag -a v1.0.1 -m "Nebula Launcher v1.0.1"
 
 # 主产物：-OutDir 必须指向最内层目录，build.ps1 会把它整体删掉重建
-New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.0.0 | Out-Null
+New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.0.1 | Out-Null
 pwsh -NoProfile -File .\build.ps1 -Publish -Mode minimal `
-    -OutDir D:\agent_workspace\pub\v1.0.0\NebulaLauncher-v1.0.0-win-x64
+    -OutDir D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64
 
 # 备选产物（不加 -SkipVerify；不过关就不发 portable）
-pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.0.0\_portable
-Move-Item D:\agent_workspace\pub\v1.0.0\_portable\NebulaLauncher.exe `
-          D:\agent_workspace\pub\v1.0.0\NebulaLauncher-v1.0.0-win-x64-portable.exe
-Remove-Item D:\agent_workspace\pub\v1.0.0\_portable -Recurse -Force
+pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.0.1\_portable
+Move-Item D:\agent_workspace\pub\v1.0.1\_portable\NebulaLauncher.exe `
+          D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64-portable.exe
+Remove-Item D:\agent_workspace\pub\v1.0.1\_portable -Recurse -Force
 
 # 打包 → 校验和 → 上传（顺序不能换）
-cd D:\agent_workspace\pub\v1.0.0
-tar -a -c -f NebulaLauncher-v1.0.0-win-x64.zip NebulaLauncher-v1.0.0-win-x64
+cd D:\agent_workspace\pub\v1.0.1
+tar -a -c -f NebulaLauncher-v1.0.1-win-x64.zip NebulaLauncher-v1.0.1-win-x64
 $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
@@ -387,14 +401,14 @@ $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } 
 ### 8.7 GitHub Release
 
 ```powershell
-git tag -l v1.0.0             # 必须存在：§8.6 第一步已在本机打过
-git push origin v1.0.0
-gh release create v1.0.0 --draft --title "Nebula Launcher v1.0.0" `
-  --notes-file docs\release-notes\v1.0.0.md `
-  "D:\agent_workspace\pub\v1.0.0\NebulaLauncher-v1.0.0-win-x64.zip" `
-  "D:\agent_workspace\pub\v1.0.0\NebulaLauncher-v1.0.0-win-x64-portable.exe" `
-  "D:\agent_workspace\pub\v1.0.0\SHA256SUMS.txt"
-gh release view v1.0.0 --json isDraft,name,tagName,assets,url
+git tag -l v1.0.1             # 必须存在：§8.6 第一步已在本机打过
+git push origin v1.0.1
+gh release create v1.0.1 --draft --title "Nebula Launcher v1.0.1" `
+  --notes-file docs\release-notes\v1.0.1.md `
+  "D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64.zip" `
+  "D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64-portable.exe" `
+  "D:\agent_workspace\pub\v1.0.1\SHA256SUMS.txt"
+gh release view v1.0.1 --json isDraft,name,tagName,assets,url
 ```
 
 附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。**「Publish release」由人在网页点**，命令只建草稿。私有仓库下该 Release 的匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
