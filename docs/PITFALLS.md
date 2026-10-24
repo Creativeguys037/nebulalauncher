@@ -5,7 +5,7 @@
 1. **踩过的坑**：现象明确、机制清楚、能落到一条代码位置或一条可复现命令上的失败模式。
 2. **架构级裁决**：已经定案的技术选择，连同「为什么这样选」和「反悔要付什么」。
 
-适用范围：`NebulaLauncher` 全仓（Core / App / tools）。正常用法看 `README.md` 与 `CONVENTIONS.md` §7；这里是「别这样做，做了就是这样挂」的索引。
+适用范围：`NebulaLauncher` 全仓（Core / App / tools）。正常用法看 `README.md` 与 `CONVENTIONS.md` §8；这里是「别这样做，做了就是这样挂」的索引。
 
 不写东西：谁在什么时候改的、没有证据的传闻、过程流水。落不到代码或命令上的条目一律不收。
 
@@ -35,10 +35,12 @@
 | §1 | 单一 TFM、依赖版本 | 6.D1、1.4 |
 | §3 | 禁 `.Result` / `.Wait()` / `GetAwaiter().GetResult()` | 2.1、2.2 |
 | §4 | 编译绑定必须写 `x:DataType` | 4.5 |
-| §7.1 | 验证门槛、`tools/TestRunner/Program.cs` | 1.1、5.6 |
-| §7.2 | 应用内渲染截图 | 4.1、5.8 |
-| §7.3 | 并行协作三条 | 1.8 |
-| §7.4 | Debug XAML 缓存损坏 | 1.4 |
+| §8.1 | 提交前门槛 | 1.1、5.6 |
+| §8.2 | `dotnet test` 不可用、TestRunner 的退出码语义 | 1.1、5.6 |
+| §8.3 | 文档引用 / 行数预算 / 三态校验（`tools/DocsCheck`） | 5.9 |
+| §8.4 | 应用内渲染截图 | 4.1、5.8 |
+| §8.8 | 并行协作三条 | 1.8 |
+| §8.9 | Debug XAML 缓存损坏 | 1.4 |
 
 `CONVENTIONS.md` 对应条款内的回指条目在同一处维护。
 
@@ -49,7 +51,7 @@
 ### 1.1 `dotnet test` 起不来测试宿主
 - **症状**：`dotnet test` 直接失败，栈里是 `Win32Exception`（拒绝访问，错误码 5），测试进程根本没起来，一个用例都没跑。
 - **成因**：测试宿主是独立子进程，被宿主沙箱拒绝；这不是代码问题，重复重试、换 `--no-build` 都不会好。同一类权限事件会同时打掉 MSBuild 的多节点通信与 Avalonia 的遥测写入，所以「一条命令突然全挂」往往是环境层。
-- **规避**：改用 `tools/TestRunner/Program.cs`（`tools/TestRunner/Program.cs`）在同进程里跑 xunit 用例；它支持按类名过滤，退出码语义见 5.6。见 `CONVENTIONS.md` §7.1。
+- **规避**：改用 `tools/TestRunner/Program.cs`（`tools/TestRunner/Program.cs`）在同进程里跑 xunit 用例；它支持按类名过滤，退出码语义见 5.6。见 `CONVENTIONS.md` §8.2。
 
 ### 1.2 多节点构建「error 数 0 但生成失败」
 - **症状**：`dotnet build` 末尾打印「生成失败」，同一份输出里错误数是 0；有时伴随命名管道相关字样。
@@ -74,7 +76,7 @@ $env:AVALONIA_TELEMETRY_OPTOUT = '1'
 ### 1.4 `No precompiled XAML found for NebulaLauncher.App`
 - **症状**：Debug 构建通过，运行时报 `No precompiled XAML found for NebulaLauncher.App`；改了 XAML 之后现象依旧，好像改动没进去。
 - **成因**：XAML IL 的增量编译缓存与源码不一致（改了 `.axaml` 但产物里还是旧的、或者反过来）。缓存与源码不同步时不会报编译错，只在运行时炸。
-- **规避**：删掉两棵缓存树后重建——`obj/Debug` 与 `bin/Debug` 一并删，只删其一会留着半套产物。见 `CONVENTIONS.md` §7.4；发布路径有同样的坑，见 1.5。
+- **规避**：删掉两棵缓存树后重建——`obj/Debug` 与 `bin/Debug` 一并删，只删其一会留着半套产物。见 `CONVENTIONS.md` §8.9；发布路径有同样的坑，见 1.5。
 
 ### 1.5 发布出来的 exe 双击没反应
 - **症状**：`publish` 退出码 0，产物目录齐全，双击 exe 没有任何窗口；但同一份 exe 加 `--probe-dir` 却能正常打印。
@@ -100,7 +102,7 @@ powershell -File build.ps1 -Clean
 ### 1.8 并行开发互相踩
 - **症状**：两个人同时构建/运行，一方突然出现对方的窗口、数据目录被改、或者自己的进程被别人 kill。
 - **成因**：共享 `bin`/`obj`、共享默认数据目录、有人用 `Stop-Process` 清场。三条都是「看起来无害」的操作。
-- **规避**：三条硬规矩——构建用独立配置（`dotnet build -c <自己的配置名>`）；运行必须带 `--data-dir`；绝不 `Stop-Process` 别人的进程（含名字相同的）。见 `CONVENTIONS.md` §7.3。
+- **规避**：三条硬规矩——构建用独立配置（`dotnet build -c <自己的配置名>`）；运行必须带 `--data-dir`；绝不 `Stop-Process` 别人的进程（含名字相同的）。见 `CONVENTIONS.md` §8.8。
 
 ---
 
@@ -219,7 +221,7 @@ powershell -File build.ps1 -Clean
 ### 4.1 横向 StackPanel 放进 `*` 列，兄弟元素消失
 - **症状**：标题正常，副标题在某个宽度区间里完全看不到；改窗口大小又出现。
 - **成因**：横向 `StackPanel` 的可用宽度不传递给子元素——它按「要多少给多少」测量，放进 `*` 列后列宽分配与内容互相压制，最终把后面的元素压成 0 宽。在宽屏下所有内容都不缺空间，所以肉眼测不出来。
-- **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`；改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）。截图流程见 `CONVENTIONS.md` §7.2。
+- **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`；改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）。截图流程见 `CONVENTIONS.md` §8.4。
 
 ### 4.2 样式 setter 打不过构造函数里的本地值
 - **症状**：给控件写了主题样式，运行后部分控件完全不变；把样式搬到更具体的选择器上仍然无效。
@@ -304,7 +306,7 @@ Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOpt
 ### 5.6 测试运行器的 SKIP 不是通过
 - **症状**：用例明明没跑，报告里也没有失败，于是当成通过。
 - **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。
-- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；日常按类名过滤跑单类。见 `CONVENTIONS.md` §7.1。
+- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；日常按类名过滤跑单类。见 `CONVENTIONS.md` §8.2。
 
 ### 5.7 白名单键集必须写死在测试里
 - **症状**：导出的配置包多带了一个键，直到别人机器上被覆盖才发现。
@@ -314,7 +316,12 @@ Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOpt
 ### 5.8 样式重构用肉眼验收会漏
 - **症状**：合并样式类之后界面「看起来一样」，但某个页面的圆角或间距变了，很久没人发现。
 - **成因**：肉眼对像素级改动不敏感，尤其是渐变、阴影、亚像素对齐。
-- **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §7.2，视觉基线同在该节。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs:14 AppMods_BatchTests` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
+- **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §8.4，视觉基线同在该节。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs:14 AppMods_BatchTests` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
+
+### 5.9 文档里的代码引用会静默漂移
+- **症状**：文档写着「某接口声明在 Abstractions」「某方法是 `SaveAsync`」「`docs/CODE.md:49` 那段」——代码一改，路径还打得开，符号却早改名或挪了位置；人工 `grep` 也搜不出来，因为文档里只是一段纯文本。
+- **成因**：Markdown 里的路径、符号与行号没有编译期校验，改名重构时文档不会被带上；行号更是每加一行就失效。
+- **规避**：代码引用统一写成反引号单元「仓库相对路径[:行号] 符号名」，提交前跑 `tools/DocsCheck`——路径与符号都必须真实存在，同时卡住行数预算（单份 400 行 / 总量 1000 行）。见 `CONVENTIONS.md` §8.3。
 
 ---
 

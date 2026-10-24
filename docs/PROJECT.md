@@ -109,21 +109,19 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 
 ### 测试规模
 
-2026-10-24 实跑，`tests/NebulaLauncher.Tests` 下：
+测试数字由 `tools/DocsCheck` 现取，不用 `grep` 数属性字面量（`[Fact]` 出现在字符串或注释里会虚增）。在工作树根目录跑：
 
 ```bash
-grep -rho '\[Fact\]' tests/NebulaLauncher.Tests --include=*.cs | wc -l
-# 1605
-
-grep -rho '\[InlineData' tests/NebulaLauncher.Tests --include=*.cs | wc -l
-# 757
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
+# 报告末尾那行就是本次口径，例如：
+# 【测试数】Fact 1669 + InlineData 757 = 2426
 ```
 
-xUnit 用例数 = `[Fact]` 1605 + `[InlineData]` 757 = **2362**。每个 `[InlineData]` 是一条独立用例，所以 `[Theory]` 本身不另计。测试框架是 xUnit（`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj:12 xunit`）。
+2026-10-24 快照：xUnit 用例数 = `[Fact]` 1669 + `[InlineData]` 757 = **2426**。每个 `[InlineData]` 是一条独立用例，所以 `[Theory]` 本身不另计。测试框架是 xUnit（`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj:12 xunit`）。
 
-本机沙箱拒绝 `dotnet test` 启动 testhost，仓库因此带 `tools/TestRunner` 作为等价入口；它按测试类过滤，统计口径与上面的用例计数一致。
+本机沙箱拒绝 `dotnet test` 启动 testhost，仓库因此带 `tools/TestRunner` 作为等价入口；它反射测试程序集跑 xunit 用例，报出的条数比上面的属性计数少几条（不可实例化的测试类不计），判通过看它的输出，判文档规模看 `tools/DocsCheck`。
 
-仓内旧文档里的 2235、2238、2244、2358 都是历史轮次快照，不代表当前工作树。本文以 2362 为准。
+仓内旧文档里的 2235、2238、2244、2358、2362 都是历史轮次快照，不代表当前工作树。本文以工具现取的数字为准。
 
 ### 发布形态
 

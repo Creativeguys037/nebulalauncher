@@ -15,4 +15,4 @@
 | 自动内存推荐抄 PCL2 的四段斜坡，下限 512 MB | 抄 HMCL 公式 | `src/NebulaLauncher.Core/Launching/MemoryAdvisor.cs MemoryAdvisor.SuggestMaxMemoryMb MemoryAdvisor.MinSaneMaxMemoryMb` |
 | 预检的两个形态：静态工具类 `PreflightChecker` 与服务实现 `PreflightCheckerService` | `PreflightChecker` 上的同名实例方法 `CheckAsync` | `src/NebulaLauncher.Core/Launching/PreflightChecker.cs PreflightChecker PreflightCheckerService` |
 | 启动参数合成类 `JvmArgumentBuilder`，合成入口 `Build` | `JvmArguments` | `src/NebulaLauncher.Core/Launching/JvmArgumentBuilder.cs JvmArgumentBuilder.Build` |
-| 实例图标是内联 `Geometry`（`InstanceIcons`） | 落在 App/Assets/InstanceIcons/ 资源目录 | `src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs InstanceIcons.For` |
+| 实例图标是内联 `Geometry`（`InstanceIcons`） | 落在 App/Assets/InstanceIcons/ 资源目录；「模组图标是几何图形」（仓内没有模组图标，只有实例图标） | `src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs InstanceIcons.For` |

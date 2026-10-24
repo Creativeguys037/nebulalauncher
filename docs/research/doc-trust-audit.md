@@ -1,5 +1,7 @@
 # 文档可信度审计（doc-trust-audit）
 
+> 历史说明：本文出现的 `docs/FINAL-SCOPE.md`、`docs/EXTENSIONS.md`、`docs/HANDOVER.md`、`docs/PUBLISH-CHECK.md` 等 `docs/` 下旧文档路径，都是 2026-10-24 收口删除前的文件名，这里只作历史核对对象的记录，正文路径不改。
+
 数法：只读静态阅读，未运行 `dotnet build` / `dotnet test`（本机沙箱不具备执行条件）。
 数法：行号一律取当前工作树（采样 2026-10-24），文档行号按 `docs/` 现有文件计。
 数法：判定只认 `src/` 下 `.cs` 源码，不认 `.probe/` 产物、轮次交接与截图证据。

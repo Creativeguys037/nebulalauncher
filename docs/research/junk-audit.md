@@ -1,5 +1,7 @@
 # 仓库多余物盘点
 
+> 历史说明：本文出现的 `docs/FINAL-SCOPE.md`、`docs/EXTENSIONS.md`、`docs/HANDOVER.md`、`docs/PUBLISH-CHECK.md` 等 `docs/` 下旧文档路径，都是 2026-10-24 收口删除前的文件名，这里只作历史核对对象的记录，正文路径不改。
+
 盘点时间：2026-10-24 16:0x（Asia/Shanghai）
 盘点方式：只读。git log / status / ls-files / du / find / grep / md5sum，未执行 build 或 test，未修改任何源码或配置。
 盘点范围：`D:\agent_workspace\NebulaLauncher` 全仓 + 仓外 `D:\agent_workspace\pub`、`D:\agent_workspace\.probe`。

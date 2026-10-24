@@ -2,8 +2,14 @@
 
 本文件由工具生成，请勿手改。
 
-- 生成命令：`dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Lead -- --emit-features docs/FEATURES.md`
+- 生成命令：`dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-features docs/FEATURES.md`
 - 生成日期：2026-10-24
+
+## 三态定义
+
+- **已实现**：代码探测点与测试探测点都命中。
+- **待验证**：代码探测点命中，测试探测点缺失。
+- **不存在**：代码探测点未命中。
 
 ## 1. 装得上（安装与修复）
 
@@ -11,7 +17,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/VersionsView.axaml VersionsView` | `src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel` | `src/NebulaLauncher.Core/Installing/InstallService.cs InstallService.InstallAsync` | `src/NebulaLauncher.Core/Installing/InstallManifest.cs McInstallManifest.RelativePath` | 已实现 |
+| `src/NebulaLauncher.App/Views/VersionsView.axaml VersionsView` | `src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel` | `src/NebulaLauncher.Core/Installing/InstallService.cs InstallService.InstallAsync` | `src/NebulaLauncher.Core/Installing/InstallManifest.cs McInstallManifest.RelativePath`（`install-manifest.json`） | 已实现 |
 
 ## 2. 下得动（下载与换源）
 
@@ -19,7 +25,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/DownloadView.axaml DownloadView` | `src/NebulaLauncher.App/ViewModels/DownloadViewModel.cs DownloadViewModel` | `src/NebulaLauncher.Core/Downloads/DownloadQueue.cs DownloadQueue.DownloadAsync` | `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory` | 已实现 |
+| `src/NebulaLauncher.App/Views/DownloadView.axaml DownloadView` | `src/NebulaLauncher.App/ViewModels/DownloadViewModel.cs DownloadViewModel` | `src/NebulaLauncher.Core/Downloads/DownloadQueue.cs DownloadQueue.DownloadAsync` | `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory`（`java-cache.json`、`mod-hashes.json`、`mod-projects.json`） | 已实现 |
 
 ## 3. 开得起来（启动与运行时）
 
@@ -27,7 +33,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/HomeView.axaml HomeView` | `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel` | `src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.LaunchAsync` | `src/NebulaLauncher.Core/Instances/InstanceLockService.cs InstanceLockService.LockFileName` | 已实现 |
+| `src/NebulaLauncher.App/Views/HomeView.axaml HomeView` | `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel` | `src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.LaunchAsync` | `src/NebulaLauncher.Core/Instances/InstanceLockService.cs InstanceLockService.LockFileName`（`.nebula-run.json`） | 已实现 |
 
 ## 4. 管得住内容（模组与整合包）
 

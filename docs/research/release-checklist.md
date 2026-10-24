@@ -1,5 +1,7 @@
 # v1.0.0 发布清单
 
+> 历史说明：本文出现的 `docs/FINAL-SCOPE.md`、`docs/EXTENSIONS.md`、`docs/HANDOVER.md`、`docs/PUBLISH-CHECK.md` 等 `docs/` 下旧文档路径，都是 2026-10-24 收口删除前的文件名，这里只作历史核对对象的记录，正文路径不改。
+
 > 调研基准：本地仓库 `D:\agent_workspace\NebulaLauncher`，工作区 = `initial commit` `7440567`（2026-10-24 15:47:15 +0800），`origin/master` 与之相同，无 tag。
 > 本轮为只读调研，未构建、未提交、未执行任何 `gh release` 命令。所有数字均为磁盘实测。
 

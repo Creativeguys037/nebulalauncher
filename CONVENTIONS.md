@@ -40,6 +40,7 @@ src/NebulaLauncher.App/      Avalonia UI
   Services/                  导航、对话框、Toast、动效开关
   Platforms/                 平台实现（IPlatformService 的 Windows 版）
 tests/NebulaLauncher.Tests/  xunit
+tools/DocsCheck/             文档引用 / 行数预算 / 功能三态校验（第 8.3 节）
 ```
 
 **只改自己任务声明里的目录。** 跨目录需要改公共契约时，先在群里说明。
@@ -240,7 +241,7 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 1. `dotnet build -v q --nologo` → 0 error。
 2. 涉及逻辑的改动补 xunit 测试，TestRunner 全量通过（见 8.2）。
-3. 涉及 UI 的改动**必须截图自查**（见 8.3），确认无 XAML 绑定异常、无布局重叠、无文字裁切。
+3. 涉及 UI 的改动**必须截图自查**（见 8.4），确认无 XAML 绑定异常、无布局重叠、无文字裁切。
 4. 报告写清楚：改了哪些文件、跑了什么命令、输出是什么、哪些没验证。
 
 ### 8.2 测试：`dotnet test` 在本机不可用
@@ -254,9 +255,45 @@ dotnet run --project tools/TestRunner/TestRunner.csproj -v q --nologo -m:1 -p:Bu
 
 `-m:1 -p:BuildInParallel=false` 不是可选项：本机沙箱拒绝 MSBuild 多节点之间的命名管道通信，项目图 ≥3 个时不加会「0 error 但生成失败」。运行器反射测试程序集、复用 xunit 断言，支持 `[Fact]` 与 `[Theory]+[InlineData]`；`MemberData` / `ClassData` / `IClassFixture` 打印 SKIP 而不是静默忽略。退出码有失败为 1。
 
-**测试项目引用范围**：`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj` 同时引用 Core 与 App（App 侧开放了 `InternalsVisibleTo`）——加 App 引用是为 `ShellProgress` 这类「节流逻辑与窗口生命周期强相关」的服务，下沉 Core 反而语义更差。限制：**测试里不得触碰 Avalonia 类型**（`Window`、控件、`Dispatcher`、`Application.Current`），只能测纯逻辑与接口替身；某条测试需要 `Application.Current`，说明被测逻辑放错了层。
+**测试项目引用范围**：`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj` 同时引用 Core、App 与 `tools/DocsCheck/DocsCheck.csproj`（三引用）——加 App 引用是为 `ShellProgress` 这类「节流逻辑与窗口生命周期强相关」的服务，下沉 Core 反而语义更差；加 DocsCheck 引用是为让引用/预算/三态校验器的行为也能被 xunit 直接测。限制：**测试里不得触碰 Avalonia 类型**（`Window`、控件、`Dispatcher`、`Application.Current`），只能测纯逻辑与接口替身；某条测试需要 `Application.Current`，说明被测逻辑放错了层。
 
-### 8.3 UI 截图：用应用内渲染，不要截系统屏幕
+### 8.3 引用与预算校验：`tools/DocsCheck`
+
+文档里的代码引用、站内链接与行数预算由工具校验，不靠人眼。工作树根目录下跑：
+
+```powershell
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --json
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-features docs/FEATURES.md
+```
+
+代码引用写法：反引号单元内的首段是仓库相对路径（`src/` `tests/` `tools/` `docs/` 开头，或以 `.md` 结尾），其后跟符号名（可选）：
+
+```text
+`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory`
+`tests/NebulaLauncher.Tests/DocsCheck_CommandTests.cs:150`
+```
+
+路径与符号都得在工作树里真实存在，路径缺失与符号缺失一样算失败。另有站内链接校验：`[文本](相对路径.md)` 形式的目标文件必须存在（`http(s)://`、`#锚点`、以 `/` 开头的不算）。
+
+默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。
+
+退出码：
+
+| 码 | 含义 |
+|---|---|
+| 0 | 全过 |
+| 1 | 引用 / 站内链接 / 必需文档有问题 |
+| 2 | 行数预算越界 |
+| 3 | 上面两类都有 |
+
+（参数本身写错另计，退出码 64。）
+
+`--emit-features docs/FEATURES.md` 按 `tools/DocsCheck/feature-blocks.json` 里的探测点重新生成该文档，生成命令里的构建配置取自环境变量 `NEBULA_BUILD_CONFIG`（缺省 `Release`）。
+
+文档体系里踩过的坑与规避手段见 `docs/PITFALLS.md`。
+
+### 8.4 UI 截图：用应用内渲染，不要截系统屏幕
 
 `tools/shot.ps1`（背后是 `--screenshot` 启动参数）让应用把自己的视觉树渲染成 PNG，与窗口焦点、遮挡、DPI 无关，结果可复现。
 
@@ -278,7 +315,7 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 
 截图失败读 `<data-dir>\logs\*.log`；偶发一次 `0xE0434352` 是启动时序问题，重试即可。
 
-### 8.4 发布判据
+### 8.5 发布判据
 
 `build.ps1` 四种 `-Mode`（默认 `minimal`），RID 默认 `win-x64`，配置 `Release`，输出到 `pub\`（发布前整体删除重建，`-OutDir` 可覆盖）：
 
@@ -300,7 +337,7 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 
 一个环境事实：这个 exe 写 `%TEMP%` 会被系统拒绝（`UnauthorizedAccessException`），所以自检的验证文件都落在产物目录里。
 
-### 8.5 发布命令（照抄）
+### 8.6 发布命令（照抄）
 
 ```powershell
 cd D:\agent_workspace\NebulaLauncher
@@ -329,7 +366,7 @@ Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
 
 `SHA256SUMS.txt` 每行 `<64 位小写十六进制>␣␣<文件名>`（两个空格分隔，GNU 格式，`sha256sum -c` 可直接校验），只列会发布出去的文件。
 
-### 8.6 GitHub Release
+### 8.7 GitHub Release
 
 ```powershell
 git status --short            # 必须为空或只剩已决定的改动
@@ -347,7 +384,7 @@ gh release view v1.0.0 --json isDraft,name,tagName,assets,url
 
 附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。**「Publish release」由人在网页点**，命令只建草稿。私有仓库下该 Release 的匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
 
-### 8.7 并行协作的三条硬规则
+### 8.8 并行协作的三条硬规则
 
 1. **构建配置隔离**：每人用自己的 `-c` 配置（`ui1` / `ui2` / `ui3` / `Lead` …），产物落在 `bin/<配置>/`，互不锁 obj。
 2. **数据目录隔离**：每个实例必须带 `--data-dir`，否则会并发写同一份 `accounts.json` / `servers.json` / `settings.json` 互相覆盖。
@@ -355,7 +392,7 @@ gh release view v1.0.0 --json isDraft,name,tagName,assets,url
 
 构建偶发 `NebulaLauncher.Core.dll ... being used by another process` 时等 10–20 秒重试，不要删别人的 `obj/` `bin/`。
 
-### 8.8 Debug 配置 XAML 缓存损坏
+### 8.9 Debug 配置 XAML 缓存损坏
 
 `bin\Debug` 启动报 `No precompiled XAML found for NebulaLauncher.App`，说明 XAML IL 步骤被中断过、增量构建跳过了它。删掉 App 项目下 `obj/Debug` 与 `bin/Debug` 重建即可。
 

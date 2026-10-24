@@ -46,7 +46,7 @@
 
 ## 2. 接口契约表
 
-接口全部声明在 src/NebulaLauncher.Core/Abstractions（37 个 `interface I*`，含 `IInstanceLockHandle`）。消费方以页面 ViewModel 的构造签名为证。
+接口绝大多数声明在 src/NebulaLauncher.Core/Abstractions（37 个 `interface I*`，含 `IInstanceLockHandle`）；另外 2 个声明在各自模块内——`src/NebulaLauncher.Core/Downloads/DownloadQueue.cs:85 IDownloadTaskScope` 与 `src/NebulaLauncher.Core/Platforms/PlatformNative.cs:113 ITaskbarList3`——全库合计 39 个。消费方以页面 ViewModel 的构造签名为证。
 
 | 接口 | 实现类 | 消费方 |
 | --- | --- | --- |
