@@ -411,7 +411,7 @@ try {
             'minimal' {
                 # 框架依赖 + 单文件（托管程序集打进 exe），原生库外置。
                 # 3 个文件：托管单文件 exe 十几 MB + libSkiaSharp 9.0 MB + libHarfBuzzSharp 1.7 MB；
-                # 2026-10-24 实测合计 25,926,954 字节（24.72 MiB）。
+                # 2026-10-24 实测合计 25,926,442 字节（24.72 MiB）。
                 # 不需要 %TEMP% 解压，双击即用。
                 $publishArgs = $common + @(
                     '--self-contained', 'false',

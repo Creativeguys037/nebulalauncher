@@ -335,7 +335,7 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 | `folder` | 自包含、不裁剪 | 98.5 MB / 231 文件 | 无 |
 | `portable` | 自包含、裁剪、单个 exe | 23.8 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
 
-这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-24 的 `v1.0.0` 发布前实测（`minimal` 解压后 25,926,954 字节 / 3 文件，`portable` 24,958,747 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
+这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-24 的 `v1.0.0` 发布前实测（`minimal` 解压后 25,926,442 字节 / 3 文件，`portable` 24,958,622 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
 
 **产物可用 = 两道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
