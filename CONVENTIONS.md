@@ -363,13 +363,14 @@ Remove-Item D:\agent_workspace\pub\v1.0.0\_portable -Recurse -Force
 # 打包 → 校验和 → 上传（顺序不能换）
 cd D:\agent_workspace\pub\v1.0.0
 tar -a -c -f NebulaLauncher-v1.0.0-win-x64.zip NebulaLauncher-v1.0.0-win-x64
-Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+$shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
     Get-FileHash -Algorithm SHA256 |
-    ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) } |
-    Out-File -FilePath SHA256SUMS.txt -Encoding ascii
+    ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
+# 必须 LF 行尾：Out-File -Encoding ascii 产 CRLF，会让 sha256sum -c 报文件名带 \r 然后 FAILED
+[IO.File]::WriteAllText((Join-Path $PWD 'SHA256SUMS.txt'), (($shaLines -join "`n") + "`n"))
 ```
 
-`SHA256SUMS.txt` 每行 `<64 位小写十六进制>␣␣<文件名>`（两个空格分隔，GNU 格式，`sha256sum -c` 可直接校验），只列会发布出去的文件。
+`SHA256SUMS.txt` 每行 `<64 位小写十六进制>␣␣<文件名>`（两个空格分隔，GNU 格式，`sha256sum -c` 可直接校验），只列会发布出去的文件。行尾必须是 LF：CRLF 会让 `sha256sum -c` 把 `\r` 算进文件名而报 `No such file or directory`（2026-10-24 实测）。
 
 ### 8.7 GitHub Release
 
