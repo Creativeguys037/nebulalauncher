@@ -26,8 +26,18 @@ public static class JsonReportRenderer
             // 判定范围的字段名照实写：三态与测试数只是观测，不参与判定。
             referencesAndBudgetPassed = report.ReferencesAndBudgetPassed,
             referencesAndLinksPassed = report.ReferencesAndLinksPassed,
+            allCheckedPassed = report.AllCheckedPassed,
             exitCode = report.ExitCode,
             exitCodeLegend = DocCheckReport.ExitCodeLegend,
+            // 版本口径（票 #25）：与引用/链接/必需文档同属第一组；evaluated=false 表示根目录不是本仓库。
+            versions = new
+            {
+                evaluated = report.VersionConsistency.Checked,
+                version = report.VersionConsistency.Version,
+                releaseTag = report.VersionConsistency.ReleaseTag,
+                passed = report.VersionConsistency.Passed,
+                failures = report.VersionConsistency.Failures,
+            },
             references = new
             {
                 count = report.References.References.Count,
