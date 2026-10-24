@@ -5,7 +5,7 @@
 1. **踩过的坑**：现象明确、机制清楚、能落到一条代码位置或一条可复现命令上的失败模式。
 2. **架构级裁决**：已经定案的技术选择，连同「为什么这样选」和「反悔要付什么」。
 
-适用范围：`NebulaLauncher` 全仓（Core / App / tools）。正常用法看 `README.md` 与 `docs/DESIGN.md`；这里是「别这样做，做了就是这样挂」的索引。
+适用范围：`NebulaLauncher` 全仓（Core / App / tools）。正常用法看 `README.md` 与 `CONVENTIONS.md` §7；这里是「别这样做，做了就是这样挂」的索引。
 
 不写东西：谁在什么时候改的、没有证据的传闻、过程流水。落不到代码或命令上的条目一律不收。
 
@@ -85,7 +85,7 @@ $env:AVALONIA_TELEMETRY_OPTOUT = '1'
 powershell -File build.ps1 -Clean
 ```
 
-发布脚本内置三道闸，缺一不可，手工发布时按同一标准自查：XAML 过期检测；`--probe-dir` 30 秒内断言输出 `writable=YES`；`--screenshot` 20 秒内断言生成的 PNG 大于 10240 字节。细节见 `docs/PUBLISH-CHECK.md`。
+发布脚本内置三道闸，缺一不可，手工发布时按同一标准自查：XAML 过期检测；`--probe-dir` 30 秒内断言输出 `writable=YES`；`--screenshot` 20 秒内断言生成的 PNG 大于 10240 字节。细节见发布检查清单（已并入 `CONVENTIONS.md` §8）。
 
 ### 1.6 `-OutDir` 把整个目录删了
 - **症状**：给发布脚本传了一个外层的 `-OutDir`，跑完之后目标目录连同里面原有的东西一起没了。
@@ -314,7 +314,7 @@ Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOpt
 ### 5.8 样式重构用肉眼验收会漏
 - **症状**：合并样式类之后界面「看起来一样」，但某个页面的圆角或间距变了，很久没人发现。
 - **成因**：肉眼对像素级改动不敏感，尤其是渐变、阴影、亚像素对齐。
-- **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §7.2，视觉基线见 `docs/DESIGN.md`。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs:14 AppMods_BatchTests` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
+- **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §7.2，视觉基线同在该节。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs:14 AppMods_BatchTests` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
 
 ---
 
