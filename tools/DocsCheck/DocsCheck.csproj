@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>NebulaLauncher.DocsCheck</RootNamespace>
+    <AssemblyName>NebulaLauncher.DocsCheck</AssemblyName>
+    <!-- 这是工具而非测试程序集；引用它的测试项目不该被 VSTest targets 劫持。 -->
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 探测点数据跟着程序走，装到别处也能判定三态。 -->
+    <None Update="feature-blocks.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
