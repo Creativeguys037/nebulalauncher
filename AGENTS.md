@@ -1,17 +1,17 @@
 # AGENTS.md
 
-本仓库的协作、环境与代码规范见 [CONVENTIONS.md](CONVENTIONS.md)；域文档布局见 [docs/agents/domain.md](docs/agents/domain.md)。
+本仓库给 agent 的入口：只有指针与禁令，正文见所指文件。
 
-## Agent skills
+## 指针
 
-### Issue tracker
+- 协作、环境、技术栈、代码与 XAML 规范、界面怎么画、改完怎么验：[CONVENTIONS.md](CONVENTIONS.md)
+- 知识文档：[docs/PROJECT.md](docs/PROJECT.md) · [docs/CODE.md](docs/CODE.md) · [docs/FEATURES.md](docs/FEATURES.md) · [docs/PITFALLS.md](docs/PITFALLS.md) · [GLOSSARY.md](GLOSSARY.md)
+- 议题与分诊：[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) · [docs/agents/triage-labels.md](docs/agents/triage-labels.md) · 域文档布局：[docs/agents/domain.md](docs/agents/domain.md)
 
-GitHub Issues（`Creativeguys037/nebulalauncher`，用 `gh` CLI 操作），面板任务板用 deck 工具；PRs as a request surface 关闭。See `docs/agents/issue-tracker.md`.
+## 禁令
 
-### Triage labels
-
-triage 五个状态角色沿用默认标签字符串（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`），类别角色用 `bug` / `enhancement`。See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-single-context：全仓库共用一份根目录 `GLOSSARY.md`，架构决策放 `docs/adr/`。See `docs/agents/domain.md`.
+- 不用 `dotnet test`（本机不可用），用 `tools/TestRunner/TestRunner.csproj`。
+- 不引新 NuGet 包，不改冻结接口签名，不直接改 `App.axaml.cs` 的 `ConfigureServices`。
+- 页面里不写颜色字面量。
+- 不 `Stop-Process` 别人的 `dotnet` / `NebulaLauncher` 进程。
+- 没跑过 `dotnet build` 与 TestRunner 不得声称完成。
