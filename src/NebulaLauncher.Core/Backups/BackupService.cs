@@ -1,7 +1,10 @@
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Backups;
 
@@ -16,6 +19,7 @@ public sealed class BackupService : IBackupService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        TypeInfoResolver = new BackupJsonContext(),
     };
 
     private readonly ILauncherPaths _paths;
@@ -584,7 +588,7 @@ public sealed class BackupService : IBackupService
     {
         try
         {
-            var json = JsonSerializer.Serialize(entry, JsonOptions);
+            var json = JsonSerializer.Serialize(entry, JsonOptions.Of<BackupEntry>());
             await File.WriteAllTextAsync(entry.FilePath + ".meta.json", json, cancellationToken).ConfigureAwait(false);
             return true;
         }
@@ -610,7 +614,7 @@ public sealed class BackupService : IBackupService
         try
         {
             var json = File.ReadAllText(metaPath);
-            var entry = JsonSerializer.Deserialize<BackupEntry>(json, JsonOptions);
+            var entry = JsonSerializer.Deserialize(json, JsonOptions.Of<BackupEntry>());
             if (entry is null)
             {
                 return null;
@@ -736,4 +740,12 @@ public sealed class BackupService : IBackupService
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+}
+
+/// <summary>
+/// 世界备份元数据的 Source Generator 上下文：<c>.meta.json</c> 在裁剪发布里同样不能走反射。
+/// </summary>
+[JsonSerializable(typeof(BackupEntry))]
+internal sealed partial class BackupJsonContext : JsonSerializerContext
+{
 }

@@ -3,6 +3,11 @@
   <PropertyGroup>
     <RootNamespace>NebulaLauncher.Core</RootNamespace>
     <AssemblyName>NebulaLauncher.Core</AssemblyName>
+    <!--
+      启用裁剪与 AOT 分析器：本项目会被单文件裁剪发布（build.ps1 的 portable 模式），
+      分析器在编译期就报出反射/动态代码依赖，避免像 #26 那样等到发布包运行才炸。
+    -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>

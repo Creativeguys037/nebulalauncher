@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Accounts;
 
@@ -19,7 +21,8 @@ public sealed class AccountService : IAccountService
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
-        Converters = { new JsonStringEnumConverter() },
+        Converters = { new JsonStringEnumConverter<AccountType>() },
+        TypeInfoResolver = new AccountJsonContext(),
     };
 
     private readonly ILauncherPaths _paths;
@@ -156,7 +159,7 @@ public sealed class AccountService : IAccountService
             }
 
             var json = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
-            var document = JsonSerializer.Deserialize<AccountsDocument>(json, JsonOptions)
+            var document = JsonSerializer.Deserialize(json, JsonOptions.Of<AccountsDocument>())
                            ?? throw new JsonException("反序列化结果为 null");
 
             var loaded = new List<Account>(document.Accounts.Count);
@@ -965,7 +968,7 @@ public sealed class AccountService : IAccountService
                 }).ToList(),
             };
 
-            json = JsonSerializer.Serialize(document, JsonOptions);
+            json = JsonSerializer.Serialize(document, JsonOptions.Of<AccountsDocument>());
 
             // 与写入内容同源的内存快照：写盘失败/被取消时用它回滚，保证内存与磁盘一致。
             snapshot = _accounts.Select(a => a.Clone()).ToList();
@@ -1038,35 +1041,57 @@ public sealed class AccountService : IAccountService
             _log.Warn("备份损坏的账户文件失败", ex);
         }
     }
+}
 
-    private sealed class AccountsDocument
+/// <summary>账户文件的顶层结构：当前激活账户 id + 账户列表。</summary>
+internal sealed class AccountsDocument
+{
+    public string? ActiveAccountId { get; set; }
+
+    public List<AccountRecord> Accounts { get; set; } = new();
+}
+
+/// <summary>单个账户的落盘形态（令牌已由 <see cref="TokenProtector"/> 处理）。</summary>
+internal sealed class AccountRecord
+{
+    public string Id { get; set; } = string.Empty;
+
+    public AccountType Type { get; set; }
+
+    public string Username { get; set; } = string.Empty;
+
+    public string? Uuid { get; set; }
+
+    public string? AccessToken { get; set; }
+
+    public string? RefreshToken { get; set; }
+
+    public DateTimeOffset? ExpiresAt { get; set; }
+
+    public string? SkinModel { get; set; }
+
+    /// <summary>第三方验证账户的 API 根；旧文件没有该字段时为 null。</summary>
+    public string? AuthServerUrl { get; set; }
+
+    public DateTimeOffset? LastLoginAt { get; set; }
+}
+
+/// <summary>
+/// 账户文件的 Source Generator 上下文。理由同 <see cref="Settings.SettingsJsonContext"/>：
+/// 裁剪发布下不能依赖运行时反射解析 <see cref="AccountsDocument"/> 的成员。
+/// </summary>
+[JsonSerializable(typeof(AccountsDocument))]
+internal sealed partial class AccountJsonContext : JsonSerializerContext
+{
+    /// <summary>与迁移前一致的读写口径：Web 命名、缩进、容忍注释与尾逗号、枚举写名字。</summary>
+    internal static readonly JsonSerializerOptions Writers = BuildOptions();
+
+    private static JsonSerializerOptions BuildOptions() => new(JsonSerializerDefaults.Web)
     {
-        public string? ActiveAccountId { get; set; }
-
-        public List<AccountRecord> Accounts { get; set; } = new();
-    }
-
-    private sealed class AccountRecord
-    {
-        public string Id { get; set; } = string.Empty;
-
-        public AccountType Type { get; set; }
-
-        public string Username { get; set; } = string.Empty;
-
-        public string? Uuid { get; set; }
-
-        public string? AccessToken { get; set; }
-
-        public string? RefreshToken { get; set; }
-
-        public DateTimeOffset? ExpiresAt { get; set; }
-
-        public string? SkinModel { get; set; }
-
-        /// <summary>第三方验证账户的 API 根；旧文件没有该字段时为 null。</summary>
-        public string? AuthServerUrl { get; set; }
-
-        public DateTimeOffset? LastLoginAt { get; set; }
-    }
+        WriteIndented = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        Converters = { new JsonStringEnumConverter<AccountType>() },
+        TypeInfoResolver = new AccountJsonContext(),
+    };
 }

@@ -1,10 +1,13 @@
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Downloads;
 using NebulaLauncher.Core.Installing;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Mods;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Backups;
 
@@ -28,6 +31,7 @@ public sealed class ModpackService : IModpackService
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
+        TypeInfoResolver = new ModpackJsonContext(),
     };
 
     /// <summary>
@@ -366,7 +370,7 @@ public sealed class ModpackService : IModpackService
             },
         };
 
-        var json = JsonSerializer.Serialize(instance, JsonOptions);
+        var json = JsonSerializer.Serialize(instance, JsonOptions.Of<InstanceInfo>());
         await File.WriteAllTextAsync(
             Path.Combine(instanceDirectory, "instance.json"),
             json,
@@ -589,24 +593,20 @@ public sealed class ModpackService : IModpackService
     {
         var now = DateTimeOffset.UtcNow;
 
-        var model = new
-        {
-            id = versionName,
-            inheritsFrom = parentVersionName,
-            type = "release",
-            time = now,
-            releaseTime = now,
-            libraries = Array.Empty<object>(),
-            arguments = new
-            {
-                game = Array.Empty<string>(),
-                jvm = Array.Empty<string>(),
-            },
-        };
+        // 匿名类型无法被 Source Generator 静态登记（裁剪发布下会被剪掉元数据），
+        // 因此这里用一条显式的记录类型描述同一份 JSON 形状。
+        var model = new InheritedVersionDocument(
+            versionName,
+            parentVersionName,
+            "release",
+            now,
+            now,
+            Array.Empty<object>(),
+            new InheritedVersionArguments(Array.Empty<string>(), Array.Empty<string>()));
 
         await File.WriteAllTextAsync(
             Path.Combine(instanceDirectory, versionName + ".json"),
-            JsonSerializer.Serialize(model, JsonOptions),
+            JsonSerializer.Serialize(model, JsonOptions.Of<InheritedVersionDocument>()),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -2300,4 +2300,35 @@ internal static class McbbsAddonParser
         value = default;
         return false;
     }
+}
+
+/// <summary>
+/// 实例自己那份版本描述（<c>versions/&lt;实例&gt;/&lt;实例&gt;.json</c>）。
+/// 只描述增量，原版与加载器全部沿 <c>inheritsFrom</c> 继承。
+/// </summary>
+/// <remarks>
+/// 用记录类型而不是匿名类型，是因为裁剪发布下 Source Generator 必须在编译期看到确切的类型；
+/// 属性名与 JSON 字段名一一对应（这里刻意用 PascalCase，由 camelCase 命名策略写出）。
+/// </remarks>
+internal sealed record InheritedVersionDocument(
+    string Id,
+    string InheritsFrom,
+    string Type,
+    DateTimeOffset Time,
+    DateTimeOffset ReleaseTime,
+    IReadOnlyList<object> Libraries,
+    InheritedVersionArguments Arguments);
+
+/// <summary>版本描述里 <c>arguments</c> 的两条空数组：全部继承父版本。</summary>
+internal sealed record InheritedVersionArguments(
+    IReadOnlyList<string> Game,
+    IReadOnlyList<string> Jvm);
+
+/// <summary>
+/// 整合包链路用到的 JSON 元数据：<c>instance.json</c> 与实例自写的版本描述。
+/// </summary>
+[JsonSerializable(typeof(InstanceInfo))]
+[JsonSerializable(typeof(InheritedVersionDocument))]
+internal sealed partial class ModpackJsonContext : JsonSerializerContext
+{
 }

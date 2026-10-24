@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Instances;
 
@@ -28,6 +31,7 @@ public sealed class InstanceLockService : IInstanceLockService
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+        TypeInfoResolver = new InstanceLockJsonContext(),
     };
 
     /// <summary>
@@ -127,7 +131,7 @@ public sealed class InstanceLockService : IInstanceLockService
 
             try
             {
-                var json = JsonSerializer.Serialize(info, JsonOptions);
+                var json = JsonSerializer.Serialize(info, JsonOptions.Of<InstanceLockInfo>());
                 await File.WriteAllTextAsync(temporary, json, cancellationToken).ConfigureAwait(false);
 
                 // 互斥点就在这一行：不覆盖的 Move 是原子的，先到者成功，后到者拿到 IOException。
@@ -168,7 +172,7 @@ public sealed class InstanceLockService : IInstanceLockService
 
         try
         {
-            var json = JsonSerializer.Serialize(info, JsonOptions);
+            var json = JsonSerializer.Serialize(info, JsonOptions.Of<InstanceLockInfo>());
             File.WriteAllText(temporary, json);
             File.Move(temporary, path, overwrite: true);
             return true;
@@ -194,7 +198,7 @@ public sealed class InstanceLockService : IInstanceLockService
                 return;
             }
 
-            var current = JsonSerializer.Deserialize<InstanceLockInfo>(File.ReadAllText(path), JsonOptions);
+            var current = JsonSerializer.Deserialize(File.ReadAllText(path), JsonOptions.Of<InstanceLockInfo>());
 
             if (current is null || !string.Equals(current.Token, owned.Token, StringComparison.Ordinal))
             {
@@ -240,7 +244,7 @@ public sealed class InstanceLockService : IInstanceLockService
                 return (LockState.None, null);
             }
 
-            var info = JsonSerializer.Deserialize<InstanceLockInfo>(File.ReadAllText(path), JsonOptions);
+            var info = JsonSerializer.Deserialize(File.ReadAllText(path), JsonOptions.Of<InstanceLockInfo>());
 
             // 缺字段等同于损坏：没有启动时间就没法排除 PID 复用，宁可按僵死接管。
             if (info is null
@@ -379,4 +383,13 @@ public sealed class InstanceLockService : IInstanceLockService
             return ValueTask.CompletedTask;
         }
     }
+}
+
+/// <summary>
+/// 运行锁文件的 Source Generator 上下文。锁文件解析失败会被当成「僵死」，
+/// 在裁剪发布里那等于每个实例都判成「已有游戏在运行」——必须同样走编译期元数据。
+/// </summary>
+[JsonSerializable(typeof(InstanceLockInfo))]
+internal sealed partial class InstanceLockJsonContext : JsonSerializerContext
+{
 }

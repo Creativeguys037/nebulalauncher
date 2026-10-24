@@ -1,6 +1,9 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Java;
 
@@ -62,6 +65,7 @@ public sealed class JavaCache
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        TypeInfoResolver = new JavaCacheJsonContext(),
     };
 
     private readonly object _gate = new();
@@ -100,7 +104,7 @@ public sealed class JavaCache
                 }
 
                 var json = File.ReadAllText(_filePath);
-                var entries = JsonSerializer.Deserialize<List<JavaCacheEntry>>(json, JsonOptions) ?? [];
+                var entries = JsonSerializer.Deserialize(json, JsonOptions.Of<List<JavaCacheEntry>>()) ?? [];
 
                 var result = new Dictionary<string, JavaCacheEntry>(StringComparer.OrdinalIgnoreCase);
                 foreach (var entry in entries)
@@ -144,7 +148,7 @@ public sealed class JavaCache
                     Directory.CreateDirectory(directory);
                 }
 
-                var json = JsonSerializer.Serialize(entries.ToList(), JsonOptions);
+                var json = JsonSerializer.Serialize(entries.ToList(), JsonOptions.Of<List<JavaCacheEntry>>());
                 var temporary = _filePath + ".tmp";
 
                 File.WriteAllText(temporary, json);
@@ -213,4 +217,13 @@ public sealed class JavaCache
             return (0, 0);
         }
     }
+}
+
+/// <summary>
+/// Java 扫描缓存的 Source Generator 上下文。缓存写失败是静默降级（每次都重扫），
+/// 但读路径若在裁剪发布下抛异常，会直接落到「缓存永远命中不了」。
+/// </summary>
+[JsonSerializable(typeof(List<JavaCacheEntry>))]
+internal sealed partial class JavaCacheJsonContext : JsonSerializerContext
+{
 }

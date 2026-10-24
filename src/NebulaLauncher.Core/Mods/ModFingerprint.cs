@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 
@@ -29,7 +31,7 @@ public sealed class ModFingerprint
     public const int MaxCacheEntries = 4096;
 
     /// <summary>缓存结构版本。字段语义变化时递增，读到旧版本直接丢弃重建。</summary>
-    private const int CacheSchemaVersion = 1;
+    internal const int CacheSchemaVersion = 1;
 
     /// <summary>分块读取的块大小。与 <c>ModrinthService</c> 的下载缓冲保持一致。</summary>
     private const int BufferSize = 81920;
@@ -445,7 +447,7 @@ public sealed class ModFingerprint
         try
         {
             using var stream = new FileStream(_cachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var file = JsonSerializer.Deserialize<HashCacheFile>(stream);
+            var file = JsonSerializer.Deserialize(stream, ModHashJsonContext.Default.HashCacheFile);
 
             if (file is null || file.Version != CacheSchemaVersion)
             {
@@ -536,7 +538,7 @@ public sealed class ModFingerprint
 
             using (var stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                JsonSerializer.Serialize(stream, snapshot);
+                JsonSerializer.Serialize(stream, snapshot, ModHashJsonContext.Default.HashCacheFile);
             }
 
             File.Move(temporaryPath, _cachePath, overwrite: true);
@@ -551,23 +553,36 @@ public sealed class ModFingerprint
         }
     }
 
-    /// <summary>缓存文件的外层结构。带 <see cref="Version"/> 是为了让字段语义变化时能整体丢弃。</summary>
-    private sealed class HashCacheFile
-    {
-        public int Version { get; set; } = CacheSchemaVersion;
+    // HashCacheFile / HashCacheEntry 提到文件末尾：Source Generator 需要能在同程序集内引用它们。
+}
 
-        public Dictionary<string, HashCacheEntry> Entries { get; set; } = new(StringComparer.Ordinal);
-    }
+/// <summary>缓存文件的外层结构。带 <see cref="Version"/> 是为了让字段语义变化时能整体丢弃。</summary>
+internal sealed class HashCacheFile
+{
+    public int Version { get; set; } = ModFingerprint.CacheSchemaVersion;
 
-    /// <summary>一条缓存记录。<see cref="Size"/> 与 <see cref="Ticks"/> 冗余存一份，用于抵御键碰撞。</summary>
-    private sealed class HashCacheEntry
-    {
-        public string? Sha1 { get; set; }
+    public Dictionary<string, HashCacheEntry> Entries { get; set; } = new(StringComparer.Ordinal);
+}
 
-        public uint CurseForge { get; set; }
+/// <summary>一条缓存记录。<see cref="Size"/> 与 <see cref="Ticks"/> 冗余存一份，用于抵御键碰撞。</summary>
+internal sealed class HashCacheEntry
+{
+    public string? Sha1 { get; set; }
 
-        public long Size { get; set; }
+    public uint CurseForge { get; set; }
 
-        public long Ticks { get; set; }
-    }
+    public long Size { get; set; }
+
+    public long Ticks { get; set; }
+}
+
+/// <summary>
+/// 模组哈希缓存的 Source Generator 上下文。
+///
+/// 这两处调用原来都没传 options，靠运行时反射解析 <see cref="HashCacheFile"/>；
+/// 裁剪发布下会静默退化成「每次启动重算全部哈希」。
+/// </summary>
+[JsonSerializable(typeof(HashCacheFile))]
+internal sealed partial class ModHashJsonContext : JsonSerializerContext
+{
 }

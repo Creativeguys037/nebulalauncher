@@ -5,10 +5,13 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Downloads;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Versions;
 
@@ -263,7 +266,7 @@ public sealed class VersionService : IVersionService
                 try
                 {
                     var existing = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
-                    record = JsonSerializer.Deserialize<LaunchRecord>(existing, VersionJsonOptions) ?? new LaunchRecord();
+                    record = JsonSerializer.Deserialize(existing, VersionJsonOptions.Of<LaunchRecord>()) ?? new LaunchRecord();
                 }
                 catch (Exception ex) when (ex is JsonException or NotSupportedException)
                 {
@@ -275,7 +278,7 @@ public sealed class VersionService : IVersionService
             record.LastPlayedAt = DateTimeOffset.UtcNow;
             record.TotalPlayTimeSeconds += (long)Math.Max(0, duration.TotalSeconds);
 
-            var json = JsonSerializer.Serialize(record, VersionJsonOptions);
+            var json = JsonSerializer.Serialize(record, VersionJsonOptions.Of<LaunchRecord>());
             var temp = file + ".tmp";
             await File.WriteAllTextAsync(temp, json, cancellationToken).ConfigureAwait(false);
             File.Move(temp, file, overwrite: true);
@@ -990,13 +993,9 @@ public sealed class VersionService : IVersionService
 
             Directory.CreateDirectory(directory);
 
-            var payload = new
-            {
-                cachedAtUtc = cachedAt,
-                promotions,
-            };
+            var payload = new ForgePromotionsCacheDocument(cachedAt, promotions);
 
-            var json = JsonSerializer.Serialize(payload, VersionJsonOptions);
+            var json = JsonSerializer.Serialize(payload, VersionJsonOptions.Of<ForgePromotionsCacheDocument>());
             await WriteCacheAsync(
                     Path.Combine(directory, ForgePromotionsCacheFileName),
                     json,
@@ -1162,7 +1161,7 @@ public sealed class VersionService : IVersionService
             try
             {
                 var json = await File.ReadAllTextAsync(launchRecord, cancellationToken).ConfigureAwait(false);
-                var record = JsonSerializer.Deserialize<LaunchRecord>(json, VersionJsonOptions);
+                var record = JsonSerializer.Deserialize(json, VersionJsonOptions.Of<LaunchRecord>());
                 lastPlayedAt = record?.LastPlayedAt;
                 totalPlayTime = record?.TotalPlayTimeSeconds ?? 0;
             }
@@ -1446,15 +1445,10 @@ public sealed class VersionService : IVersionService
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+        TypeInfoResolver = new VersionJsonContext(),
     };
 
-    /// <summary><c>versions/&lt;name&gt;/nebula.json</c> 的形状。</summary>
-    private sealed class LaunchRecord
-    {
-        public DateTimeOffset? LastPlayedAt { get; set; }
-
-        public long TotalPlayTimeSeconds { get; set; }
-    }
+    // LaunchRecord 提到文件末尾（internal）：Source Generator 需要能在同程序集里引用它。
 
     /// <summary>按版本号语义降序比较：数字段按数值比，其他段按序数比。</summary>
     private sealed class VersionNameComparer : IComparer<string>
@@ -1500,4 +1494,31 @@ public sealed class VersionService : IVersionService
             return xs.Length.CompareTo(ys.Length);
         }
     }
+}
+
+/// <summary>
+/// <c>cache/forge-promotions.json</c> 的形状：拉取时间 + 版本号到推荐版的映射。
+/// </summary>
+internal sealed record ForgePromotionsCacheDocument(
+    DateTimeOffset CachedAtUtc,
+    IReadOnlyDictionary<string, string> Promotions);
+
+/// <summary>
+/// 版本相关 JSON 的 Source Generator 上下文。
+///
+/// 注意 <see cref="VersionService.LaunchRecord"/> 仍然留在 <c>VersionService</c> 内部：
+/// 它是 private 嵌套类型，这里只通过 <see cref="JsonSerializableAttribute"/> 登记它。
+/// </summary>
+[JsonSerializable(typeof(LaunchRecord))]
+[JsonSerializable(typeof(ForgePromotionsCacheDocument))]
+internal sealed partial class VersionJsonContext : JsonSerializerContext
+{
+}
+
+/// <summary><c>versions/&lt;name&gt;/nebula.json</c> 的形状。</summary>
+internal sealed class LaunchRecord
+{
+    public DateTimeOffset? LastPlayedAt { get; set; }
+
+    public long TotalPlayTimeSeconds { get; set; }
 }

@@ -1,8 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Net;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Settings;
 
@@ -18,14 +20,11 @@ namespace NebulaLauncher.Core.Settings;
 public sealed class SettingsService : ISettingsService
 #pragma warning restore CA1001
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        // 下载源转换器必须排在通用枚举转换器前面，否则 "BmclApi" 这类历史名会被当成未知值。
-        Converters = { new DownloadSourceJsonConverter(), new JsonStringEnumConverter() },
-    };
+    /// <summary>
+    /// 设置文件的 JSON 读写配置。由 <see cref="SettingsJsonContext"/> 持有，
+    /// 这里留一个引用只是为了兼容包内其它地方的只读复用。
+    /// </summary>
+    internal static JsonSerializerOptions JsonOptions => SettingsJsonContext.DefaultOptions;
 
     private readonly ILauncherPaths _paths;
     private readonly IAppLog _log;
@@ -73,7 +72,7 @@ public sealed class SettingsService : ISettingsService
             }
 
             var json = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
-            var loaded = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
+            var loaded = JsonSerializer.Deserialize(json, JsonOptions.Of<AppSettings>());
 
             if (loaded is null)
             {
@@ -133,8 +132,8 @@ public sealed class SettingsService : ISettingsService
             }
 
             // 落盘用副本：明文密码只在内存里，写出去的是密文（见 PersistableCopy）。
-            var persisted = PersistableCopy();
-            var json = JsonSerializer.Serialize(persisted, JsonOptions);
+            var persisted = PersistableCopy(_current, _log);
+            var json = JsonSerializer.Serialize(persisted, JsonOptions.Of<AppSettings>());
             await File.WriteAllTextAsync(temp, json, cancellationToken).ConfigureAwait(false);
             File.Move(temp, file, overwrite: true);
 
@@ -223,9 +222,9 @@ public sealed class SettingsService : ISettingsService
     /// 这个副本只用于序列化，不进入 <see cref="Current"/>——界面与代理配置器读到的仍然是内存里的明文，
     /// 否则每次保存都要解密一次，且解密失败会让当前会话直接断掉代理。
     /// </summary>
-    private AppSettings PersistableCopy()
+    internal static AppSettings PersistableCopy(AppSettings source, IAppLog log)
     {
-        var copy = _current.Clone();
+        var copy = source.Clone();
 
         if (!string.IsNullOrEmpty(copy.ProxyPassword))
         {
@@ -245,7 +244,7 @@ public sealed class SettingsService : ISettingsService
             if (!ProxyCredentialStore.IsProtected(copy.ProxyPasswordProtected))
             {
                 // 非 Windows 或 DPAPI 不可用：退化编码也要如实说一句，别让用户以为已经加密。
-                _log.Warn("当前系统不支持 DPAPI，代理密码以未加密形式保存");
+                log.Warn("当前系统不支持 DPAPI，代理密码以未加密形式保存");
             }
         }
 
@@ -530,8 +529,11 @@ public sealed class SettingsService : ISettingsService
     ///    必须显式映射到 <see cref="DownloadSource.Mirror"/>（枚举里两个成员同值，靠 ToString 不可靠）；
     /// 2) 写出时固定用新名字，避免「同一份配置每次保存名字都在两个别名之间跳」；
     /// 3) 读不懂的值一律回落镜像优先——那是历史默认值，最接近旧行为。
+    ///
+    /// 放在 <see cref="SettingsJsonContext"/> 里共用：Source Generator 生成的元数据在引用自定义转换器时
+    /// 必须能拿到同一份实例，两处各建一个会让「读用一套、写用另一套」。
     /// </summary>
-    private sealed class DownloadSourceJsonConverter : JsonConverter<DownloadSource>
+    internal sealed class DownloadSourceJsonConverter : JsonConverter<DownloadSource>
     {
         public override DownloadSource Read(
             ref Utf8JsonReader reader,
@@ -579,4 +581,33 @@ public sealed class SettingsService : ISettingsService
             _ => "Mirror",
         };
     }
+}
+
+/// <summary>
+/// 设置文件的 Source Generator 上下文。
+///
+/// 为什么需要它：portable 发布链路带 <c>PublishTrimmed=true</c>，裁剪器无法看到
+/// <c>JsonSerializer.Serialize&lt;T&gt;</c> 里 T 的反射访问，会把 <see cref="AppSettings"/>
+/// 的属性元数据全部剪掉，运行到保存设置时抛 <see cref="InvalidOperationException"/>
+/// （"Reflection-based serialization has been disabled"）。改成编译期生成的元数据后，
+/// 序列化通路完全不经过反射，裁剪器也就无从剪错。
+///
+/// <see cref="JsonSerializerOptions.TypeInfoResolver"/> 必须显式挂上：options 一旦被构造，
+/// 序列化时走的就是这里登记的元数据，而不是运行时按类型反射构建的那一份。
+/// </summary>
+[JsonSerializable(typeof(AppSettings))]
+internal sealed partial class SettingsJsonContext : JsonSerializerContext
+{
+    /// <summary>与迁移前完全一致的读写口径：Web 命名、缩进、容忍注释与尾逗号、两个枚举转换器。</summary>
+    internal static readonly JsonSerializerOptions DefaultOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        // 下载源转换器必须排在通用枚举转换器前面，否则 "BmclApi" 这类历史名会被当成未知值。
+        // 通用枚举转换器用泛型版本：非泛型的 JsonStringEnumConverter 靠运行时反射枚举字段，
+        // AOT / 裁剪下不可用（IL3050）。
+        Converters = { new SettingsService.DownloadSourceJsonConverter(), new JsonStringEnumConverter<DownloadSource>() },
+        TypeInfoResolver = new SettingsJsonContext(),
+    };
 }

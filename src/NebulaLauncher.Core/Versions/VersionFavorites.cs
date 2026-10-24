@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Versions;
 
@@ -87,6 +90,7 @@ public sealed class VersionFavorites : IVersionFavorites, IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        TypeInfoResolver = new FavoritesJsonContext(),
     };
 
     private readonly ILauncherPaths _paths;
@@ -290,7 +294,7 @@ public sealed class VersionFavorites : IVersionFavorites, IDisposable
         try
         {
             var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-            var document = JsonSerializer.Deserialize<FavoritesDocument>(json, JsonOptions);
+            var document = JsonSerializer.Deserialize(json, JsonOptions.Of<FavoritesDocument>());
 
             if (document is null)
             {
@@ -380,7 +384,7 @@ public sealed class VersionFavorites : IVersionFavorites, IDisposable
                 Directory.CreateDirectory(directory);
             }
 
-            var json = JsonSerializer.Serialize(snapshot, JsonOptions);
+            var json = JsonSerializer.Serialize(snapshot, JsonOptions.Of<FavoritesDocument>());
             var temporary = path + ".tmp";
             await File.WriteAllTextAsync(temporary, json, cancellationToken).ConfigureAwait(false);
             File.Move(temporary, path, overwrite: true);
@@ -407,4 +411,12 @@ public sealed class VersionFavorites : IVersionFavorites, IDisposable
 
     private static bool SameName(string left, string right) =>
         string.Equals(left, right, StringComparison.Ordinal);
+}
+
+/// <summary>
+/// 收藏文件的 Source Generator 上下文。裁剪发布下收藏/隐藏列表不能靠运行时反射读写。
+/// </summary>
+[JsonSerializable(typeof(FavoritesDocument))]
+internal sealed partial class FavoritesJsonContext : JsonSerializerContext
+{
 }

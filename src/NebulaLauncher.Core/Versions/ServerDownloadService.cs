@@ -4,9 +4,12 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Downloads;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Versions;
 
@@ -63,6 +66,7 @@ public sealed class ServerDownloadService : IServerDownloadService, IDisposable
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        TypeInfoResolver = new ServerDownloadJsonContext(),
     };
 
     /// <summary>
@@ -841,7 +845,7 @@ public sealed class ServerDownloadService : IServerDownloadService, IDisposable
         try
         {
             var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-            var document = JsonSerializer.Deserialize<CacheDocument>(json, CacheJsonOptions);
+            var document = JsonSerializer.Deserialize(json, CacheJsonOptions.Of<CacheDocument>());
 
             // 版本号不符、空列表、条目缺 url 都按损坏处理：静默重建，不抛。
             if (document is null
@@ -906,7 +910,7 @@ public sealed class ServerDownloadService : IServerDownloadService, IDisposable
                 Directory.CreateDirectory(directory);
             }
 
-            var json = JsonSerializer.Serialize(document, CacheJsonOptions);
+            var json = JsonSerializer.Serialize(document, CacheJsonOptions.Of<CacheDocument>());
 
             // 先写临时文件再原子替换：写到一半被杀掉时不会留下半截 JSON 让下次启动读到。
             var temp = path + ".tmp";
@@ -1040,32 +1044,44 @@ public sealed class ServerDownloadService : IServerDownloadService, IDisposable
     /// <summary>释放内部信号量。DI 单例随容器一起释放；测试里用 using 即可。</summary>
     public void Dispose() => _listGate.Dispose();
 
-    /// <summary>落盘缓存的 JSON 结构。字段改名/改语义时递增 <see cref="CacheFormatVersion"/>。</summary>
-    private sealed class CacheDocument
-    {
-        public int Version { get; set; }
+    // CacheDocument / CacheItem 提到文件末尾：Source Generator 需要能在同程序集内引用它们。
+}
 
-        public DateTimeOffset CachedAtUtc { get; set; }
+/// <summary>落盘缓存的 JSON 结构。字段改名/改语义时递增 <c>ServerDownloadService.CacheFormatVersion</c>。</summary>
+internal sealed class CacheDocument
+{
+    public int Version { get; set; }
 
-        public string? LatestRelease { get; set; }
+    public DateTimeOffset CachedAtUtc { get; set; }
 
-        public bool CoversAll { get; set; }
+    public string? LatestRelease { get; set; }
 
-        public List<CacheItem> Items { get; set; } = [];
-    }
+    public bool CoversAll { get; set; }
 
-    private sealed class CacheItem
-    {
-        public string Id { get; set; } = string.Empty;
+    public List<CacheItem> Items { get; set; } = [];
+}
 
-        public string Type { get; set; } = "release";
+/// <summary>服务端列表缓存里的一条。</summary>
+internal sealed class CacheItem
+{
+    public string Id { get; set; } = string.Empty;
 
-        public DateTimeOffset ReleaseTime { get; set; }
+    public string Type { get; set; } = "release";
 
-        public long Size { get; set; }
+    public DateTimeOffset ReleaseTime { get; set; }
 
-        public string? Sha1 { get; set; }
+    public long Size { get; set; }
 
-        public string? Url { get; set; }
-    }
+    public string? Sha1 { get; set; }
+
+    public string? Url { get; set; }
+}
+
+/// <summary>
+/// 服务端列表缓存的 Source Generator 上下文。缓存只是优化，读失败会回落网络查询；
+/// 但写路径若在裁剪发布下抛异常，会把「静默变慢」变成可见错误，一并改成编译期元数据。
+/// </summary>
+[JsonSerializable(typeof(CacheDocument))]
+internal sealed partial class ServerDownloadJsonContext : JsonSerializerContext
+{
 }

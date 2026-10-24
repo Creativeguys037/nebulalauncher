@@ -1,5 +1,6 @@
 using System.Text.Json;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Instances;
 
@@ -347,7 +348,9 @@ public sealed partial class InstanceService
                 return null;
             }
 
-            return JsonSerializer.Deserialize<InstanceInfo>(File.ReadAllText(file), JsonOptions);
+            return JsonSerializer.Deserialize(
+                File.ReadAllText(file),
+                JsonOptions.Of<InstanceInfo>());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -379,7 +382,9 @@ public sealed partial class InstanceService
                 return null;
             }
 
-            return JsonSerializer.Deserialize<TrashMetadata>(File.ReadAllText(file), JsonOptions);
+            return JsonSerializer.Deserialize(
+                File.ReadAllText(file),
+                JsonOptions.Of<TrashMetadata>());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -397,24 +402,26 @@ public sealed partial class InstanceService
         var file = Path.Combine(trashPath, "meta.json");
         var temp = file + ".tmp";
 
-        var json = JsonSerializer.Serialize(metadata, JsonOptions);
+        var json = JsonSerializer.Serialize(metadata, JsonOptions.Of<TrashMetadata>());
 
         await File.WriteAllTextAsync(temp, json, cancellationToken).ConfigureAwait(false);
         File.Move(temp, file, overwrite: true);
     }
 
-    /// <summary>回收站条目的元数据。启动器内部格式，UI 只看 <see cref="InstanceTrashEntry"/>。</summary>
-    private sealed class TrashMetadata
-    {
-        public string OriginalInstanceId { get; set; } = string.Empty;
+    // TrashMetadata 提到文件末尾：Source Generator 需要能在同程序集内引用它。
+}
 
-        /// <summary>删除前的版本目录名。旧条目没有这个字段，恢复时退回读 instance.json。</summary>
-        public string? VersionName { get; set; }
+/// <summary>回收站条目的元数据。启动器内部格式，UI 只看 <see cref="InstanceTrashEntry"/>。</summary>
+internal sealed class TrashMetadata
+{
+    public string OriginalInstanceId { get; set; } = string.Empty;
 
-        public string DisplayName { get; set; } = string.Empty;
+    /// <summary>删除前的版本目录名。旧条目没有这个字段，恢复时退回读 instance.json。</summary>
+    public string? VersionName { get; set; }
 
-        public DateTimeOffset DeletedAt { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
 
-        public long SizeBytes { get; set; }
-    }
+    public DateTimeOffset DeletedAt { get; set; }
+
+    public long SizeBytes { get; set; }
 }

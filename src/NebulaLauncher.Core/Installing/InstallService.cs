@@ -11,6 +11,7 @@ using NebulaLauncher.Core.Downloads;
 using NebulaLauncher.Core.Launching;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Paths;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Installing;
 
@@ -585,7 +586,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
         // 直接覆盖会让改动无声消失。只保留一份，不累积。
         _ = BackupBeforeOverwrite(jsonPath, _log);
 
-        await File.WriteAllTextAsync(jsonPath, node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+        await File.WriteAllTextAsync(jsonPath, node.ToJsonString(JsonNodeWrite.Indented),
             cancellationToken).ConfigureAwait(false);
 
         _log?.Info($"已写入 {loader} profile：{jsonPath}");
@@ -987,7 +988,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
 
             await File.WriteAllTextAsync(
                 markerPath,
-                marker.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+                marker.ToJsonString(JsonNodeWrite.Indented),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)

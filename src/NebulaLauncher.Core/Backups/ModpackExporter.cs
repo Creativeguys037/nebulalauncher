@@ -1,9 +1,12 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Mods;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Backups;
 
@@ -37,6 +40,7 @@ public sealed class ModpackExporter
     private static readonly JsonSerializerOptions InstanceJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        TypeInfoResolver = new InstanceFileJsonContext(),
     };
 
     private readonly ILauncherPaths? _paths;
@@ -636,7 +640,7 @@ public sealed class ModpackExporter
             }
 
             var json = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<InstanceInfo>(json, InstanceJsonOptions);
+            return JsonSerializer.Deserialize(json, InstanceJsonOptions.Of<InstanceInfo>());
         }
         catch (OperationCanceledException)
         {
@@ -912,4 +916,13 @@ public sealed class ModpackExporter
 
     /// <summary>版本 JSON 里导出真正需要的字段。</summary>
     private sealed record VersionNode(string Id, string? InheritsFrom, IReadOnlyList<string> Libraries);
+}
+
+/// <summary>
+/// instance.json 的 Source Generator 上下文（导出侧只读）。
+/// 只登记 <see cref="InstanceInfo"/>，不回写文件，故不需要写路径上的选项。
+/// </summary>
+[JsonSerializable(typeof(InstanceInfo))]
+internal sealed partial class InstanceFileJsonContext : JsonSerializerContext
+{
 }

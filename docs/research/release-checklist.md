@@ -432,6 +432,8 @@ docs/HANDOVER-2026-10-24-R59.md 的（:103） `1C52BDB4ACFA402CB091D8B8C5D86892D
 
 `portable` 要进 v1.0.0，必须先用 `build.ps1` 默认两道关跑一遍（不加 `-SkipVerify`）；`folder` 建议直接不发。另一个未知数：`portable` 走 `PublishTrimmed=true` + `TrimMode=partial`（`build.ps1:351-352`），裁剪掉的首启路径在仓库里没有任何验证记录（docs/HANDOVER.md 明确「发布自检的（:1295） portable 形态 … 未测」）。
 
+**2026-10-25 实测（议题 #26 收尾）**：`pwsh build.ps1 -Publish -Mode portable` 三关全过——`--probe-dir` writable=YES、`--selftest-json` `json-selfcheck.summary=7/7`、`--screenshot` PNG 145,683 字节；产物 `pub/NebulaLauncher.exe` 24.1 MB / 1 文件。此前这道闸只验「能不能跑」与「能不能渲染」，不碰序列化，而 `portable` 的 `PublishTrimmed=true` 恰好会关掉 System.Text.Json 的反射元数据——坏产物能连过两关（成因与修法见 `docs/PITFALLS.md` §3.16）。自检把单文件解包目录钉在产物目录（`DOTNET_BUNDLE_EXTRACT_BASE_DIR`），不再依赖 `%TEMP%\.net` 可写。
+
 ### H.8 `-Mode fdd` 的文件数/体积自相矛盾
 
 docs/PUBLISH-CHECK.md 写（:27） 47 文件 / 23.4 MB，`build.ps1:23` 与 docs/HANDOVER.md 写（:125） 48 文件 / 26.2 MB。两者都没留实测环境。因为 B 节建议**不发 fdd**，这条不影响 v1.0.0；但若有人后续按 PUBLISH-CHECK 说"fdd 已实测通过"就会误判。**未确定**。

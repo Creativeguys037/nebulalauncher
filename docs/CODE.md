@@ -6,14 +6,14 @@
 
 ## 1. 目录表
 
-### 1.1 src/NebulaLauncher.Core（22 个目录）
+### 1.1 src/NebulaLauncher.Core（23 个目录）
 
 | 目录 | 职责（一句话） | 关键类型 |
 | --- | --- | --- |
 | Abstractions | 全部契约接口与共享记录类型，只依赖 BCL，Core 各模块靠它解耦 | `src/NebulaLauncher.Core/Abstractions/Infrastructure.cs ILauncherPaths（:4）`、`src/NebulaLauncher.Core/Abstractions/VersionServices.cs IInstallService（:51）`、`src/NebulaLauncher.Core/Abstractions/InstanceServices.cs IInstanceContext（:258）` |
 | Accounts | 微软设备码登录、authlib 登录、令牌加密存储与刷新 | `src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService（:14）`、`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth（:45）`、`src/NebulaLauncher.Core/Accounts/TokenProtector.cs TokenProtector（:12）` |
 | Backups | 世界备份、整合包导入导出、实例打包与头像图标 | `src/NebulaLauncher.Core/Backups/BackupService.cs BackupService（:12）`、`src/NebulaLauncher.Core/Backups/ModpackService.cs ModpackService（:25）`、`src/NebulaLauncher.Core/Backups/WorldIconService.cs WorldIconService（:20）` |
-| Diagnostics | 一次性环境快照（OS/JVM/内存/磁盘），供问题报告 | `src/NebulaLauncher.Core/Diagnostics/DiagnosticsSnapshot.cs DiagnosticsSnapshot（:73）` |
+| Diagnostics | 一次性环境快照（OS/JVM/内存/磁盘）与发布期 JSON 落盘自检 | `src/NebulaLauncher.Core/Diagnostics/DiagnosticsSnapshot.cs DiagnosticsSnapshot（:73）`、`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）` |
 | Downloads | 下载队列（并发/限速/暂停）、源探测与治理、HTTP 客户端工厂、文件复用 | `src/NebulaLauncher.Core/Downloads/DownloadQueue.cs DownloadQueue（:120）`、`src/NebulaLauncher.Core/Downloads/DownloadSourceGovernor.cs DownloadSourceGovernor（:31）`、`src/NebulaLauncher.Core/Downloads/DownloadInfrastructure.cs DownloadHttpClientFactory（:996）` |
 | Help | 内置离线帮助条目，不读网络、不读文件 | `src/NebulaLauncher.Core/Help/HelpCatalog.cs HelpCatalog（:20）` |
 | Installing | 原版/Fabric/Quilt/Forge/NeoForge 安装、修复、安装清单写入 | `src/NebulaLauncher.Core/Installing/InstallService.cs InstallService（:22）`、`src/NebulaLauncher.Core/Installing/NeoForgeInstallerBridge.cs NeoForgeInstallerBridge（:45）`、`src/NebulaLauncher.Core/Installing/ComponentInspector.cs ComponentInspector（:16）` |
@@ -28,6 +28,7 @@
 | Paths | 启动器数据目录/游戏目录/各类文件路径的唯一解析点 | `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths（:19）`、`src/NebulaLauncher.Core/Paths/PathProbe.cs PathProbe（:11）`、`src/NebulaLauncher.Core/Paths/PathSafety.cs PathSafety（:22）` |
 | Platforms | 平台服务：打开目录/浏览器、系统信息、原生集成 | `src/NebulaLauncher.Core/Platforms/PlatformService.cs PlatformService（:46）`、`src/NebulaLauncher.Core/Platforms/PlatformNative.cs PlatformNative（:11）` |
 | Resources | 嵌入资源，无 cs 代码；`WikiEntries.txt` 是 MC 百科译名表 | `src/NebulaLauncher.Core/Mods/ModNameTable.cs ModNameTable.ResourceName（:204）` |
+| Serialization | 共享的 JSON 序列化辅助：从 `JsonSerializerOptions` 取 `JsonTypeInfo<T>`、`JsonNode` 写出 | `src/NebulaLauncher.Core/Serialization/JsonMeta.cs JsonMeta.Of（:30）`、`src/NebulaLauncher.Core/Serialization/JsonNodeWrite.cs JsonNodeWrite（:18）` |
 | Servers | 服务器列表落盘、`servers.dat` 导入、状态查询 | `src/NebulaLauncher.Core/Servers/ServerService.cs ServerService（:15）`、`src/NebulaLauncher.Core/Servers/ServerQueryService.cs ServerQueryService（:30）`、`src/NebulaLauncher.Core/Servers/ServerListDatReader.cs ServerListDatReader（:22）` |
 | Settings | 设置读写（`settings.json`），变更事件 | `src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService（:18）` |
 | Transfer | 配置包导入导出（跨机器迁移） | `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs ProfileBundleService（:212）` |
@@ -200,7 +201,11 @@
 
 `instances/`（`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.InstancesDirectory（:137）`）是旧布局，实例目录已改为 `<游戏目录>/versions/<名>/`，不要再往这里写。
 
-## 7. 与 docs/research/code-map.md 的已知差异
+### 6.1 JSON 序列化的代码落点
+
+落盘表的每一项都经 System.Text.Json。元数据由编译期生成、与落盘类型同文件写在文件尾的 `partial class <模块>JsonContext : JsonSerializerContext` 提供；调用点经 `src/NebulaLauncher.Core/Serialization/JsonMeta.cs JsonMeta.Of（:30）` 从各自的 `JsonSerializerOptions` 取 `JsonTypeInfo<T>`。
+
+迁移中被改形的类型：请求体的匿名对象换成具名记录（`src/NebulaLauncher.Core/Mods/CurseForgeService.cs ModIdsQueryRequest（:2412）`、`src/NebulaLauncher.Core/Mods/ModrinthService.cs VersionFilesRequest（:2079）`），原本的私有嵌套缓存类型提到命名空间层（`src/NebulaLauncher.Core/Mods/ModProjectInfoService.cs CacheFile（:731）`、`src/NebulaLauncher.Core/Mods/ModFingerprint.cs HashCacheFile（:560）`、`src/NebulaLauncher.Core/Instances/InstanceService.Trash.cs TrashMetadata（:415）`）。
 
 | 差异 | 实际 |
 | --- | --- |

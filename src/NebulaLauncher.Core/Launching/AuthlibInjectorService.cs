@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Downloads;
@@ -633,12 +635,12 @@ public sealed class AuthlibInjectorService : IAuthlibInjectorService
     {
         try
         {
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                version = release.Version,
-                download_url = release.DownloadUrl,
-                checksums = new { sha256 = release.Sha256 },
-            });
+            var payload = JsonSerializer.SerializeToUtf8Bytes(
+                new MetadataDocument(
+                    release.Version,
+                    release.DownloadUrl,
+                    new MetadataChecksums(release.Sha256)),
+                AuthlibInjectorJsonContext.Default.MetadataDocument);
 
             File.WriteAllBytes(Path.Combine(directory, MetadataFileName), payload);
         }
@@ -674,4 +676,26 @@ public sealed class AuthlibInjectorService : IAuthlibInjectorService
     internal sealed record Release(string Version, string DownloadUrl, string? Sha256);
 
     private readonly record struct FetchResult(bool Success, byte[] Bytes, string? Error);
+}
+
+/// <summary>清单副本里的 checksums 段。</summary>
+internal sealed record MetadataChecksums(string? Sha256);
+
+/// <summary>
+/// 落在 jar 旁边的清单副本（<c>authlib-injector.json</c>）。
+///
+/// 字段名与上游清单一致（snake_case），所以用 <see cref="JsonPropertyNameAttribute"/> 显式钉死，
+/// 不依赖任何命名策略。
+/// </summary>
+internal sealed record MetadataDocument(
+    [property: JsonPropertyName("version")] string Version,
+    [property: JsonPropertyName("download_url")] string DownloadUrl,
+    [property: JsonPropertyName("checksums")] MetadataChecksums Checksums);
+
+/// <summary>
+/// authlib-injector 清单副本的 Source Generator 上下文。
+/// </summary>
+[JsonSerializable(typeof(MetadataDocument))]
+internal sealed partial class AuthlibInjectorJsonContext : JsonSerializerContext
+{
 }

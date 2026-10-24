@@ -30,6 +30,12 @@ internal static class Program
             return;
         }
 
+        // JSON 落盘通路自检：裁剪发布包里唯一能证明「System.Text.Json 元数据还在」的入口（#26）。
+        if (TrySelfTestJson(args))
+        {
+            return;
+        }
+
         // 数据目录写不进去时请求提权重启。实测：同一份 exe，Medium 进程写不了
         // %APPDATA%\NebulaLauncher，High（管理员）进程可以。放在这里而不是 UI 里，
         // 是因为目录回退只能让程序「能跑」，解决不了用户想用自己目录的需求。
@@ -60,7 +66,7 @@ internal static class Program
     {
         foreach (var arg in args)
         {
-            if (arg is "--screenshot" or "--probe-dir" or "--probe-sources" or "--no-single-instance")
+            if (arg is "--screenshot" or "--probe-dir" or "--probe-sources" or "--selftest-json" or "--no-single-instance")
             {
                 return false;
             }
@@ -315,6 +321,67 @@ internal static class Program
             // 诊断输出失败不影响退出码。
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// NebulaLauncher.exe --selftest-json：在产物自己的进程里跑一遍会落盘的 JSON 往返，打印结果后退出。
+    ///
+    /// 存在的理由（#26）：<c>PublishTrimmed=true</c> 关掉 System.Text.Json 的反射元数据后，
+    /// 漏改的调用点不会在编译期报错，只在用户点「保存设置」时炸成一句中文提示。
+    /// 单元测试跑的是未裁剪的 Debug 程序集，够不到这个面；只有真实产物能证明它是好的。
+    ///
+    /// 输出可编程：每行 <c>json-selfcheck.OK.&lt;名称&gt;</c> / <c>json-selfcheck.FAIL.&lt;名称&gt;</c>，
+    /// 末尾 <c>json-selfcheck.summary=passed/total</c>。退出码 0 = 全通过，4 = 有失败项。
+    /// </summary>
+    private static bool TrySelfTestJson(string[] args)
+    {
+        if (Array.IndexOf(args, "--selftest-json") < 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<string> lines;
+
+        try
+        {
+            // Main 不是 async：Avalonia 的 [STAThread] 要求它在原线程启动，这里单独等一次。
+            // 工作目录传产物目录而不是 %TEMP%：本机安全软件会拦这个 exe 写临时目录。
+            lines = NebulaLauncher.Core.Diagnostics.JsonSelfCheck
+                .RunAsync(AppContext.BaseDirectory)
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            lines = new[] { $"json-selfcheck.FAIL.unexpected;{ex.GetType().Name}: {ex.Message}" };
+        }
+
+        var failed = lines.Any(line => line.StartsWith("json-selfcheck.FAIL", StringComparison.Ordinal));
+        var output = string.Join(Environment.NewLine, lines);
+
+        try
+        {
+            Console.WriteLine(output);
+        }
+        catch (Exception)
+        {
+            // 无控制台时忽略；下面是文件输出。
+        }
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(AppContext.BaseDirectory, "nebula-selftest-json.txt"),
+                output,
+                new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+        catch (Exception)
+        {
+            // 诊断输出失败不改退出码。
+        }
+
+        Environment.ExitCode = failed ? 4 : 0;
         return true;
     }
 

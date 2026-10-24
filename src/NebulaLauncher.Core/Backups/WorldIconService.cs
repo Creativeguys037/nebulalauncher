@@ -2,6 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using NebulaLauncher.Core.Abstractions;
 
@@ -173,7 +175,11 @@ public sealed class WorldIconService : IWorldIconService
 
             // 元数据最后落地：它是缓存的提交标记，png 写成功而元数据没写成时下次会重写而不是读半截内容。
             tempMeta = metaPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            File.WriteAllBytes(tempMeta, JsonSerializer.SerializeToUtf8Bytes(new IconCacheMetadata(ticks, length)));
+            File.WriteAllBytes(
+                tempMeta,
+                JsonSerializer.SerializeToUtf8Bytes(
+                    new IconCacheMetadata(ticks, length),
+                    WorldIconJsonContext.Default.IconCacheMetadata));
             File.Move(tempMeta, metaPath, overwrite: true);
             tempMeta = null;
 
@@ -204,7 +210,9 @@ public sealed class WorldIconService : IWorldIconService
                 return null;
             }
 
-            return JsonSerializer.Deserialize<IconCacheMetadata>(File.ReadAllBytes(metaPath));
+            return JsonSerializer.Deserialize(
+                File.ReadAllBytes(metaPath),
+                WorldIconJsonContext.Default.IconCacheMetadata);
         }
         catch (Exception)
         {
@@ -241,14 +249,16 @@ public sealed class WorldIconService : IWorldIconService
     private static string HashPath(string fullDirectory) =>
         Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(fullDirectory))).ToLowerInvariant();
 
-    /// <summary>
-    /// 旁记元数据：level.dat 的修改时间（UTC ticks）与长度。
-    ///
-    /// 用两个字段而不是内容哈希：图标提取本身已经要读一遍 level.dat，
-    /// 再算整文件哈希等于多读一次；而 (mtime, length) 足以发现「游戏写完存档」这种整体替换。
-    /// </summary>
-    private sealed record IconCacheMetadata(long LevelDatTicks, long LevelDatLength);
+    // IconCacheMetadata 提到文件末尾：Source Generator 需要能在同程序集内引用它。
 }
+
+/// <summary>
+/// 旁记元数据：level.dat 的修改时间（UTC ticks）与长度。
+///
+/// 用两个字段而不是内容哈希：图标提取本身已经要读一遍 level.dat，
+/// 再算整文件哈希等于多读一次；而 (mtime, length) 足以发现「游戏写完存档」这种整体替换。
+/// </summary>
+internal sealed record IconCacheMetadata(long LevelDatTicks, long LevelDatLength);
 
 /// <summary>
 /// 存档图标的 DI 注册入口。
@@ -263,4 +273,15 @@ public static class WorldIconServiceCollectionExtensions
         services.AddSingleton<IWorldIconService, WorldIconService>();
         return services;
     }
+}
+
+/// <summary>
+/// 存档图标缓存的 Source Generator 上下文。
+///
+/// 原来这两处调用连 <c>JsonSerializerOptions</c> 都没传，走的是运行时反射的默认口径；
+/// 裁剪发布下那正是 100% 失败的形态（元数据被整段剪掉）。
+/// </summary>
+[JsonSerializable(typeof(IconCacheMetadata))]
+internal sealed partial class WorldIconJsonContext : JsonSerializerContext
+{
 }

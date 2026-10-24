@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Java;
 
@@ -32,6 +35,7 @@ public sealed class JavaPathList : IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        TypeInfoResolver = new JavaListJsonContext(),
     };
 
     private readonly object _sync = new();
@@ -291,7 +295,7 @@ public sealed class JavaPathList : IDisposable
         try
         {
             var json = File.ReadAllText(_filePath);
-            var document = JsonSerializer.Deserialize<JavaPathDocument>(json, JsonOptions);
+            var document = JsonSerializer.Deserialize(json, JsonOptions.Of<JavaPathDocument>());
 
             var loaded = 0;
             foreach (var raw in document?.Paths ?? [])
@@ -328,7 +332,7 @@ public sealed class JavaPathList : IDisposable
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(new JavaPathDocument(), JsonOptions));
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(new JavaPathDocument(), JsonOptions.Of<JavaPathDocument>()));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -352,7 +356,7 @@ public sealed class JavaPathList : IDisposable
                 Directory.CreateDirectory(directory);
             }
 
-            var json = JsonSerializer.Serialize(new JavaPathDocument { Paths = snapshot }, JsonOptions);
+            var json = JsonSerializer.Serialize(new JavaPathDocument { Paths = snapshot }, JsonOptions.Of<JavaPathDocument>());
             var temporary = _filePath + ".tmp";
             await File.WriteAllTextAsync(temporary, json, cancellationToken).ConfigureAwait(false);
             File.Move(temporary, _filePath, overwrite: true);
@@ -367,4 +371,13 @@ public sealed class JavaPathList : IDisposable
             _log?.Warn($"保存 Java 路径列表失败：{_filePath}", ex);
         }
     }
+}
+
+/// <summary>
+/// Java 路径列表文件的 Source Generator 上下文。写盘失败只记日志，所以这里的失效是静默的：
+/// 裁剪发布下用户会发现「手动添加的 Java 每次启动都消失」，却没有任何报错线索。
+/// </summary>
+[JsonSerializable(typeof(JavaPathDocument))]
+internal sealed partial class JavaListJsonContext : JsonSerializerContext
+{
 }

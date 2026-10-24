@@ -2,9 +2,12 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Servers;
 
@@ -20,6 +23,7 @@ public sealed class ServerService : IServerService, IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        TypeInfoResolver = new ServerJsonContext(),
     };
 
     private static readonly Regex FormatCodePattern = new("§[0-9a-fk-orA-FK-OR]", RegexOptions.Compiled);
@@ -69,7 +73,7 @@ public sealed class ServerService : IServerService, IDisposable
             }
 
             var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-            var loaded = JsonSerializer.Deserialize<List<ServerEntry>>(json, JsonOptions) ?? [];
+            var loaded = JsonSerializer.Deserialize(json, JsonOptions.Of<List<ServerEntry>>()) ?? [];
 
             lock (_servers)
             {
@@ -479,7 +483,7 @@ public sealed class ServerService : IServerService, IDisposable
                 Directory.CreateDirectory(directory);
             }
 
-            var json = JsonSerializer.Serialize(snapshot, JsonOptions);
+            var json = JsonSerializer.Serialize(snapshot, JsonOptions.Of<List<ServerEntry>>());
             var temporary = _paths.ServersFile + ".tmp";
             await File.WriteAllTextAsync(temporary, json, cancellationToken).ConfigureAwait(false);
             File.Move(temporary, _paths.ServersFile, overwrite: true);
@@ -695,4 +699,13 @@ public sealed class ServerService : IServerService, IDisposable
         "white" => "§f",
         _ => null,
     };
+}
+
+/// <summary>
+/// 收藏服务器文件的 Source Generator 上下文。servers.json 的读写都必须走编译期元数据，
+/// 否则裁剪发布下「收藏的服务器列表」会在每次启动后变空。
+/// </summary>
+[JsonSerializable(typeof(List<ServerEntry>))]
+internal sealed partial class ServerJsonContext : JsonSerializerContext
+{
 }

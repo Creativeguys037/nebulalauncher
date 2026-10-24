@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -129,6 +130,20 @@ internal static class PlatformNative
         void SetProgressState(IntPtr hwnd, TaskbarProgressState state);
     }
 
+    /// <summary>
+    /// 取任务栏进度条 COM 对象。裁剪 / AOT 发布下返回 null 就等于界面没有进度条，不影响启动。
+    ///
+    /// 裁剪分析器在这里报 IL2072：<see cref="Activator.CreateInstance(Type)"/> 要求目标类型带
+    /// 公共无参构造函数注解，而 <see cref="Type.GetTypeFromCLSID(Guid)"/> 的返回值没法这么标。
+    /// 这个豁免是有依据的：CLSID 由操作系统解析成 COM 类厂，激活走的是 OS 侧
+    /// <c>CoCreateInstance</c>，不读托管元数据；<see cref="ITaskbarList3"/> 本身是静态引用的
+    /// <c>[ComImport]</c> 接口，裁剪器会保留它。<c>System.Runtime.InteropServices.BuiltInComInteropSupport</c>
+    /// 在 .NET 8 默认开启（<c>Directory.Build.props</c> 未关）。
+    /// </summary>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2072",
+        Justification = "COM 类由 CLSID 在操作系统侧解析，不依赖托管元数据；接口类型为静态引用。")]
     internal static ITaskbarList3? CreateTaskbarList()
     {
         var type = Type.GetTypeFromCLSID(TaskbarListClsid);

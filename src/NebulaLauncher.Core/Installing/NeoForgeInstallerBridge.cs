@@ -7,6 +7,7 @@ using CmlLib.Core.Installer.NeoForge.Installers;
 using CmlLib.Core.Installer.NeoForge.Versions;
 using CmlLib.Core.Installers;
 using NebulaLauncher.Core.Downloads;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Installing;
 
@@ -626,7 +627,7 @@ internal static class NeoForgeInstallerBridge
             node["id"] = versionFolderName;
             await File.WriteAllTextAsync(
                     jsonPath,
-                    node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+                    node.ToJsonString(JsonNodeWrite.Indented),
                     cancellationToken)
                 .ConfigureAwait(false);
         }

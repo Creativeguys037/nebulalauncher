@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 
@@ -43,7 +45,7 @@ public sealed class ModProjectInfoService : IModProjectInfoService
     /// <summary>图标下载的并发上限。图标是 CDN 上的小图，2 路足够，也不需要抢带宽。</summary>
     public const int MaxParallelIcons = 2;
 
-    private const int CacheSchemaVersion = 1;
+    internal const int CacheSchemaVersion = 1;
 
     private static readonly object CacheWriteGate = new();
 
@@ -656,7 +658,7 @@ public sealed class ModProjectInfoService : IModProjectInfoService
                 return new Dictionary<string, CacheEntry>(StringComparer.Ordinal);
             }
 
-            var file = JsonSerializer.Deserialize<CacheFile>(json);
+            var file = JsonSerializer.Deserialize(json, ModProjectCacheJsonContext.Default.CacheFile);
 
             if (file is null || file.Version != CacheSchemaVersion || file.Entries is null)
             {
@@ -692,11 +694,13 @@ public sealed class ModProjectInfoService : IModProjectInfoService
                     .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
                 : entries;
 
-            var json = JsonSerializer.Serialize(new CacheFile
-            {
-                Version = CacheSchemaVersion,
-                Entries = trimmed,
-            });
+            var json = JsonSerializer.Serialize(
+                new CacheFile
+                {
+                    Version = CacheSchemaVersion,
+                    Entries = trimmed,
+                },
+                ModProjectCacheJsonContext.Default.CacheFile);
 
             lock (CacheWriteGate)
             {
@@ -721,31 +725,41 @@ public sealed class ModProjectInfoService : IModProjectInfoService
             ? null
             : Path.Combine(_paths!.CacheDirectory, CacheFileName);
 
-    private sealed class CacheFile
-    {
-        public int Version { get; set; } = CacheSchemaVersion;
+    // CacheFile / CacheEntry 提到文件末尾：Source Generator 需要能在同程序集内引用它们。
+}
 
-        public Dictionary<string, CacheEntry> Entries { get; set; } = new(StringComparer.Ordinal);
-    }
+internal sealed class CacheFile
+{
+    public int Version { get; set; } = ModProjectInfoService.CacheSchemaVersion;
 
-    private sealed class CacheEntry
-    {
-        public string? Source { get; set; }
+    public Dictionary<string, CacheEntry> Entries { get; set; } = new(StringComparer.Ordinal);
+}
 
-        public string? ProjectId { get; set; }
+internal sealed class CacheEntry
+{
+    public string? Source { get; set; }
 
-        public string? Slug { get; set; }
+    public string? ProjectId { get; set; }
 
-        public string? Title { get; set; }
+    public string? Slug { get; set; }
 
-        public string? Description { get; set; }
+    public string? Title { get; set; }
 
-        public string? Authors { get; set; }
+    public string? Description { get; set; }
 
-        public string? IconPath { get; set; }
+    public string? Authors { get; set; }
 
-        public string? WebUrl { get; set; }
+    public string? IconPath { get; set; }
 
-        public DateTimeOffset StoredAt { get; set; }
-    }
+    public string? WebUrl { get; set; }
+
+    public DateTimeOffset StoredAt { get; set; }
+}
+
+/// <summary>
+/// 模组项目元数据缓存的 Source Generator 上下文。
+/// </summary>
+[JsonSerializable(typeof(CacheFile))]
+internal sealed partial class ModProjectCacheJsonContext : JsonSerializerContext
+{
 }

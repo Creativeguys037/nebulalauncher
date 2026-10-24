@@ -5,6 +5,8 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Downloads;
@@ -293,7 +295,7 @@ public sealed class ModrinthService : IModrinthService, IDisposable
         // Modrinth 对 ids 的数量没有明确上限，但 URL 长度有；100 个一包与搜索分页保持一致。
         foreach (var chunk in ids.Chunk(MaxPageSize))
         {
-            var url = $"{ApiBase}/projects?ids={Uri.EscapeDataString(JsonSerializer.Serialize(chunk))}";
+            var url = $"{ApiBase}/projects?ids={Uri.EscapeDataString(JsonSerializer.Serialize(chunk, ModrinthRequestJsonContext.Default.StringArray))}";
             var json = await GetStringAsync(url, SearchTimeout, cancellationToken).ConfigureAwait(false);
 
             if (json is null)
@@ -339,7 +341,9 @@ public sealed class ModrinthService : IModrinthService, IDisposable
         for (var offset = 0; offset < hashes.Count; offset += MaxPageSize)
         {
             var chunk = hashes.Skip(offset).Take(MaxPageSize).ToList();
-            var payload = JsonSerializer.Serialize(new { hashes = chunk, algorithm = "sha1" });
+            var payload = JsonSerializer.Serialize(
+                new VersionFilesRequest(chunk, "sha1"),
+                ModrinthRequestJsonContext.Default.VersionFilesRequest);
             var json = await PostJsonAsync($"{ApiBase}/version_files", payload, cancellationToken).ConfigureAwait(false);
 
             if (json is not null)
@@ -2064,4 +2068,26 @@ public sealed class ModrinthService : IModrinthService, IDisposable
     }
 
     public void Dispose() => _http.Dispose();
+}
+
+/// <summary>
+/// <c>POST /v2/version_files</c> 的请求体。
+///
+/// 字段名钉死成小写：原来是匿名对象，属性名就是 <c>hashes</c> / <c>algorithm</c>；
+/// 具名记录的默认命名会变成 <c>Hashes</c>，Modrinth 会当成未知字段而拒收。
+/// </summary>
+internal sealed record VersionFilesRequest(
+    [property: JsonPropertyName("hashes")] List<string> Hashes,
+    [property: JsonPropertyName("algorithm")] string Algorithm);
+
+/// <summary>
+/// Modrinth 请求侧的 Source Generator 上下文。
+///
+/// 批量查项目走 URL query（把 id 数组序列化成 JSON 串），提交哈希走匿名对象；
+/// 两者在裁剪发布下都会在序列化这一步抛异常。
+/// </summary>
+[JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(VersionFilesRequest))]
+internal sealed partial class ModrinthRequestJsonContext : JsonSerializerContext
+{
 }

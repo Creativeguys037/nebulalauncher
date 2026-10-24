@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Instances;
 
@@ -27,7 +29,13 @@ public sealed partial class InstanceService : IInstanceService
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
-        Converters = { new JsonStringEnumConverter() },
+        Converters =
+        {
+            new JsonStringEnumConverter<LoaderKind>(),
+            new JsonStringEnumConverter<InstanceIconKind>(),
+            new JsonStringEnumConverter<GcKind>(),
+        },
+        TypeInfoResolver = new InstanceJsonContext(),
     };
 
     private readonly ILauncherPaths _paths;
@@ -99,7 +107,7 @@ public sealed partial class InstanceService : IInstanceService
                 try
                 {
                     var json = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
-                    var instance = JsonSerializer.Deserialize<InstanceInfo>(json, JsonOptions);
+                    var instance = JsonSerializer.Deserialize(json, JsonOptions.Of<InstanceInfo>());
 
                     if (instance is null)
                     {
@@ -208,7 +216,7 @@ public sealed partial class InstanceService : IInstanceService
         var file = Path.Combine(directory, "instance.json");
         var temp = file + ".tmp";
 
-        var json = JsonSerializer.Serialize(instance, JsonOptions);
+        var json = JsonSerializer.Serialize(instance, JsonOptions.Of<InstanceInfo>());
 
         try
         {
@@ -376,7 +384,7 @@ public sealed partial class InstanceService : IInstanceService
                 try
                 {
                     var json = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
-                    legacy = JsonSerializer.Deserialize<InstanceInfo>(json, JsonOptions);
+                    legacy = JsonSerializer.Deserialize(json, JsonOptions.Of<InstanceInfo>());
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
                 {
@@ -683,4 +691,14 @@ public sealed partial class InstanceService : IInstanceService
             SourceArchive = source.SourceArchive,
             ImportedAt = source.ImportedAt,
         };
+}
+
+/// <summary>
+/// 实例文件的 Source Generator 上下文。裁剪发布下 instance.json 不能靠运行时反射读写，
+/// 否则整仓所有 JSON 持久化在 portable 包里全线失效（见 #26）。
+/// </summary>
+[JsonSerializable(typeof(InstanceInfo))]
+[JsonSerializable(typeof(TrashMetadata))]
+internal sealed partial class InstanceJsonContext : JsonSerializerContext
+{
 }

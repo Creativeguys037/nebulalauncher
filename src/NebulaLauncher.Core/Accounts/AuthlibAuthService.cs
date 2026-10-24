@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 
 namespace NebulaLauncher.Core.Accounts;
@@ -139,14 +141,14 @@ public sealed class AuthlibAuthService
         // clientToken 由启动器生成并长期保存：刷新时服务端靠它确认「还是同一个客户端」。
         var clientToken = Guid.NewGuid().ToString();
 
-        var payload = JsonSerializer.Serialize(new
-        {
-            username = account,
-            password,
-            clientToken,
-            agent = new { name = AgentName, version = AgentVersion },
-            requestUser = false,
-        });
+        var payload = JsonSerializer.Serialize(
+            new AuthenticateRequest(
+                account,
+                password,
+                clientToken,
+                new AgentDescriptor(AgentName, AgentVersion),
+                RequestUser: false),
+            AuthlibAuthJsonContext.Default.AuthenticateRequest);
 
         try
         {
@@ -546,4 +548,29 @@ public sealed class AuthlibAuthService
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
+}
+
+/// <summary><c>POST /authserver/authenticate</c> 请求体里的 agent 描述。</summary>
+internal sealed record AgentDescriptor(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("version")] int Version);
+
+/// <summary>
+/// <c>POST /authserver/authenticate</c> 的请求体。
+///
+/// 原来是匿名对象，裁剪发布下会在序列化这一步抛异常，表现为「正版登录永远失败」。
+/// </summary>
+internal sealed record AuthenticateRequest(
+    [property: JsonPropertyName("username")] string Username,
+    [property: JsonPropertyName("password")] string Password,
+    [property: JsonPropertyName("clientToken")] string ClientToken,
+    [property: JsonPropertyName("agent")] AgentDescriptor Agent,
+    [property: JsonPropertyName("requestUser")] bool RequestUser);
+
+/// <summary>
+/// Yggdrasil 认证请求的 Source Generator 上下文。
+/// </summary>
+[JsonSerializable(typeof(AuthenticateRequest))]
+internal sealed partial class AuthlibAuthJsonContext : JsonSerializerContext
+{
 }

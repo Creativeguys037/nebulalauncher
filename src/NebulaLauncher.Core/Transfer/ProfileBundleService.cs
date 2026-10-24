@@ -5,9 +5,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Diagnostics;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Transfer;
 
@@ -217,7 +219,8 @@ public sealed class ProfileBundleService : IProfileBundleService
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
-        Converters = { new JsonStringEnumConverter() },
+        Converters = { new JsonStringEnumConverter<DownloadSource>() },
+        TypeInfoResolver = new ProfileBundleJsonContext(),
     };
 
     /// <summary>favorites.json / servers.json 的格式由各自的持久化实现决定，这里只做计数与读取。</summary>
@@ -226,12 +229,13 @@ public sealed class ProfileBundleService : IProfileBundleService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() },
+        TypeInfoResolver = new ProfileBundleJsonContext(),
     };
 
     private static readonly JsonSerializerOptions ManifestJsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
+        TypeInfoResolver = new ProfileBundleJsonContext(),
     };
 
     private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
@@ -332,7 +336,7 @@ public sealed class ProfileBundleService : IProfileBundleService
                 await WriteEntryAsync(archive, ProfileBundleFiles.Settings, settingsBytes, cancellationToken).ConfigureAwait(false);
             }
 
-            var manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, ManifestJsonOptions);
+            var manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, ManifestJsonOptions.Of<ProfileManifest>());
             await WriteEntryAsync(archive, ProfileBundleFiles.Manifest, manifestJson, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -525,7 +529,7 @@ public sealed class ProfileBundleService : IProfileBundleService
     /// <summary>把当前设置序列化后删掉敏感字段。返回的键清单一并给 manifest 用。</summary>
     private static (byte[] Bytes, string[] Keys) BuildRedactedSettings(AppSettings settings)
     {
-        var node = JsonSerializer.SerializeToNode(settings, SettingsJsonOptions) as JsonObject
+        var node = JsonSerializer.SerializeToNode(settings, SettingsJsonOptions.Of<AppSettings>()) as JsonObject
                    ?? new JsonObject();
 
         foreach (var field in ProfileSettingsRedaction.Fields)
@@ -595,7 +599,7 @@ public sealed class ProfileBundleService : IProfileBundleService
 
         try
         {
-            incoming = JsonSerializer.Deserialize<List<ServerEntry>>(bytes, BundleJsonOptions) ?? [];
+            incoming = JsonSerializer.Deserialize(bytes, BundleJsonOptions.Of<List<ServerEntry>>()) ?? [];
         }
         catch (JsonException ex)
         {
@@ -685,7 +689,7 @@ public sealed class ProfileBundleService : IProfileBundleService
         try
         {
             node = JsonNode.Parse(bytes) as JsonObject;
-            incoming = JsonSerializer.Deserialize<AppSettings>(bytes, SettingsJsonOptions);
+            incoming = JsonSerializer.Deserialize(bytes, SettingsJsonOptions.Of<AppSettings>());
         }
         catch (JsonException ex)
         {
@@ -732,7 +736,7 @@ public sealed class ProfileBundleService : IProfileBundleService
 
         try
         {
-            return JsonSerializer.Deserialize<ProfileManifest>(bytes, ManifestJsonOptions);
+            return JsonSerializer.Deserialize(bytes, ManifestJsonOptions.Of<ProfileManifest>());
         }
         catch (JsonException)
         {
@@ -931,4 +935,18 @@ public sealed class ProfileBundleService : IProfileBundleService
             return "unknown";
         }
     }
+}
+
+/// <summary>
+/// 配置包导入 / 导出的 Source Generator 上下文。
+///
+/// 这里一次登记三种口径（settings / servers / manifest）：它们分别对应上面三个
+/// <c>JsonSerializerOptions</c>，但生成的元数据本身与 options 无关，
+/// 各项开关只在传参时生效，所以共用一份 context 即可。
+/// </summary>
+[JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(List<ServerEntry>))]
+[JsonSerializable(typeof(ProfileManifest))]
+internal sealed partial class ProfileBundleJsonContext : JsonSerializerContext
+{
 }

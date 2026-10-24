@@ -34,6 +34,7 @@
 | §0 | 环境、SDK 路径、`env.ps1` | 1.2、1.3、3.1 |
 | §1 | 单一 TFM、依赖版本 | 6.D1、1.4 |
 | §3 | 禁 `.Result` / `.Wait()` / `GetAwaiter().GetResult()` | 2.1、2.2 |
+| §3.1 | JSON 落盘代码的写法（context 登记 / `Of<T>()` / 具名请求体 / 泛型枚举转换器） | 3.16、3.17 |
 | §4 | 编译绑定必须写 `x:DataType` | 4.5 |
 | §8.1 | 提交前门槛 | 1.1、5.6 |
 | §8.2 | `dotnet test` 不可用、TestRunner 的退出码语义 | 1.1、5.6 |
@@ -250,6 +251,16 @@ powershell -File build.ps1 -Clean
 - **成因**：整包安装写继承版 `version.json` 时不写 `jar` 字段，补客户端 jar 这一步被推迟到首次启动之前、由启动库完成。安装流程结束时文件并不齐，所以「安装成功」不代表「能启动」。
 - **规避**：预检把它当已知 Warning 呈现而不是错误，修复动作指向 `CrashAnalyzer.Actions.RepairVersion`；要让离线首启可用，就得在安装阶段预取 client jar，别留给首启。位置：`src/NebulaLauncher.Core/Backups/ModpackService.cs ModpackService.WriteInheritedVersionJsonAsync（:584）`、`src/NebulaLauncher.Core/Launching/PreflightChecker.cs PreflightChecker.CheckLoaderAsync（:417）`。
 
+### 3.16 裁剪发布下 System.Text.Json 反射序列化被整关掉
+- **症状**：便携版（`portable` 形态）里点「保存设置」弹红字 `保存设置失败：Reflection-based serialization has been disabled for this application. Either use the source generator APIs or explicitly configure the 'JsonSerializerOptions.TypeInfoResolver' property.`，设置不落盘；同一份代码在开发构建与 `minimal` 形态下正常，本地怎么点都复现不出来。凡走 `JsonSerializer` 的路径一起坏：设置、账户、实例、整合包、备份、Java 缓存、收藏、服务器列表。读取路径更静默——`src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.LoadAsync（:52）` catch 之后把坏文件备份、回退默认值、只留一行 `_log.Warn`，用户看到的是「设置被重置」，看不出是序列化问题。
+- **成因**：这是 System.Text.Json 在「反射序列化不可用」时抛的固定文案，判据是该进程的 `JsonSerializer.IsReflectionEnabledByDefault == false`。仓内没有任何一处设置这个开关，所以开关来自发布形态：`build.ps1` 的 `portable` 分支在命令行传 `-p:PublishTrimmed=true`，覆盖了 `src/NebulaLauncher.App/NebulaLauncher.App.csproj` 里写死的 `<PublishTrimmed>false</PublishTrimmed>`；开发构建与 `minimal` 不裁剪，反射元数据齐全，于是「代码看着没问题」。直觉修法全部无效——给某个 `JsonSerializerOptions` 再加转换器、改 `JsonSerializerDefaults` 都救不了，转换器本身同样靠反射取元数据。报错入口：`src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync（:121）`（`JsonSerializer.Serialize` 在 `:135`），异常文案在 `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.SaveAsync（:2595）`（`:2633`）。
+- **规避**（2026-10 已修完，见议题 #26）：落盘类型登记 `JsonSerializerContext`、调用点用 `options.Of<T>()` 取元数据（写法见 `CONVENTIONS.md` §3.1）；`src/NebulaLauncher.Core/NebulaLauncher.Core.csproj` 开 `<IsAotCompatible>true</IsAotCompatible>`，漏改在 `dotnet build` 期报 IL2026 / IL2072 / IL3050；发布自检第 2 关 `--selftest-json`（`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`）在真实裁剪产物上再验七条落盘通路，新增落盘文件要同步加进 `JsonSelfCheck`。**「发布形态先别碰裁剪」这条路没采纳**：`portable` 必须发。反证：摘掉 `SettingsJsonContext.DefaultOptions` 的 `TypeInfoResolver` 再发一次 portable，`--selftest-json` 立刻 `json-selfcheck.FAIL.unexpected;NotSupportedException: JsonTypeInfo metadata for type 'NebulaLauncher.Core.Models.AppSettings' was not provided by TypeInfoResolver of type '<null>'.`、`summary=0/1`、exit 4——闸门确实能抓到，不是摆设。
+
+### 3.17 `JsonSerializerContext.Default` 会换掉你的 options 口径
+- **症状**：为修裁剪把调用点从「传自己的 options」改成 `JsonSerializer.Serialize(x, SomeJsonContext.Default.T)`，`dotnet build` 0 警告 0 错误，但单测大面积失败：`settings.json` 写出 PascalCase（`MinecraftDirectory`）而不是 camelCase，枚举写成数字，`downloadSource` 往返全变 `Mirror`，带注释 / 尾逗号的旧配置读不回，Java 缓存、收藏、回收站、令牌全部读不回。
+- **成因**：`JsonSerializerContext.Default` 携带的是**生成器默认口径**的 `JsonTypeInfo`；`JsonSerializer.Serialize(value, JsonTypeInfo)` 用的是 typeInfo 自带那份 options，调用点传不进去。生成器默认口径没有 camelCase 策略、没有 `PropertyNameCaseInsensitive`、不挂 `JsonStringEnumConverter`、不忽略注释与尾逗号——落盘格式当场变，旧文件当场读不回。「context 只提供元数据、开关靠传参」这句话只对非泛型重载 + context 工厂成立，在这个重载上不成立。
+- **规避**：要保留原口径就用 `options.GetTypeInfo(typeof(T))` 取回 `JsonTypeInfo<T>`：`src/NebulaLauncher.Core/Serialization/JsonMeta.cs JsonMeta.Of（:30）` 提供 `SomeOptions.Of<T>()`，元数据由 context 的 `TypeInfoResolver` 提供、按 (options, 类型) 缓存，不经过反射也不会被裁剪掉。只有「原来根本没传 options」的调用点才该用 `Context.Default.T`（口径本来就一致）。
+
 ---
 
 ## 4. UI 与渲染
@@ -337,14 +348,7 @@ powershell -File build.ps1 -Clean
 ### 5.5 `Select-String` 的 `**` 只等价一层目录
 - **症状**：全仓搜索某个符号，结论是「只有一处」，实际有三处；据此改出来的结论是错的。
 - **成因**：`-Path 'src\**\*.cs'` 里 `**` 不是一个任意深度的通配，只等价一层目录。漏掉更深的文件不会有任何提示。
-- **规避**：涉及「全仓有几处」的核实，用递归枚举显式喂给 `Select-String`，或直接用 grep 工具：
-
-```powershell
-Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOptions'
-```
-
-凡是由搜索结果支撑的结论（尤其是「只有一处」「不存在」），换一种搜索方式复核一次。
-
+- **规避**：涉及「全仓有几处」的核实，用递归枚举显式喂给 `Select-String`（`Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOptions'`），或直接用 grep 工具；凡由搜索结果支撑的结论（尤其是「只有一处」「不存在」），换一种搜索方式复核一次。
 ### 5.6 测试运行器的 SKIP 不是通过
 - **症状**：用例明明没跑，报告里也没有失败，于是当成通过。
 - **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。

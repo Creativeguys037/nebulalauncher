@@ -1,4 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using NebulaLauncher.Core.Serialization;
 
 namespace NebulaLauncher.Core.Installing;
 
@@ -33,6 +36,7 @@ public sealed class McInstallManifest
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+        TypeInfoResolver = new InstallManifestJsonContext(),
     };
 
     /// <summary>清单格式版本。</summary>
@@ -74,7 +78,7 @@ public sealed class McInstallManifest
             }
 
             var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
-            var manifest = JsonSerializer.Deserialize<McInstallManifest>(json, JsonOptions);
+            var manifest = JsonSerializer.Deserialize(json, JsonOptions.Of<McInstallManifest>());
             if (manifest is null || manifest.SchemaVersion > CurrentSchemaVersion)
             {
                 return null;
@@ -106,7 +110,7 @@ public sealed class McInstallManifest
         }
 
         var temp = path + ".tmp";
-        var json = JsonSerializer.Serialize(this, JsonOptions);
+        var json = JsonSerializer.Serialize(this, JsonOptions.Of<McInstallManifest>());
         await File.WriteAllTextAsync(temp, json, cancellationToken).ConfigureAwait(false);
         File.Move(temp, path, overwrite: true);
     }
@@ -291,4 +295,15 @@ public sealed class McInstallManifestFile
 
     /// <summary>归属组件名。</summary>
     public string Component { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 安装清单的 Source Generator 上下文。
+///
+/// 这张票（#26）最早暴露的就是这条链路：清单写不进去意味着重装时无法判断「哪些文件是我装的」，
+/// 会在用户目录里留下无法回收的孤儿文件。
+/// </summary>
+[JsonSerializable(typeof(McInstallManifest))]
+internal sealed partial class InstallManifestJsonContext : JsonSerializerContext
+{
 }

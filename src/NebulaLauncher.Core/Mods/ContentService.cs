@@ -1,6 +1,8 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Versions;
@@ -306,21 +308,7 @@ public sealed class ContentService : IContentService
 
     // ---------------- 回收站实现 ----------------
 
-    /// <summary>条目里记录的元数据。启动器内部格式，界面只看 <see cref="ContentTrashEntry"/>。</summary>
-    private sealed class TrashMetadata
-    {
-        public string FileName { get; set; } = string.Empty;
-
-        public string OriginalPath { get; set; } = string.Empty;
-
-        public int Kind { get; set; }
-
-        public DateTimeOffset DeletedAt { get; set; }
-
-        public long SizeBytes { get; set; }
-
-        public bool IsDirectory { get; set; }
-    }
+    // TrashMetadata 提到文件末尾：Source Generator 需要能在同程序集内引用它。
 
     /// <summary>
     /// 与删除操作相关的全部现存路径：当前路径 + 同名另一份（<c>.disabled</c> / <c>.old</c>）。
@@ -418,7 +406,7 @@ public sealed class ContentService : IContentService
         {
             File.WriteAllText(
                 Path.Combine(trashPath, "meta.json"),
-                JsonSerializer.Serialize(metadata));
+                JsonSerializer.Serialize(metadata, ContentJsonContext.Default.TrashMetadata));
         }
         catch (Exception ex)
         {
@@ -585,7 +573,9 @@ public sealed class ContentService : IContentService
         try
         {
             return File.Exists(file)
-                ? JsonSerializer.Deserialize<TrashMetadata>(File.ReadAllText(file))
+                ? JsonSerializer.Deserialize(
+                    File.ReadAllText(file),
+                    ContentJsonContext.Default.TrashMetadata)
                 : null;
         }
         catch (Exception ex)
@@ -1427,4 +1417,28 @@ public sealed class ContentService : IContentService
         await using var targetStream = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
         await sourceStream.CopyToAsync(targetStream, cancellationToken).ConfigureAwait(false);
     }
+}
+
+/// <summary>条目里记录的元数据。启动器内部格式，界面只看 <see cref="ContentTrashEntry"/>。</summary>
+internal sealed class TrashMetadata
+{
+    public string FileName { get; set; } = string.Empty;
+
+    public string OriginalPath { get; set; } = string.Empty;
+
+    public int Kind { get; set; }
+
+    public DateTimeOffset DeletedAt { get; set; }
+
+    public long SizeBytes { get; set; }
+
+    public bool IsDirectory { get; set; }
+}
+
+/// <summary>
+/// 内容回收站元数据的 Source Generator 上下文。
+/// </summary>
+[JsonSerializable(typeof(TrashMetadata))]
+internal sealed partial class ContentJsonContext : JsonSerializerContext
+{
 }

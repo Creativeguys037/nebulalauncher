@@ -5,6 +5,8 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 
@@ -591,10 +593,9 @@ public sealed class CurseForgeService : ICurseForgeService, IDisposable
         // 把高位为 1 的哈希按 int32 补码写成负数会被判 400（实测：
         // 「The JSON value could not be converted to System.UInt32. Path: $.fingerprints[0]」）。
         // 响应里的 fileFingerprint 仍是 int32 形态，解析侧的补码还原不能删（见 ParseFileFingerprint）。
-        var payload = JsonSerializer.Serialize(new
-        {
-            fingerprints = fingerprints.ToArray(),
-        });
+        var payload = JsonSerializer.Serialize(
+            new FingerprintQueryRequest(fingerprints.ToArray()),
+            CurseForgeRequestJsonContext.Default.FingerprintQueryRequest);
 
         var (body, status) = await PostJsonAsync(url, payload, SearchTimeout, cancellationToken)
             .ConfigureAwait(false);
@@ -645,7 +646,9 @@ public sealed class CurseForgeService : ICurseForgeService, IDisposable
         }
 
         var url = $"{ApiBase}/v1/mods";
-        var payload = JsonSerializer.Serialize(new { modIds = ids });
+        var payload = JsonSerializer.Serialize(
+            new ModIdsQueryRequest(ids),
+            CurseForgeRequestJsonContext.Default.ModIdsQueryRequest);
         var (body, status) = await PostJsonAsync(url, payload, SearchTimeout, cancellationToken).ConfigureAwait(false);
 
         if (body is null)
@@ -2393,4 +2396,29 @@ public static class CurseForgeCdn
 
         return candidates;
     }
+}
+
+/// <summary>
+/// <c>POST /v1/fingerprints</c> 的请求体。
+///
+/// 字段名由 <see cref="JsonPropertyNameAttribute"/> 钉死：这个请求体原来是匿名对象，
+/// 属性名就是服务端要求的 <c>fingerprints</c>；换成具名记录后默认会输出 <c>Fingerprints</c>，
+/// CurseForge 会判 400。
+/// </summary>
+internal sealed record FingerprintQueryRequest(
+    [property: JsonPropertyName("fingerprints")] uint[] Fingerprints);
+
+/// <summary><c>POST /v1/mods</c> 的请求体，字段名同样必须是小写驼峰。</summary>
+internal sealed record ModIdsQueryRequest(
+    [property: JsonPropertyName("modIds")] List<long> ModIds);
+
+/// <summary>
+/// CurseForge 请求体的 Source Generator 上下文。
+///
+/// 这两个请求原来是匿名对象，靠运行时反射生成元数据；裁剪发布下 POST 会在序列化这一步直接抛异常。
+/// </summary>
+[JsonSerializable(typeof(FingerprintQueryRequest))]
+[JsonSerializable(typeof(ModIdsQueryRequest))]
+internal sealed partial class CurseForgeRequestJsonContext : JsonSerializerContext
+{
 }
