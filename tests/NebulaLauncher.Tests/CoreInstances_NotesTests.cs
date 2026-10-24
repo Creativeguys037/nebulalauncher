@@ -9,7 +9,7 @@ namespace NebulaLauncher.Tests;
 /// 这个字段在仓库里当了很久的死字段：模型有、App 层没有任何引用。
 /// 接线时真正会坏的地方有两个，所以断言只打这两处：
 /// 1. <c>InstanceService.Clone</c> 是手写字段映射，漏一个字段就会被「保存一次」悄悄清空
-///    （HANDOVER §5.1 里 Loader / MinecraftVersion / IsolationEnabled 就是这么丢的）；
+///    （Loader / MinecraftVersion / IsolationEnabled 就是这么丢的）；
 /// 2. 空备注必须写成 null，不能写成空串——否则「没写过备注」与「写了一个空备注」无法区分。
 /// </summary>
 public class CoreInstances_NotesTests

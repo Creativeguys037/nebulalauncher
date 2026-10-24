@@ -3,7 +3,7 @@ using NebulaLauncher.ViewModels;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 首页「取消等待后移交后台」的两道闸门（REVIEW-R34-R36 P3-3 / P3-14）。
+/// 首页「取消等待后移交后台」的两道闸门。
 ///
 /// 这两个判定很窄，但错一边就会出用户可见的问题：
 /// 会话判错 → 旧会话退出把新启动的面板改成「已退出」；代次判错 → 旧进度覆盖新面板。

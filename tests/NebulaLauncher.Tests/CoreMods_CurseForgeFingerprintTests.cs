@@ -8,7 +8,7 @@ using NebulaLauncher.Core.Mods;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// CurseForge 指纹命中按「请求指纹 → 匹配结果」关联（AUDIT-2026-10-23 第四节 P1）。
+/// CurseForge 指纹命中按「请求指纹 → 匹配结果」关联。
 ///
 /// 旧实现按文件名关联：本地 jar 被改过名就识别失败，两个不同文件同名时又会串成同一份结果。
 /// 这里覆盖四段：关联函数的纯逻辑、<c>fileFingerprint</c> 的补码解析、

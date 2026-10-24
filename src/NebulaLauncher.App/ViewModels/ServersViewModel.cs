@@ -394,7 +394,7 @@ public sealed partial class ServersViewModel : PageViewModelBase
             var entry = new ServerEntry
             {
                 // 编辑也生成新 Id：先加后删，任何一步写盘失败都不会丢原条目。
-                // 旧实现是「先删后加」，第二步失败就永久丢一条收藏（REVIEW-R34-R36 P2-4）。
+                // 旧实现是「先删后加」，第二步失败就永久丢一条收藏。
                 Id = Guid.NewGuid().ToString("N"),
                 Name = name,
                 Host = host,

@@ -7,7 +7,7 @@ using NebulaLauncher.Core.Mods;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 模组页四项改动（PCL2-GAP 第 4 / 5 / 6 / 10 条）的纯逻辑覆盖：
+/// 模组页四项改动的纯逻辑覆盖：
 /// 内容回收站、<c>.old</c> / <c>.litemod</c> 后缀、一键更新的文件名段对齐。
 ///
 /// 只测「读磁盘 → 得结论」这段，不测界面：颜色、布局靠截图验收。

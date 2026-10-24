@@ -66,8 +66,7 @@ public interface IGameLauncher
     /// （崩溃分析、hs_err、verdict 都在里面）。
     ///
     /// 为什么需要它：<see cref="LaunchAsync"/> 在 Detach 时已经返回，后台收尾的结果没有
-    /// 别的通道回到界面——不补这个事件，取消等待后游戏崩溃时首页没有崩溃面板与建议
-    /// （REVIEW-R34-R36 P3-3）。只在后台移交的会话触发；正常启动路径的结果由
+    /// 别的通道回到界面——不补这个事件，取消等待后游戏崩溃时首页没有崩溃面板与建议。只在后台移交的会话触发；正常启动路径的结果由
     /// <see cref="LaunchAsync"/> 的返回值带出。
     /// </summary>
     event EventHandler<SessionExitedEventArgs>? SessionExited;

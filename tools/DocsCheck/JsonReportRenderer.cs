@@ -21,6 +21,8 @@ public static class JsonReportRenderer
         var payload = new
         {
             root = report.Root,
+            // 证据链文档只校验引用与链接，不进行数预算；字段单列，免得看 JSON 的人以为预算漏算了它们。
+            evidence = report.EvidenceDocuments,
             // 判定范围的字段名照实写：三态与测试数只是观测，不参与判定。
             referencesAndBudgetPassed = report.ReferencesAndBudgetPassed,
             referencesAndLinksPassed = report.ReferencesAndLinksPassed,

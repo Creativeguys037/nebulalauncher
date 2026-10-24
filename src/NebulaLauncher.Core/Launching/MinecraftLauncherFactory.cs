@@ -11,7 +11,7 @@ namespace NebulaLauncher.Core.Launching;
 /// 为什么必须只有一份：安装页（<c>InstallService</c>）与启动前的「补齐文件」
 /// （<see cref="GameLauncher.LaunchAsync"/>）都会调 CmlLib 的安装器。两处各写一遍参数，
 /// 就会出现「安装页走代理 / 镜像与下载队列，启动补全却走默认 HttpClient」——
-/// 用户在设置里选了代理，安装成功，启动时那 788 MB 又直连超时。AUDIT-2026-10-23 的 P1 就是这条。
+/// 用户在设置里选了代理，安装成功，启动时那 788 MB 又直连超时。
 ///
 /// 三个固定设定：
 /// <list type="number">

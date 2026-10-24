@@ -20,7 +20,7 @@ public readonly record struct ServerAddress(string Host, int Port, bool PortSpec
 ///
 /// 为什么需要一套统一规则：以前 <c>GameLauncher.SplitServerAddress</c> 对含 <c>]</c> 的地址
 /// 直接返回 25565，`[::1]:25570` 会连错端口；<c>ServerService.PingAsync</c> 又用「含 :: 就跳过」
-/// 的另一套判据。两处各自实现迟早分叉（AUDIT-2026-10-23 第四节 P2）。
+/// 的另一套判据。两处各自实现迟早分叉。
 /// </summary>
 public static class ServerAddressParser
 {

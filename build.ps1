@@ -20,7 +20,7 @@ param(
 # Nebula Launcher 构建脚本。
 #
 # 发布形态（实测体积，win-x64）：
-#   fdd       26.2 MB  48 个文件。框架依赖，默认。
+#   fdd       26.2 MB  48 个文件。框架依赖。
 #                      双击即用、无解压步骤、启动快；目标机需要 .NET 8 Desktop Runtime
 #                      （Windows 上很常见，启动器也会在缺失时提示）。
 #   folder    98.5 MB  231 个文件。自包含不裁剪，最稳，任何机器双击即用。
@@ -33,7 +33,7 @@ param(
 # PCL 用系统自带的 .NET Framework 4.8，HMCL 依赖用户已有的 Java。
 # .NET 8 不在 Windows 自带组件里，所以自包含必然多出几十 MB 运行时。
 #
-# 发布自检（坑的来龙去脉见 docs/PUBLISH-CHECK.md）：
+# 发布自检（原理与取舍见 CONVENTIONS.md §8.5 与 §8.6）：
 #   - 前置：obj\<Configuration> 里的 XAML 中间产物比 *.axaml 源旧时，只清 XAML 相关产物再构建。
 #     不删整个 obj —— 那会让 publish 重走 restore + trim，本机实测在 ILLink 阶段失败。
 #   - 后置：产物跑 --probe-dir（断言 writable=YES）与 --screenshot（20 秒内退出且 PNG > 10KB）。
@@ -202,7 +202,7 @@ function Invoke-PublishVerify {
     # 截图失败时应用会写 <png>.error.txt 后照样以 0 退出（App.axaml.cs），所以 PNG 缺失必须单独判。
     #
     # 截图本身有偶发失败：本机实测约一次 0xE0434352（.NET 未处理异常，日志里没有错误行），
-    # 同一份产物重跑即成功（HANDOVER §7 也记着这条）。坏产物则会稳定失败，所以重试不会放过真问题。
+    # 同一份产物重跑即成功（历史交接记录里记着这条）。坏产物则会稳定失败，所以重试不会放过真问题。
     Write-Host '[build] 自检 2/2：--screenshot（20 秒超时）' -ForegroundColor DarkGray
 
     $dataDir = Join-Path $OutDir '.verify'

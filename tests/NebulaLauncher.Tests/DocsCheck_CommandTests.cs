@@ -261,6 +261,35 @@ public sealed class DocsCheck_CommandTests
         Assert.Contains("测试数", output);
     }
 
+    [Fact]
+    public void 证据链文档只校验引用不计入行数预算()
+    {
+        using var temp = new TempDirectory();
+        Write(temp, "docs/A.md", "# 无引用\n");
+        Write(temp, "docs/research/long.md", string.Join("\n", Enumerable.Repeat("正文", 450)) + "\n");
+
+        var (withEvidence, output) = Run(temp, "--docs", "docs/A.md", "--evidence", "docs/research/long.md");
+        var (withoutEvidence, _) = Run(temp, "--docs", "docs/research/long.md");
+
+        Assert.Equal(0, withEvidence);
+        Assert.Equal(2, withoutEvidence);
+        Assert.Contains("证据链", output);
+    }
+
+    [Fact]
+    public void 证据链文档引用不成立时同样退一()
+    {
+        using var temp = new TempDirectory();
+        Write(temp, "docs/A.md", "# 无引用\n");
+        Write(temp, "docs/research/note.md", "见 `src/Missing.cs SomeType`。\n");
+
+        var (exitCode, output) = Run(temp, "--docs", "docs/A.md", "--evidence", "docs/research/note.md");
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("docs/research/note.md:1", output);
+        Assert.Contains("路径不存在", output);
+    }
+
     private static (int ExitCode, string Output) Run(TempDirectory temp, params string[] args)
     {
         var writer = new StringWriter();

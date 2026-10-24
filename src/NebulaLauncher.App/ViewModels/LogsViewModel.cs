@@ -21,7 +21,7 @@ namespace NebulaLauncher.ViewModels;
 ///
 /// 数据全部来自 <see cref="ILauncherLogReader"/>（只读，不写盘），游戏目录经
 /// <see cref="IInstanceContext.GameDirectory"/> 取——直接读全局 <c>.minecraft</c> 会让
-/// 「在实例里启动、日志页却看不到那次启动」的老问题复现（HANDOVER §6.10）。
+/// 「在实例里启动、日志页却看不到那次启动」的老问题复现。
 ///
 /// 依赖全部可空：设计器预览、单测、以及 Core 服务没接进来时页面仍要能渲染。
 /// </summary>
@@ -242,7 +242,7 @@ public sealed partial class LogsViewModel : PageViewModelBase
         _loadVersion++;
 
         // 定时器与在途读盘必须在离开时停掉：页面是缓存复用的，不停的话切到别的页面后
-        // 每 700ms 仍在打开这个日志文件读一遍（HANDOVER §6.「页面离开必须停定时器」）。
+        // 每 700ms 仍在打开这个日志文件读一遍（页面离开必须停定时器）。
         _isFollowingPage = false;
         StopFollowTimer();
         return Task.CompletedTask;

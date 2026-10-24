@@ -68,7 +68,7 @@ public partial class HomeViewModel : PageViewModelBase
 
     /// <summary>
     /// 启动代次：每次 <see cref="LaunchAsync"/> 自增。进度回调带着它创建时代的值，
-    /// 旧会话（Detach 后仍有进度/退出事件）不能改新一次启动的面板（REVIEW-R34-R36 P3-14）。
+    /// 旧会话（Detach 后仍有进度/退出事件）不能改新一次启动的面板。
     /// </summary>
     private int _launchGeneration;
 
@@ -1275,7 +1275,7 @@ public partial class HomeViewModel : PageViewModelBase
     /// 后台移交会话的退出结果（只有 Detach 的会话会触发）。
     ///
     /// 事件来自后台线程：切回 UI 线程，并且只处理「仍属于当前面板」的那一条——
-    /// 用户可能已经发起新启动，旧会话的崩溃结论不该盖掉新面板（REVIEW-R34-R36 P3-3）。
+    /// 用户可能已经发起新启动，旧会话的崩溃结论不该盖掉新面板。
     /// </summary>
     private void OnDetachedSessionExited(object? sender, SessionExitedEventArgs e)
     {

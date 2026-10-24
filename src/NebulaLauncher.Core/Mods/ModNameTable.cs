@@ -11,7 +11,7 @@ namespace NebulaLauncher.Core.Mods;
 /// 数据来源与解析规则均来自 PCL 的 <c>PCLCS/Resource/WikiEntry.cs</c> +
 /// <c>PCLCS/Resource/WikiEntries.txt</c>（中华 MOD 百科条目，由 PCL 整理），
 /// 本仓库按 PCL《存储库合理使用指南》引入该数据文件并在
-/// <c>docs/PCL2-GAP.md</c> 与 <c>README.md</c> 署名。
+/// <c>README.md</c> 署名。
 ///
 /// <para/>
 /// 为什么要联网才能用：表里只有 slug，没有 modid。本地 jar 里的 modid（<c>ic2</c>）

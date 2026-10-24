@@ -4,7 +4,7 @@ using NebulaLauncher.Core.Mods;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 本地模组依赖检查（docs/EXTENSIONS.md 条目 3）：元数据读取层
+/// 本地模组依赖检查：元数据读取层
 /// （fabric.mod.json 的 <c>depends</c>/<c>breaks</c>、mods.toml 的 <c>[[dependencies.xxx]]</c>）
 /// 与 <see cref="ContentService.DetectDependencyIssues"/>。
 ///

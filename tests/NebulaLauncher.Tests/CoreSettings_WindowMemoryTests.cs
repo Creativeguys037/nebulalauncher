@@ -10,7 +10,7 @@ namespace NebulaLauncher.Tests;
 /// 为什么单独测：
 /// 1) 这是与「游戏窗口」<see cref="AppSettings.WindowWidth"/> 完全不同的一组字段，
 ///    复用会把游戏分辨率写进启动器；字段名一旦被手改坏，只能靠 Normalize 兜住；
-/// 2) HANDOVER §5.1 记录过「给模型加字段忘同步 Clone」的事故，
+/// 2) 「给模型加字段忘同步 Clone」的事故出过，
 ///    这四个新字段必须被 Clone 断言钉住；
 /// 3) 「记住窗口大小」关掉后两端都不许读写，判据抽在 <see cref="WindowMemory"/>，
 ///    组合能在这里钉死，窗口侧只负责调用。

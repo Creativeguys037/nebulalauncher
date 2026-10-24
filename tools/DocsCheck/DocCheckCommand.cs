@@ -57,11 +57,13 @@ public static class DocCheckCommand
         var blocks = LoadBlocks(options.Root);
         return new DocCheckReport(
             options.Root,
-            DocReferenceChecker.Check(options.Root, options.Documents, options.AllowMissing),
-            DocLinkChecker.Check(options.Root, options.Documents),
+            DocReferenceChecker.Check(options.Root, options.CheckedDocuments, options.AllowMissing),
+            DocLinkChecker.Check(options.Root, options.CheckedDocuments),
+            // 行数预算只算 --docs 的知识文档：证据链（research）与约束层不占这 1000 行的额度。
             DocBudgetChecker.Check(options.Root, options.Documents),
             FeatureStateScanner.Scan(options.Root, blocks),
-            TestCountScanner.Scan(RepoPaths.Resolve(options.Root, TestCountScanner.DefaultRelativePath)));
+            TestCountScanner.Scan(RepoPaths.Resolve(options.Root, TestCountScanner.DefaultRelativePath)),
+            options.EvidenceDocuments);
     }
 
     /// <summary>重新生成功能三态文档；越界或数据缺失时不写盘并返回 1。</summary>

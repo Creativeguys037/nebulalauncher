@@ -934,7 +934,7 @@ public sealed class AccountService : IAccountService
     /// 把内存里的账户写回磁盘。返回是否真的落盘成功。
     ///
     /// 返回值不是装饰：调用方拿到 false 时不能再报「成功」。以前这里吞掉异常，
-    /// 用户看到「已添加账户」，重启后档案消失，且没有任何提示（AUDIT-2026-10-23 P1-4）。
+    /// 用户看到「已添加账户」，重启后档案消失，且没有任何提示。
     /// </summary>
     private async Task<bool> PersistAsync(CancellationToken cancellationToken)
     {
@@ -967,8 +967,7 @@ public sealed class AccountService : IAccountService
 
             json = JsonSerializer.Serialize(document, JsonOptions);
 
-            // 与写入内容同源的内存快照：写盘失败/被取消时用它回滚，保证内存与磁盘一致
-            // （REVIEW-R34-R36 P3-11）。
+            // 与写入内容同源的内存快照：写盘失败/被取消时用它回滚，保证内存与磁盘一致。
             snapshot = _accounts.Select(a => a.Clone()).ToList();
             snapshotActiveId = _activeAccountId;
         }
@@ -1016,7 +1015,7 @@ public sealed class AccountService : IAccountService
 
     /// <summary>
     /// 把内存恢复成「最近一次成功落盘」的状态。写盘失败或被取消时调用，
-    /// 保证界面看到的列表与磁盘一致（REVIEW-R34-R36 P3-11）。
+    /// 保证界面看到的列表与磁盘一致。
     /// </summary>
     private void RollbackToPersisted()
     {

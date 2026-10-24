@@ -493,7 +493,7 @@ public interface IServerService
     /// 新增或覆盖一条服务器并落盘。
     ///
     /// 保存失败时抛 <see cref="System.IO.IOException"/>，且内存列表已回滚到调用前状态——
-    /// 调用方不能把「没有异常」以外的信号当作成功（界面显示成功、重启后消失是 AUDIT-2026-10-23 P1-4）。
+    /// 调用方不能把「没有异常」以外的信号当作成功（界面显示成功、重启后消失就是这种失败形态）。
     /// </summary>
     Task AddAsync(Models.ServerEntry entry, CancellationToken cancellationToken = default);
 

@@ -90,7 +90,7 @@ public static class PathProbe
     ///
     /// **只在 Windows 启用**：Unix 上「只读」是权限位（<c>chmod</c>），
     /// <see cref="FileAttributes.ReadOnly"/> 在 .NET 里只是把 owner 的写位去掉，
-    /// 在没有相应权限时会抛异常；语义不同，不要跨平台照搬（<c>docs/EXTENSIONS.md</c> 第 21 条）。
+    /// 在没有相应权限时会抛异常；语义不同，不要跨平台照搬。
     ///
     /// 成功返回 <c>null</c>；失败返回中文原因，调用方应把它拼进最终错误文案
     /// （受组策略控制的目录、OneDrive 占位文件都可能清不掉）。

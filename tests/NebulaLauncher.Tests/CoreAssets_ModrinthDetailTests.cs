@@ -144,7 +144,7 @@ public class CoreAssets_ModrinthDetailTests
     [Fact]
     public void StripMarkdown_null输入返回空字符串()
     {
-        // 不用 [InlineData(null)]：C# 会把它解析成 params 空数组，变成零参数用例（HANDOVER 6.1）。
+        // 不用 [InlineData(null)]：C# 会把它解析成 params 空数组，变成零参数用例。
         Assert.Equal(string.Empty, ModrinthService.StripMarkdown(null));
     }
 

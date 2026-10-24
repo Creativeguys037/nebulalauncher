@@ -5,7 +5,7 @@ using NebulaLauncher.Core.Models;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 实例原地换加载器（PCL2-GAP 之外的实例维度能力）。
+/// 实例原地换加载器（本仓库自有的实例维度能力）。
 ///
 /// 全部走 <see cref="IInstallService"/> 的替身，**不联网、不写 versions/ 的真实文件**：
 /// 这里验证的是「决策与回滚」——跨版本拒绝、兼容性提示、失败不留脏状态；

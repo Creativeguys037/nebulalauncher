@@ -76,8 +76,7 @@ public interface IPlatformService
     ///
     /// 默认实现走 <see cref="CopyTextAsync"/> 并假定成功（测试替身保持旧语义）；
     /// <c>PlatformService</c> 覆盖它，把「原生 API 失败 + 回退命令全部失败」如实返回。
-    /// 调用方应优先用这个重载，才能把失败告诉用户，而不是无条件显示「已复制」
-    /// （REVIEW-R34-R36 P2-5）。
+    /// 调用方应优先用这个重载，才能把失败告诉用户，而不是无条件显示「已复制」。
     /// </summary>
     async Task<bool> TryCopyTextAsync(string text)
     {

@@ -80,7 +80,7 @@
         "entry": "`src/NebulaLauncher.App/Views/ModsView.axaml ModsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/ModsViewModel.cs ModsViewModel`",
         "core": "`src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.DirectoryNameFor`",
-        "storage": "`src/NebulaLauncher.Core/Mods/ModFingerprint.cs ModFingerprint.CacheFileName`"
+        "storage": "`src/NebulaLauncher.Core/Mods/ModFingerprint.cs ModFingerprint.CacheFileName`（`mod-hashes.json`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Mods/ContentService.cs", "symbol": "ContentService" },
@@ -104,7 +104,7 @@
         "entry": "`src/NebulaLauncher.App/Views/WorldsView.axaml WorldsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/WorldsViewModel.cs WorldsViewModel`",
         "core": "`src/NebulaLauncher.Core/Backups/BackupService.cs BackupService`",
-        "storage": "`src/NebulaLauncher.Core/Instances/InstanceService.cs InstanceService`"
+        "storage": "`src/NebulaLauncher.Core/Instances/InstanceService.cs InstanceService`（实例目录下 `instance.json`）、`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.BackupsDirectory`（`backups/`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Settings/SettingsService.cs", "symbol": "SettingsService" },
@@ -127,7 +127,7 @@
         "entry": "`src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel`",
         "core": "`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth`",
-        "storage": "`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`"
+        "storage": "`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`（`accounts.json`）、`src/NebulaLauncher.Core/Servers/ServerService.cs ServerService`（`servers.json`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Net/NetworkProbe.cs", "symbol": "NetworkProbe" },
@@ -149,7 +149,7 @@
         "entry": "`src/NebulaLauncher.App/Views/LogsView.axaml LogsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/LogsViewModel.cs LogsViewModel`",
         "core": "`src/NebulaLauncher.Core/Logging/LauncherLogReader.cs LauncherLogReader`",
-        "storage": "`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.LogsDirectory`"
+        "storage": "`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.LogsDirectory`（`logs/` 下的 `.log` 文件）"
       },
       "code": [
         { "path": "src/NebulaLauncher.App/App.axaml.cs", "symbol": "App.BuildServices" },
@@ -173,7 +173,7 @@
         "entry": "`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel`",
         "core": "`src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs InstanceService.SwitchLoaderAsync`",
-        "storage": "`src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync`"
+        "storage": "`src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync`（`settings.json`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs", "symbol": "InstanceService.SwitchLoaderAsync" },

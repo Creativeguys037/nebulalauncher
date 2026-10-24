@@ -47,8 +47,7 @@ public static class DownloadMirror
     /// 连不上才用镜像），而且两个域名的镜像前缀不同——
     /// <c>api.modrinth.com/v2/</c> 要换成 <c>mod.mcimirror.top/modrinth/v2/</c>，
     /// <c>cdn.modrinth.com/data/</c> 要换成 <c>mod.mcimirror.top/data/</c>。
-    /// 把两者压成同一个前缀会让 API 路径少拼一段（NeoForge 的 <see cref="BmclApiMap"/> 踩过同一个坑，
-    /// <c>docs/HANDOVER.md</c> §6.33）。
+    /// 把两者压成同一个前缀会让 API 路径少拼一段（NeoForge 的 <see cref="BmclApiMap"/> 踩过同一个坑）。
     /// </summary>
     private static readonly (string From, string To)[] ModrinthFallbackMap =
     [
@@ -198,7 +197,7 @@ public static class DownloadMirror
     /// **只放行第一跳**就够：<see cref="IsMirrorUrl"/> 只认 <c>bangbang93.com</c>，跟到 CDN 之后
     /// 就不再算「镜像候选」，后续到 minio 的跳转自然不会过这道检查。反过来，第一跳若被判成未知主机，
     /// 下载器会立刻放弃镜像候选；而 <c>maven.neoforged.net</c> 在国内不可达，maven 类构件等于必然失败
-    /// （NeoForge 装不上的直接原因，见 <c>docs/HANDOVER.md</c> §6.33）。
+    /// （NeoForge 装不上的直接原因）。
     /// </summary>
     public static bool IsKnownDownloadHost(string url)
     {

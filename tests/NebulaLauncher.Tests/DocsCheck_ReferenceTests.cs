@@ -267,4 +267,34 @@ public sealed class DocsCheck_ReferenceTests
 
         Assert.True(report.Passed, string.Join("；", report.Failures.Select(f => f.Reason)));
     }
+
+    [Fact]
+    public void 行号写在符号后的括号里时只作提示()
+    {
+        using var temp = new TempDirectory();
+        Write(temp, "src/App/Foo.cs", "public sealed class Foo\n{\n    public void Bar() { }\n}\n");
+        Write(temp, "docs/CODE.md", "见 `src/App/Foo.cs Foo.Bar（:2）`。\n");
+
+        var report = DocReferenceChecker.Check(temp.Path, ["docs/CODE.md"]);
+
+        Assert.True(report.Passed, string.Join("；", report.Failures.Select(f => f.Reason)));
+        var reference = Assert.Single(report.References);
+        Assert.Equal("src/App/Foo.cs", reference.Path);
+        Assert.Equal("2", reference.LineHint);
+        Assert.Equal("Foo.Bar", Assert.Single(reference.Symbols));
+    }
+
+    [Fact]
+    public void 括号行号支持半角与多段写法()
+    {
+        using var temp = new TempDirectory();
+        Write(temp, "src/App/Foo.cs", "public sealed class Foo\n{\n    public void Bar() { }\n}\n");
+        Write(temp, "docs/CODE.md", "见 `src/App/Foo.cs(:2)` 与 `src/App/Foo.cs Foo.Bar（:17/18/21-22）`。\n");
+
+        var report = DocReferenceChecker.Check(temp.Path, ["docs/CODE.md"]);
+
+        Assert.True(report.Passed, string.Join("；", report.Failures.Select(f => f.Reason)));
+        Assert.Equal(["2", "17/18/21-22"], report.References.Select(reference => reference.LineHint));
+        Assert.Equal("Foo.Bar", Assert.Single(report.References[1].Symbols));
+    }
 }

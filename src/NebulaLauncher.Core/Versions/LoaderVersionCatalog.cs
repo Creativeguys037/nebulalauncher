@@ -52,7 +52,7 @@ public static class LoaderVersionCatalog
                            && !string.IsNullOrWhiteSpace(info.LoaderVersion))
             .Select(info => info.LoaderVersion!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            // 必须按段数值排序：字典序会把 47.9.0 排在 47.10.0 前（REVIEW-R34-R36 P3-6）。
+            // 必须按段数值排序：字典序会把 47.9.0 排在 47.10.0 前。
             .OrderByDescending(version => version, LoaderVersionComparer.Instance)
             .ToList();
 

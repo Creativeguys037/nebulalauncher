@@ -88,7 +88,7 @@ public class AppServers_FaviconTests
     public void IHDR声明超大尺寸_返回false()
     {
         // 体积很小、PNG 结构正确，但 IHDR 声明 10000×10000：Skia 会按声明尺寸分配内存，
-        // 必须在字节层拒绝（REVIEW-R34-R36 P3-9）。
+        // 必须在字节层拒绝。
         var png = Convert.FromBase64String(OnePixelPngBase64);
         WriteBigEndian(png, 16, 10000);
         WriteBigEndian(png, 20, 10000);

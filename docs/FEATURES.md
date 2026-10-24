@@ -41,7 +41,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/ModsView.axaml ModsView` | `src/NebulaLauncher.App/ViewModels/ModsViewModel.cs ModsViewModel` | `src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.DirectoryNameFor` | `src/NebulaLauncher.Core/Mods/ModFingerprint.cs ModFingerprint.CacheFileName` | 已实现 |
+| `src/NebulaLauncher.App/Views/ModsView.axaml ModsView` | `src/NebulaLauncher.App/ViewModels/ModsViewModel.cs ModsViewModel` | `src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.DirectoryNameFor` | `src/NebulaLauncher.Core/Mods/ModFingerprint.cs ModFingerprint.CacheFileName`（`mod-hashes.json`） | 已实现 |
 
 ## 5. 存得下（实例与世界）
 
@@ -49,7 +49,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/WorldsView.axaml WorldsView` | `src/NebulaLauncher.App/ViewModels/WorldsViewModel.cs WorldsViewModel` | `src/NebulaLauncher.Core/Backups/BackupService.cs BackupService` | `src/NebulaLauncher.Core/Instances/InstanceService.cs InstanceService` | 已实现 |
+| `src/NebulaLauncher.App/Views/WorldsView.axaml WorldsView` | `src/NebulaLauncher.App/ViewModels/WorldsViewModel.cs WorldsViewModel` | `src/NebulaLauncher.Core/Backups/BackupService.cs BackupService` | `src/NebulaLauncher.Core/Instances/InstanceService.cs InstanceService`（实例目录下 `instance.json`）、`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.BackupsDirectory`（`backups/`） | 已实现 |
 
 ## 6. 连得上（账户与服务器）
 
@@ -57,7 +57,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView` | `src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel` | `src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth` | `src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync` | 已实现 |
+| `src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView` | `src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel` | `src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth` | `src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`（`accounts.json`）、`src/NebulaLauncher.Core/Servers/ServerService.cs ServerService`（`servers.json`） | 已实现 |
 
 ## 7. 看得见（日志与崩溃）
 
@@ -65,7 +65,7 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/LogsView.axaml LogsView` | `src/NebulaLauncher.App/ViewModels/LogsViewModel.cs LogsViewModel` | `src/NebulaLauncher.Core/Logging/LauncherLogReader.cs LauncherLogReader` | `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.LogsDirectory` | 已实现 |
+| `src/NebulaLauncher.App/Views/LogsView.axaml LogsView` | `src/NebulaLauncher.App/ViewModels/LogsViewModel.cs LogsViewModel` | `src/NebulaLauncher.Core/Logging/LauncherLogReader.cs LauncherLogReader` | `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.LogsDirectory`（`logs/` 下的 `.log` 文件） | 已实现 |
 
 ## 8. 改得动（设置与数据）
 
@@ -73,4 +73,4 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView` | `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel` | `src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs InstanceService.SwitchLoaderAsync` | `src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync` | 已实现 |
+| `src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView` | `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel` | `src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs InstanceService.SwitchLoaderAsync` | `src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync`（`settings.json`） | 已实现 |

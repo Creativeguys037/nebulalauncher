@@ -16,9 +16,17 @@ public static class MarkdownScanner
     /// <summary>仓库相对路径的根目录前缀（<c>/</c> 分隔，区分大小写）。</summary>
     private static readonly string[] PathPrefixes = ["src/", "tests/", "tools/", "docs/"];
 
-    /// <summary>行号提示后缀：<c>:105</c> 或 <c>:10-24</c>。</summary>
+    /// <summary>紧跟路径的行号提示：<c>:105</c> 或 <c>:10-24</c>。</summary>
     private static readonly Regex LineHintSuffix = new(
         @"^(?<path>.+?):(?<hint>[0-9]+(?:-[0-9]+)?)$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// 写在符号后面的括号行号，是规格定下的形态（<c>Foo（:105）</c>）：行号只作提示、不作定位依据。
+    /// 同时认 <c>(:105)</c>、<c>（:105-107）</c> 与 <c>（:17/18/21-22）</c>。
+    /// </summary>
+    private static readonly Regex TrailingLineHint = new(
+        @"^(?<rest>.*?)[（(]\s*:?\s*(?<hint>[0-9]+(?:[-/][0-9]+)*)\s*[）)]$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>反引号单元（不跨行）。</summary>
@@ -83,6 +91,7 @@ public static class MarkdownScanner
 
     /// <summary>
     /// 把单元拆成路径、行号提示与符号列表；第一个 token 不是仓库相对路径时返回 false（跳过）。
+    /// 行号两种写法都认：紧跟路径的 <c>path:105</c>，或写在符号后的括号里 <c>Symbol（:105）</c>。
     /// </summary>
     /// <param name="unit">反引号单元内容，不含反引号。</param>
     /// <param name="path">去掉行号提示后的仓库相对路径。</param>
@@ -106,12 +115,36 @@ public static class MarkdownScanner
             return false;
         }
 
-        var first = tokens[0];
+        // 括号行号先剥掉，剩下的 token 才当路径与符号；行号只作提示，两种写法等价。
+        var stripped = new List<string>(tokens.Length);
+        foreach (var token in tokens)
+        {
+            var trailing = TrailingLineHint.Match(token);
+            if (!trailing.Success)
+            {
+                stripped.Add(token);
+                continue;
+            }
+
+            lineHint ??= trailing.Groups["hint"].Value;
+            var rest = trailing.Groups["rest"].Value;
+            if (rest.Length > 0)
+            {
+                stripped.Add(rest);
+            }
+        }
+
+        if (stripped.Count == 0)
+        {
+            return false;
+        }
+
+        var first = stripped[0];
         var hintMatch = LineHintSuffix.Match(first);
         if (hintMatch.Success)
         {
             path = hintMatch.Groups["path"].Value;
-            lineHint = hintMatch.Groups["hint"].Value;
+            lineHint ??= hintMatch.Groups["hint"].Value;
         }
         else
         {
@@ -125,13 +158,7 @@ public static class MarkdownScanner
             return false;
         }
 
-        var symbolTokens = new List<string>(tokens.Length - 1);
-        for (var index = 1; index < tokens.Length; index++)
-        {
-            symbolTokens.Add(tokens[index]);
-        }
-
-        symbols = symbolTokens;
+        symbols = stripped.Skip(1).ToList();
         return true;
     }
 

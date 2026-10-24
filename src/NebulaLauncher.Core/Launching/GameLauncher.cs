@@ -63,7 +63,7 @@ public sealed class GameLauncher : IGameLauncher
     ///
     /// 进程已退出、<c>_running</c> 已注销，但自动备份 / 崩溃归档 / 退出后命令还在写同一个目录，
     /// 实例锁要到 finally 才释放。这几百毫秒内如果放行启动，用户会撞锁并看到
-    /// 「游戏在运行」这种错误文案（REVIEW-R34-R36 P3-13）。入口据此拒绝并说明「正在收尾」。
+    /// 「游戏在运行」这种错误文案。入口据此拒绝并说明「正在收尾」。
     /// </summary>
     private readonly ConcurrentDictionary<string, byte> _finishing = new(StringComparer.OrdinalIgnoreCase);
 
@@ -494,7 +494,7 @@ public sealed class GameLauncher : IGameLauncher
             processStarted = true;
 
             // 锁的持有者从「启动器」改成「游戏」：启动器退出后重开时，判活看的是游戏 PID，
-            // 不会把仍在运行的游戏误判成僵死锁而放行第二个 JVM（REVIEW-R34-R36 P2-6）。
+            // 不会把仍在运行的游戏误判成僵死锁而放行第二个 JVM。
             if (instanceLock is not null
                 && !instanceLock.UpdateProcessId(process.Id, TryGetProcessStartUtc(process)))
             {
@@ -598,7 +598,7 @@ public sealed class GameLauncher : IGameLauncher
         {
             // 取消令牌恰好落在进程退出那一刻：此时按「启动已取消」返回 -1 会跳过
             // 崩溃归档、自动备份、退出后命令与时长记录，UI 还会把 -1 误报成「游戏异常退出」。
-            // 进程已经退出，走与正常退出相同的收尾（REVIEW-R34-R36 P2-2）。
+            // 进程已经退出，走与正常退出相同的收尾。
             _log.Info("取消与进程退出同时发生，按已退出路径完成收尾");
             return await CompleteExitAsync(
                     exitedProcess, runningGame!, options, java!, watcher!, stopwatch, releaseYear,
@@ -2731,7 +2731,7 @@ public sealed class GameLauncher : IGameLauncher
     private static (string Host, int Port) SplitServerAddress(string address)
     {
         // 规则只留在 ServerAddressParser：服务器页 Ping 与这里曾经各写一套，
-        // 对 `[::1]:port` 的处理不一致（AUDIT-2026-10-23 第四节 P2）。
+        // 对 `[::1]:port` 的处理不一致。
         var parsed = NebulaLauncher.Core.Servers.ServerAddressParser.Parse(address);
         return (parsed.Host, parsed.Port);
     }

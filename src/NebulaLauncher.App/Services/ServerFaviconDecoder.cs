@@ -27,8 +27,7 @@ internal static class ServerFaviconDataUri
 
     /// <summary>
     /// 图标宽高上限。Minecraft 的服务器图标固定 64×64；放宽到 256 兼容个别放大过的图标，
-    /// 同时挡住「体积合规但 IHDR 声明 10000×10000」的包——Skia 会按声明尺寸分配内存
-    /// （REVIEW-R34-R36 P3-9）。
+    /// 同时挡住「体积合规但 IHDR 声明 10000×10000」的包——Skia 会按声明尺寸分配内存。
     /// </summary>
     internal const int MaxIconDimension = 256;
 

@@ -3,7 +3,7 @@ using NebulaLauncher.Core.Backups;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 备份的并发安全与「归档 + 元信息」提交语义（AUDIT-2026-10-23 第四节两条 P2）。
+/// 备份的并发安全与「归档 + 元信息」提交语义。
 /// </summary>
 public sealed class CoreBackups_ConcurrentTests
 {

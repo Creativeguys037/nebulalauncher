@@ -138,7 +138,7 @@ public interface IInstanceLockService
     /// <summary>
     /// 尝试获取目录的运行锁。已存在有效锁时返回 <c>null</c>。
     ///
-    /// 默认实现返回一个不落盘的空句柄：契约先落地、实现后跟上时（HANDOVER §5.1），
+    /// 默认实现返回一个不落盘的空句柄：契约先落地、实现后跟上时，
     /// 启动链必须照常工作，中间态不能把游戏拦下来。
     /// </summary>
     /// <param name="gameDirectory">游戏目录（实例目录或全局 <c>.minecraft</c>）。</param>
@@ -167,7 +167,7 @@ public interface IInstanceLockHandle : IDisposable, IAsyncDisposable
     ///
     /// 为什么必须改：锁最初写在启动器名下，用户关掉启动器（默认关闭即退出）而游戏还在跑时，
     /// 下次启动器打开会看到「持有者 PID 已死」→ 判成僵死锁接管 → 同一实例可以再起一个 JVM，
-    /// 两个进程同时写 saves/（AUDIT 复核 `REVIEW-R34-R36-CODE.md` P2-6）。
+    /// 两个进程同时写 saves/。
     ///
     /// 默认实现返回 false：空句柄（不落盘）与旧实现不需要这个能力，调用方按「没改成功」记日志即可。
     /// </summary>

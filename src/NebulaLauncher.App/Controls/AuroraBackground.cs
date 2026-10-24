@@ -17,7 +17,7 @@ namespace NebulaLauncher.Controls;
 ///
 /// 主题：本控件整块盖住窗口背景，所以必须跟随 <see cref="StyledElement.ActualThemeVariant"/>。
 /// 深色用近黑的蓝底，浅色用冷白到淡雾蓝的底；光斑 alpha 在浅色下要压到十分之一，
-/// 否则高饱和青紫铺在白底上会变成刺眼的色块（见 docs/DESIGN.md §1「微光」）。
+/// 否则高饱和青紫铺在白底上会变成刺眼的色块。
 /// </summary>
 public sealed class AuroraBackground : Control
 {

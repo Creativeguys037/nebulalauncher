@@ -278,7 +278,7 @@ public sealed class SettingsService : ISettingsService
             settings.WindowHeight = 240;
         }
 
-        // 启动器窗口尺寸：与游戏窗口的 WindowWidth/Height 无关，下限取 DESIGN.md 的窄屏验收尺寸，
+        // 启动器窗口尺寸：与游戏窗口的 WindowWidth/Height 无关，下限取窄屏验收尺寸，
         // 低于它布局本身就不成立，回落默认值而不是夹到下限（夹下限会让 0 / 负数也变成可开窗口）。
         // 上限 8000：拔掉外接显示器后窗口可能被记录成超大尺寸，夹住才能保证下次一定开得出来。
         settings.LauncherWindowWidth = NormalizeLauncherWindowSize(
@@ -364,7 +364,7 @@ public sealed class SettingsService : ISettingsService
 
         // RegisterGpuPreference 是布尔开关，没有可夹取的区间；旧配置里缺这个字段时反序列化会
         // 保留属性初始值 true，与历史行为一致，因此 Normalize 不需要动它。
-        // 把它列在这里只为让「新增设置项必须过 Normalize」这条约定在 diff 里可见（HANDOVER §9）。
+        // 把它列在这里只为让「新增设置项必须过 Normalize」这条约定在 diff 里可见。
 
         // UseModrinthMirror 同样是布尔开关，没有区间可夹；旧配置缺字段时反序列化保留属性初始值 false，
         // 正是「默认关」这个语义。这里不做赋值，只为让「新增设置项必须过 Normalize」在 diff 里可见。

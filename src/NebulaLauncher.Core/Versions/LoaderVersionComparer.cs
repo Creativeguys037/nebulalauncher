@@ -4,8 +4,7 @@ namespace NebulaLauncher.Core.Versions;
 /// 加载器版本号比较：按分隔符切段，数字段按数值比、非数字段按忽略大小写的字符串比。
 ///
 /// 为什么不能直接用字符串序：Forge / NeoForge 的构建号是多段数字，
-/// <c>47.9.0</c> 的字典序排在 <c>47.10.0</c> 之前，回滚候选列表会把旧版本排在前面
-/// （REVIEW-R34-R36 P3-6）。分段比较同时覆盖 Fabric Loader 的 <c>0.16.9</c> 与
+/// <c>47.9.0</c> 的字典序排在 <c>47.10.0</c> 之前，回滚候选列表会把旧版本排在前面。分段比较同时覆盖 Fabric Loader 的 <c>0.16.9</c> 与
 /// NeoForge 的 <c>20.2.62-beta</c>。
 /// </summary>
 public sealed class LoaderVersionComparer : IComparer<string>

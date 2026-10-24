@@ -10,7 +10,7 @@ namespace NebulaLauncher.Core.Mods;
 /// 抽成委托后可以用内存字典驱动，不必为每个场景造 HTTP 响应；服务侧只负责把
 /// <c>GetVersionsAsync</c> 接进来。
 ///
-/// 规则（docs/EXTENSIONS.md 条目 8）：
+/// 规则：
 /// <list type="bullet">
 /// <item><c>required</c> 递归展开，按 projectId 去重防环，深度上限 <see cref="MaxDepth"/>；</item>
 /// <item><c>optional</c> 只收集不递归；<c>incompatible</c> 进 Blocked；<c>embedded</c> 跳过；</item>

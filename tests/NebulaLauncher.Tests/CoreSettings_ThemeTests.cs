@@ -9,7 +9,7 @@ namespace NebulaLauncher.Tests;
 /// 为什么单独测：
 /// 1) <c>settings.json</c> 按字段名序列化，用户手改 / 旧版本写入都可能留下非法主题值，
 ///    Normalize 是唯一兜底点，必须钉死三值合法、其余回落 dark；
-/// 2) HANDOVER §5.1 记录过「给模型加字段忘同步 Clone」的事故（InstanceService 的
+/// 2) 「给模型加字段忘同步 Clone」的事故出过（InstanceService 的
 ///    Loader / MinecraftVersion 就是这么丢的），主题是后加字段，用测试把 Clone 也钉住。
 /// </summary>
 public class CoreSettings_ThemeTests

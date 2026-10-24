@@ -52,7 +52,7 @@ public sealed class CoreLaunch_ArgumentSplitterTests
     }
 
     [Theory]
-    // 不用 [InlineData(null)]：C# 会把它解析成 params 空数组，变成零参数用例（HANDOVER 6.1）。
+    // 不用 [InlineData(null)]：C# 会把它解析成 params 空数组，变成零参数用例。
     [InlineData((string?)null)]
     [InlineData("")]
     [InlineData("   ")]

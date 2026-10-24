@@ -901,8 +901,7 @@ public sealed class PlatformService : IPlatformService
             }
 
             // 超时同时覆盖「写 stdin」与「等退出」：命令在读取 stdin 之前就挂住时
-            // （等锁、等显示、被安全软件拦住），只包住 WaitForExit 会让调用方无限等待
-            // （REVIEW-R34-R36 P3-8）。
+            // （等锁、等显示、被安全软件拦住），只包住 WaitForExit 会让调用方无限等待。
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(ClipboardCommandTimeoutSeconds));
 
             try

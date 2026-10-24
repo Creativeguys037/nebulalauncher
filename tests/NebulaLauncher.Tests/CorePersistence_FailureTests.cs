@@ -5,7 +5,7 @@ using NebulaLauncher.Core.Servers;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 持久化失败不能报成功（AUDIT-2026-10-23 第四节 P1-4）。
+/// 持久化失败不能报成功。
 ///
 /// 两个模块以前都吞掉写盘异常后继续返回成功：用户看到「已添加」，重启后数据消失。
 /// 这里的用例用「目标文件位置被同名目录占据」制造真实的写入失败（temp 写得进、Move 覆盖不过去），
@@ -89,7 +89,7 @@ public class CorePersistence_FailureTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => service.AddOfflineAccountAsync("Steve", cancellation.Token));
 
-        // 取消也是「没落盘」：内存必须回到磁盘状态（REVIEW-R34-R36 P3-11）。
+        // 取消也是「没落盘」：内存必须回到磁盘状态。
         Assert.Empty(service.Accounts);
         Assert.Null(service.ActiveAccount);
     }

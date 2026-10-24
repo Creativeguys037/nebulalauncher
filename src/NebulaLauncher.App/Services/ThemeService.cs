@@ -13,7 +13,7 @@ namespace NebulaLauncher.Services;
 /// 2) 控件取值走 <c>{DynamicResource ...}</c>，主题字典由 Avalonia 按 <c>RequestedThemeVariant</c>
 ///    自动挑选，所以这里唯一要做的就是切换变体，不需要手工替换字典；
 /// 3) <c>system</c> 用 <see cref="ThemeVariant.Default"/>：跟随操作系统深浅色偏好，
-///    这一层由 Avalonia 平台后端负责，启动器不自己读注册表（HANDOVER §3 禁编译期 Win32）。
+///    这一层由 Avalonia 平台后端负责，启动器不自己读注册表（禁编译期 Win32）。
 /// </summary>
 public static class ThemeService
 {

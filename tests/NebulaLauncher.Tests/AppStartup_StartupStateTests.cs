@@ -10,7 +10,7 @@ namespace NebulaLauncher.Tests;
 ///
 /// 这组用例守的是「刚打开程序就是已登录」：账户服务不在构造时读盘，
 /// 预热少写一行，首页卡片、版本页启动与启动链拿到的就是空账户——而且不报错，
-/// 只有用户自己去账户页转一圈才会好（R59，见 HANDOVER §6.71）。
+/// 只有用户自己去账户页转一圈才会好。
 /// </summary>
 public class AppStartup_StartupStateTests
 {
@@ -56,7 +56,7 @@ public class AppStartup_StartupStateTests
     public void App入口在创建窗口之前调用预热()
     {
         // 这组用例只能证明 helper 做对了事，证明不了它被调用；而漏掉那一行正是本轮的 bug 形状。
-        // 测试碰不了 Avalonia 的启动生命周期（HANDOVER §6.25），改为直接读 App.axaml.cs 的文本。
+        // 测试碰不了 Avalonia 的启动生命周期，改为直接读 App.axaml.cs 的文本。
         var path = FindRepoFile("src", "NebulaLauncher.App", "App.axaml.cs");
         Assert.NotNull(path);
 

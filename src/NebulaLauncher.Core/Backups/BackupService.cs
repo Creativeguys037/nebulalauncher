@@ -132,7 +132,7 @@ public sealed class BackupService : IBackupService
 
         // 临时文件不预先占用最终名：最终名在 Move 那一刻才算数。
         // 以前「先查 File.Exists 再写」在并发下会让两个实例选中同一个名字，
-        // 后完成的那个 Move 失败（AUDIT-2026-10-23 第四节 P2）。
+        // 后完成的那个 Move 失败。
         var stagingName = $".{SanitizeFileName(worldName)}-{timestamp:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.partial";
         var temporaryPath = Path.Combine(_paths.BackupsDirectory, stagingName);
 
@@ -197,7 +197,7 @@ public sealed class BackupService : IBackupService
             if (!await WriteMetaAsync(entry, cancellationToken).ConfigureAwait(false))
             {
                 // 归档与 meta 必须同时成立：没有 meta 的压缩包会被当成「手工备份」，
-                // 自动轮转就永远清不掉它（AUDIT-2026-10-23 第四节 P2）。
+                // 自动轮转就永远清不掉它。
                 // 回滚这次备份，让调用方看到失败，而不是留一个假装成功的孤儿 zip。
                 TryDeleteFile(archivePath);
                 throw new IOException($"备份已生成但元信息写入失败，已回滚：{archivePath}");
@@ -206,7 +206,7 @@ public sealed class BackupService : IBackupService
         catch (OperationCanceledException)
         {
             // 取消恰好落在「归档已改名、meta 未写成」之间：同样要删归档再重抛，
-            // 否则会留下没有 meta 的 zip（REVIEW-R34-R36 P3-5）。
+            // 否则会留下没有 meta 的 zip。
             TryDeleteFile(archivePath);
             throw;
         }
@@ -672,7 +672,7 @@ public sealed class BackupService : IBackupService
     /// 目标已存在时系统调用失败（只有一个实例能成功），失败者换下一个序号。
     ///
     /// 旧实现是「先 File.Exists 查再写」，两个实例同一秒备份同名世界时会选中同一个路径，
-    /// 后完成者的 Move 直接抛异常（AUDIT-2026-10-23 第四节 P2）。
+    /// 后完成者的 Move 直接抛异常。
     /// </summary>
     private static string MoveIntoFreePath(string temporaryPath, string directory, string fileName)
     {

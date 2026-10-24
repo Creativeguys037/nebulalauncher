@@ -265,7 +265,7 @@ public sealed record LaunchResult(
     ///
     /// 用途：Detach 之后后台会话退出时会发 <c>SessionExited</c> 事件，界面靠它对上
     /// 「这条退出结果属于哪一次启动」——用户可能已经发起了下一次启动，旧会话的结果不能
-    /// 覆盖新面板（REVIEW-R34-R36 P3-3/P3-14）。
+    /// 覆盖新面板。
     /// </summary>
     public string? SessionId { get; init; }
 }

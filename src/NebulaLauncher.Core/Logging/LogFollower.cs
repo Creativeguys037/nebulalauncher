@@ -10,7 +10,7 @@ namespace NebulaLauncher.Core.Logging;
 /// <list type="number">
 /// <item><b>只读</b>：用 <see cref="FileShare.ReadWrite"/> | <see cref="FileShare.Delete"/> 打开，
 /// 游戏进程或 <see cref="FileLogger"/> 正在追加时也要能读，且绝不写回文件。</item>
-/// <item><b>只返回完整的行</b>：偏移推进到最后一个 <c>\n</c> 之后。进程被杀在半行上（HANDOVER §6.30）
+/// <item><b>只返回完整的行</b>：偏移推进到最后一个 <c>\n</c> 之后。进程被杀在半行上
 /// 时那半行不会被吞掉，也不会有「读到一半的行」闪进界面。</item>
 /// <item><b>自愈</b>：文件变短按截断处理、偏移不再落在行边界按轮转处理，两种情况都从头重读。
 /// 游戏每启动一次就重建 <c>latest.log</c>，跟随不能因此停摆。</item>

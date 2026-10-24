@@ -3,7 +3,7 @@ using NebulaLauncher.Core.Platforms;
 namespace NebulaLauncher.Tests;
 
 /// <summary>
-/// 非 Windows 剪贴板命令链的判据（AUDIT-2026-10-23 P2：失败可能被当成成功）。
+/// 非 Windows 剪贴板命令链的判据：失败可能被当成成功。
 ///
 /// 本机是 Windows，测试里不能真的启动 pbcopy / wl-copy / xclip，所以把「候选顺序」
 /// 与「退出码算不算成功」抽成纯数据 + 纯函数来钉：

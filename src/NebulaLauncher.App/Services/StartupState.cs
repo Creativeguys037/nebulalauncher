@@ -8,11 +8,11 @@ namespace NebulaLauncher.Services;
 /// 首帧之前的服务预热：把「窗口一建出来就要用」的状态从磁盘读进内存。
 ///
 /// 为什么必须同步读，而不是交给页面的异步加载：
-/// 设置决定窗口尺寸（<c>MainWindow</c> 构造时就要值，见 HANDOVER §6.20）；
+/// 设置决定窗口尺寸（<c>MainWindow</c> 构造时就要值）；
 /// 账户决定首页卡片、版本页启动与启动链拿到的 <see cref="IAccountService.ActiveAccount"/>，
 /// 而首页页面的构造发生在 <c>new MainWindow(Services)</c> 里。
 /// 账户原先只在进入账户页时才 <c>LoadAsync</c>，于是刚启动的程序处处显示「未登录」，
-/// 版本页点启动被「还没有账户」挡下，必须去账户页转一圈才恢复（R59，见 HANDOVER §6.71）。
+/// 版本页点启动被「还没有账户」挡下，必须去账户页转一圈才恢复。
 ///
 /// 失败只写日志、不阻断启动：读不出来就按空状态跑，用户仍进得了设置页与账户页修。
 /// 这是 <c>CONVENTIONS.md</c> 「禁止 GetAwaiter().GetResult()」的唯一例外，

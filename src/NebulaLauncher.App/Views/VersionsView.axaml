@@ -865,8 +865,7 @@
                 <!--
                   三列：图标（Auto）/ 信息区（*）/ 操作区（Auto）。
                   操作区只留「启动 + 修复」两个高频动作加一个「…」入口，
-                  其余动作进 Flyout —— 六个按钮平铺在 1024×660 下会把信息区压成 0 宽
-                  （HANDOVER §8.1 记录的退化），溢出菜单把最小宽度从约 600px 降到约 200px。
+                  其余动作进 Flyout —— 六个按钮平铺在 1024×660 下会把信息区压成 0 宽，溢出菜单把最小宽度从约 600px 降到约 200px。
                 -->
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
 
@@ -959,7 +958,7 @@
                     </Grid>
 
                     <!-- 元信息用 Grid 而不是横向 StackPanel：横向 StackPanel 的测量宽度只取子项之和，
-                         窗口压窄时它不会截断，会把文字顶出卡片（HANDOVER §6.18 同一类问题）。 -->
+                         窗口压窄时它不会截断，会把文字顶出卡片（同一类问题）。 -->
                     <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="14">
                       <TextBlock Grid.Column="0"
                                  Text="{Binding LastPlayedText}"

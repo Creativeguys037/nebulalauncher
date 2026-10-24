@@ -1529,7 +1529,7 @@ public sealed class ModpackPreviewCard
         ModpackFormat.McbbsZip => "MCBBS 整合包",
         ModpackFormat.HmclZip => "HMCL 整合包",
         // 外层是「带启动器的分发包」，内层才是真正的整合包；预览阶段就要说清楚，
-        // 不能显示「未知格式 / 只能解压」而导入入口又拒绝（REVIEW-R34-R36 P3-12）。
+        // 不能显示「未知格式 / 只能解压」而导入入口又拒绝。
         ModpackFormat.LauncherPack => "带启动器的整合包",
         ModpackFormat.PlainZip => "普通压缩包",
         _ => "未知格式",

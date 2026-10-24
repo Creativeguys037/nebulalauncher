@@ -11,7 +11,7 @@ namespace NebulaLauncher.Core.Mods;
 /// <see cref="ContentKind"/> 决定，而 <see cref="ContentKind"/> 是<b>本地内容目录</b>的键
 /// （mods / resourcepacks / shaderpacks / datapacks）。整合包不落在内容目录里——它是「装成实例」的，
 /// 给那个枚举加一个值要同步改 <c>DirectoryNameFor</c>、<c>ContentTarget.DirectoryNameOf</c>、
-/// 扫描与版本不匹配检查等 6 处 switch（HANDOVER §9），代价比收益高一个数量级。
+/// 扫描与版本不匹配检查等 6 处 switch，代价比收益高一个数量级。
 ///
 /// 所以这里只是<b>薄封装</b>：补一个「搜索 URL + 结果解析」，**不引入新模型、不引入新搜索状态机**。
 /// 解析复用 <see cref="ModrinthService.ParseSearch"/>，版本列表仍走

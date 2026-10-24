@@ -1,6 +1,6 @@
 # 文档可信度审计（doc-trust-audit）
 
-> 历史说明：本文出现的 `docs/FINAL-SCOPE.md`、`docs/EXTENSIONS.md`、`docs/HANDOVER.md`、`docs/PUBLISH-CHECK.md` 等 `docs/` 下旧文档路径，都是 2026-10-24 收口删除前的文件名，这里只作历史核对对象的记录，正文路径不改。
+> 历史说明：本文出现的 docs/ 下四份旧文档名（FINAL-SCOPE、EXTENSIONS、HANDOVER、PUBLISH-CHECK），都是 2026-10-24 收口删除前的文件名，只作历史核对对象的记录，正文路径不改。
 
 数法：只读静态阅读，未运行 `dotnet build` / `dotnet test`（本机沙箱不具备执行条件）。
 数法：行号一律取当前工作树（采样 2026-10-24），文档行号按 `docs/` 现有文件计。
@@ -53,7 +53,7 @@
 | JVM 预设新增 `Launching/JvmArguments.cs`，提供 `Compose` / `Split` | 无 `JvmArguments.cs`；实际 `src/NebulaLauncher.Core/Launching/JvmArgumentBuilder.cs:39`、`src/NebulaLauncher.Core/Launching/JvmPresetResolver.cs:11`、`src/NebulaLauncher.Core/Launching/LaunchArgumentSplitter.cs` | docs/EXTENSIONS.md:866 |
 | 实例图标落在 `App/Assets/InstanceIcons/` 资源目录 | 该目录不存在；`src/NebulaLauncher.App/Assets/` 只有 `tray.png`；图标是 `Geometry` 路径内联（`src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs:3852` `InstanceIcons.For(Info.IconKind)`、`:2684` `IconChoices`），服务端写入 `src/NebulaLauncher.Core/Instances/InstanceService.Admin.cs:285` | docs/EXTENSIONS.md:792 |
 | 启动到主菜单用 `WM_CLOSE` 判定 | 全仓 `src` 无 `WM_CLOSE`；进主菜单靠 stdout 里程碑（`src/NebulaLauncher.Core/Launching/GameWatcher.cs:37` `Consume`），窗口侧只有 `EnumWindows`（`src/NebulaLauncher.Core/Platforms/PlatformNative.cs:157-161`）与 `TrySetWindowTitle`（`src/NebulaLauncher.Core/Platforms/PlatformService.cs:427`） | docs/FINAL-SCOPE.md:17、`:62` |
-| 页面为「实例 / 存档 / 关于」 | 导航实际是「资源 / 世界 / 帮助」，`关于` 是设置页分区而非独立页 | docs/FINAL-SCOPE.md:15 vs `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs:735-744`、`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs:92` |
+| 页面为「实例 / 存档 / 关于」 | 导航实际是「资源 / 世界 / 帮助」，`关于` 是设置页分区而非独立页 | docs/FINAL-SCOPE.md vs（:15） `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs:735-744`、`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs:92` |
 | `Launching/PreflightChecker.cs` 里 `CheckAsync(LaunchOptions, ILauncherPaths, IJavaService, IContentService, IPlatformService, CancellationToken)` 是实例方法 | `PreflightChecker` 是 static 工具类（`src/NebulaLauncher.Core/Launching/PreflightChecker.cs:30`），服务形态在 `:651` `internal sealed class PreflightCheckerService : IPreflightChecker`，接口在 `src/NebulaLauncher.Core/Abstractions/GameServices.cs:142`/`:156`；`CheckAsync` 同名实例方法实际属 `ModUpdateService`（`src/NebulaLauncher.Core/Mods/ModUpdateService.cs:104`） | docs/EXTENSIONS.md:472 |
 | 实例清理方法叫 `CleanAsync` | 实际 `CleanupAsync`（`src/NebulaLauncher.Core/Instances/InstanceService.Admin.cs:333`，接口 `src/NebulaLauncher.Core/Abstractions/InstanceServices.cs:69`） | docs/EXTENSIONS.md:980 |
 | 自动内存分配抄 HMCL 公式（预留 512MiB、8GiB 阈值） | 实际抄 PCL2 四段斜坡：`src/NebulaLauncher.Core/Launching/MemoryAdvisor.cs:4`「抄 PCL2 `PageInstanceSetup.GetRam` 的四段斜坡」、`:27` `MinSaneMaxMemoryMb = 512`、`:24` `FallbackMaxMemoryMb = 4096` | docs/EXTENSIONS.md:814 |
@@ -92,7 +92,7 @@
 
 | 项 | 实际值 |
 |---|---|
-| 测试源文件 | 155（docs/HANDOVER.md:40 写 155，正确） |
+| 测试源文件 | 155（docs/HANDOVER.md 写（:40） 155，正确） |
 | `[Fact]` | 1605 |
 | `[Theory]` | 152 |
 | `[InlineData]` | 757 |
@@ -117,4 +117,4 @@
 4. **`README.md` 的测试数与「完成」矩阵可判死**：:116 的 1502 差 860 例，:12/:15 的能力矩阵停在很早的轮次。
 5. **不可信的写法本身也可判死**：把 docs/TAKEOVER.md、`AUDIT` 第五节、`.probe/` 截图当作证据链。这三类产物不在当前仓内或不可执行，任何以它们为唯一依据的结论都无复核路径。
 
-可判死的三类：**非目标/范围声明**、**轮次交接里的验收数字**、**以 `.probe/` 或已删文档为唯一证据的条目**。可继续用的只有 docs/HANDOVER.md:40 的代码规模（155 文件）与本文按 `src/` 复核出的实现位置。
+可判死的三类：**非目标/范围声明**、**轮次交接里的验收数字**、**以 `.probe/` 或已删文档为唯一证据的条目**。可继续用的只有 docs/HANDOVER.md 的代码规模（155（:40） 文件）与本文按 `src/` 复核出的实现位置。

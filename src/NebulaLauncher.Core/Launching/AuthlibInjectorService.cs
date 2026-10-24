@@ -240,7 +240,7 @@ public sealed class AuthlibInjectorService : IAuthlibInjectorService
     /// </para>
     /// <para>
     /// PCL2 还带一个 <c>Java 主版本 &gt;= 6</c> 的判断，这里省略：Nebula 支持的 Minecraft 版本
-    /// 最低要求 Java 8（HANDOVER §6.7），任何能启动游戏的 JVM 都满足该条件；
+    /// 最低要求 Java 8，任何能启动游戏的 JVM 都满足该条件；
     /// 而 <see cref="IAuthlibInjectorService.BuildInjectionAsync"/> 的签名里拿不到 Java 主版本
     /// （接口已冻结）。真需要按版本分支时，先由调用方把主版本传进来。
     /// </para>

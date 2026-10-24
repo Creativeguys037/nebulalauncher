@@ -7,14 +7,19 @@ namespace NebulaLauncher.DocsCheck;
 /// <param name="Budget">行数预算结果。</param>
 /// <param name="Features">功能三态结果。</param>
 /// <param name="Tests">测试数统计。</param>
+/// <param name="Evidence">证据链文档（只校验引用与链接、不进行数预算）；没有则为空。</param>
 public sealed record DocCheckReport(
     string Root,
     DocReferenceReport References,
     DocLinkReport Links,
     DocBudgetResult Budget,
     FeatureScanReport Features,
-    TestCountReport Tests)
+    TestCountReport Tests,
+    IReadOnlyList<string>? Evidence = null)
 {
+    /// <summary>证据链文档清单，没传 <c>--evidence</c> 时为空。</summary>
+    public IReadOnlyList<string> EvidenceDocuments => Evidence ?? [];
+
     /// <summary>退出码表：报告末尾与 <c>--help</c> 共用这一份文案，改文案只改这里。</summary>
     public const string ExitCodeLegend =
         "退出码：0 全部通过；1 引用/链接/必需文档有问题；2 行数预算越界；3 两者都有。";

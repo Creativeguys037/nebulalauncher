@@ -9,7 +9,7 @@ namespace NebulaLauncher.Tests;
 /// 导出选项补的三类文件：<c>options.txt</c> / <c>defaultconfigs/</c> / <c>servers.dat</c>。
 ///
 /// 这三样以前一律不导出：用户勾了「包含配置」也拿不到游戏设置与新建世界默认配置，
-/// 导入方的整合包在每个新世界上都回到默认值（AUDIT 复核 `REVIEW-R35-DECISIONS.md` 第 4 条）。
+/// 导入方的整合包在每个新世界上都回到默认值。
 /// </summary>
 public class CoreBackups_ExportOptionsTests
 {

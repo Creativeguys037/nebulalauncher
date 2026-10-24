@@ -18,7 +18,7 @@ namespace NebulaLauncher.Core.Installing;
 /// <c>maven.neoforged.net</c> 的版本目录（反编译 IL：
 /// <c>_versionLoader = new NeoForgeVersionLoader(new HttpClient())</c>）。该主机在本机不可达，
 /// 而我们所有镜像重写都挂在自建 HttpClient 上，facade 完全绕开它——这就是 NeoForge
-/// 装不上的第三层原因（<c>docs/HANDOVER.md</c> §6.33）。
+/// 装不上的第三层原因。
 ///
 /// PCL2 也不用那个安装器。它自己走三步（<c>ModDownloadLib.vb:1094-1119</c>）：
 /// 查版本目录 → 拼 <c>{坐标}/{包名}-{版本}-installer.jar</c> 并把 <c>maven.neoforged.net/releases</c>

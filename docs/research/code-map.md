@@ -222,7 +222,7 @@ Content.cs 是最大模型文件：ContentKind:4、ContentItem:60、ModConflict:
 
 ## 6. DI 注册点
 
-组合根 `src/NebulaLauncher.App/App.axaml.cs:273 BuildServices()`，按调用顺序：
+组合根 `src/NebulaLauncher.App/App.axaml.cs BuildServices（:273）`，按调用顺序：
 
 | 序 | 调用 | 注册项 |
 | --- | --- | --- |

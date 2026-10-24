@@ -109,7 +109,7 @@ public class CoreLaunch_InstanceAdminTests
         // 默认名 = 原名 + 后缀。
         Assert.Equal("1.21.4 Fabric-副本", clone.Name);
 
-        // 游玩统计属于「这一次运行」，副本从零开始；其余实例级配置必须跟着走（HANDOVER 5.1 的坑）。
+        // 游玩统计属于「这一次运行」，副本从零开始；其余实例级配置必须跟着走。
         Assert.Null(clone.LastPlayedAt);
         Assert.Equal(0L, clone.TotalPlayTimeSeconds);
         Assert.Equal(LoaderKind.Fabric, clone.Loader);

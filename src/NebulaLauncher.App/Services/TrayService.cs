@@ -372,7 +372,7 @@ public sealed class TrayService : IDisposable
         try
         {
             // await 之后可能不再在 UI 线程（托盘回调来自原生线程，保存用线程池续跑），
-            // Shutdown / Close 必须在 UI 线程执行（REVIEW-R34-R36 P3-10）。
+            // Shutdown / Close 必须在 UI 线程执行。
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (_desktop is not null)

@@ -197,7 +197,7 @@ public sealed partial class LibraryViewModel : PageViewModelBase, IDisposable
     ///
     /// 刻意<b>不</b>给 <see cref="ContentKind"/> 加 <c>ModPack</c> 值：那个枚举是本地内容目录的键，
     /// 加一个值要同步改 <c>DirectoryNameFor</c>、<c>ContentTarget.DirectoryNameOf</c>、扫描、
-    /// 版本不匹配检查等 6 处 switch（HANDOVER §9），而整合包根本不落在内容目录里。
+    /// 版本不匹配检查等 6 处 switch，而整合包根本不落在内容目录里。
     /// 它是「装成实例」的，与另外四个分类的落点模型不同，所以单独一个分区标志。
     /// </summary>
     [ObservableProperty]
@@ -1909,7 +1909,7 @@ public sealed partial class LibraryViewModel : PageViewModelBase, IDisposable
             InstallProgress = 0;
 
             // 导入时顺带装游戏与加载器：关掉会得到一个指向不存在版本的实例，
-            // 玩家还得自己去版本页再装一次，且版本号常装错（PCL2-GAP 第 1 条的同一问题）。
+            // 玩家还得自己去版本页再装一次，且版本号常装错。
             _modpack.InstallGameOnImport = true;
 
             var instanceDirectory = await _modpack

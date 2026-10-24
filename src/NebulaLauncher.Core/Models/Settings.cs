@@ -70,7 +70,7 @@ public sealed class AppSettings
     /// <summary>启动器窗口默认高度。</summary>
     public const int DefaultLauncherWindowHeight = 800;
 
-    /// <summary>启动器窗口宽度下限，对应 <c>DESIGN.md</c> 的窄屏验收尺寸（1024×660）。</summary>
+    /// <summary>启动器窗口宽度下限，即窄屏验收尺寸（1024×660）。</summary>
     public const int MinimumLauncherWindowWidth = 1024;
 
     /// <summary>启动器窗口高度下限。</summary>
@@ -360,7 +360,7 @@ public sealed class AppSettings
             : JvmPresets.Select(preset => preset.Clone()).ToList();
 
         // 字符串字段 MemberwiseClone 已经复制；这里显式写出，避免以后把它换成引用类型时漏拷贝，
-        // 也提醒后来的人：加了字段必须在 Clone 里有交代（HANDOVER §5.1）。
+        // 也提醒后来的人：加了字段必须在 Clone 里有交代。
         clone.Theme = Theme;
 
         // 启动器窗口尺寸是后加字段，同样显式列出：这一组全部是值类型，

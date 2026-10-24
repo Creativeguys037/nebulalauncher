@@ -608,7 +608,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
     /// 1. **失败不抛异常**。加载器本体已经在磁盘上了，Fabric API 装不上只是少一个模组，
     ///    把它变成「整个安装失败」会让用户连版本都拿不到——而重试一次就能补上；
     /// 2. 目标目录取 <see cref="ILauncherPaths.MinecraftDirectory"/>。安装阶段还没有实例，
-    ///    版本隔离在首次启动时才建目录（HANDOVER §6.10），此时 mods 只能落在全局目录；
+    ///    版本隔离在首次启动时才建目录，此时 mods 只能落在全局目录；
     /// 3. 版本 Id 对不上（Modrinth 那边删档 / 换了 filter）时退化为列表里的第一条：
     ///    UI 传进来的是它当时看到的列表首项，重查一次是为了拿完整模型而不是只凭一个 Id。
     /// </summary>

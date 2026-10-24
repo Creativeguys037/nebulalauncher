@@ -1,6 +1,6 @@
 # 仓库多余物盘点
 
-> 历史说明：本文出现的 `docs/FINAL-SCOPE.md`、`docs/EXTENSIONS.md`、`docs/HANDOVER.md`、`docs/PUBLISH-CHECK.md` 等 `docs/` 下旧文档路径，都是 2026-10-24 收口删除前的文件名，这里只作历史核对对象的记录，正文路径不改。
+> 历史说明：本文出现的 docs/ 下四份旧文档名（FINAL-SCOPE、EXTENSIONS、HANDOVER、PUBLISH-CHECK），都是 2026-10-24 收口删除前的文件名，只作历史核对对象的记录，正文路径不改。
 
 盘点时间：2026-10-24 16:0x（Asia/Shanghai）
 盘点方式：只读。git log / status / ls-files / du / find / grep / md5sum，未执行 build 或 test，未修改任何源码或配置。
@@ -263,7 +263,7 @@ MD5 实测：
 
 | 判定 | 依据 |
 |---|---|
-| **2 张 PNG 归档进仓**（336 KB） | 它们是 R59 / R61 首页唯一留存的视觉证据，而 docs/HANDOVER.md:1182 明确用 `pub\r61` vs `pub\r59` 的对照做论证；建议放 docs/evidence/screenshots/r59-home.png、`r61-home.png` |
+| **2 张 PNG 归档进仓**（336 KB） | 它们是 R59 / R61 首页唯一留存的视觉证据，而 docs/HANDOVER.md 明确用（:1182） `pub\r61` vs `pub\r59` 的对照做论证；建议放 docs/evidence/screenshots/r59-home.png、`r61-home.png` |
 | **`.probe/` 其余全删** | `data-r59` 可用 `seed-demo-data.ps1` 重生；重复 PNG 删 |
 | **`.probe/` 不进仓** | 它是截图工具的默认工作目录（`tools/shot.ps1:2` 默认 `-Out D:\agent_workspace\.probe\shot.png`），属本机暂存区；若要保留目录约定，在 `.gitignore` 加 `/docs/evidence/` 之外的 `.probe/` 无意义（仓外） |
 
@@ -350,7 +350,7 @@ MD5 实测：
 | 2 | `.probe/` 下研究底稿、冒烟报告、验收截图全部丢失，但仍被 **89 个路径 / 109 行**引用，是两个最大文档的取证基础 | 89 个死链路径 / 109 行引用 | ① 从备份找回并放进 docs/research/pcl2/ ② 加一条全局「历史记录不可复核」声明 ③ 忽略 | **①，找不回则②** | `EXTENSIONS.md`(127 KB)、`PCL2-PORTING.md`(166 KB) 的核心数字都来自它们 |
 | 3 | 旧交接 R16–R41 共 17 份不存在却被引用（含带行号的精确引述） | 27 处 | ① 从 git/备份恢复 ② 改为「原文已不在仓」并删链接 ③ 保留现状 | **②** | `HANDOVER.md:1449-1557` 整段 §11 都指向死链 |
 | 4 | 6 份单轮交接 R54–R59 在处理层已过期 | 6 份 / **53.9 KiB**（55237 B） | ① 全归档到 docs/archive/handover/ ② 只归档 R54/R55/R56/R57/R58、留 R59 ③ 全留 | **②**（留当前轮 R59，其余归档） | R57/R58 零在册引用；`HANDOVER.md:8-9` 只引 R54/R56/R59 |
-| 5 | docs/FINAL-SCOPE.md:76 写「这不是 git 仓库」与事实矛盾 | 1 处 | ① 直接改 ② 保留并加「已过时」标注 | **①** | 已有 1 commit + 423 跟踪文件 + origin remote |
+| 5 | docs/FINAL-SCOPE.md 写「这不是（:76） git 仓库」与事实矛盾 | 1 处 | ① 直接改 ② 保留并加「已过时」标注 | **①** | 已有 1 commit + 423 跟踪文件 + origin remote |
 | 6 | 仓外 `pub/r61` 与 `pub/r60` 逐字节相同 | 25 MB 重复 | ① 删 `r61` ② 删 `r60` ③ 都留 | **①** | 3 个文件 MD5 全同 |
 | 7 | 仓外 `.probe` 截图有重复、运行期数据可重生 | 9.2 MB | ① 归档 2 张 PNG 进 docs/evidence/ 并删其余 ② 全留 ③ 全删（含丢掉唯一视觉证据） | **①** | `r59-home.png` 与 `r59-home-final.png` MD5 相同；`data-r59` 可由 `seed-demo-data.ps1` 重生 |
 | 8 | `AGENTS.md` + `docs/agents/` 4 文件未跟踪 | 5 个 / 8.2 KB | ① 提交 ② 不提交 | **①** | 这是仓库规范文件，且被 `AGENTS.md` 互相引用 |

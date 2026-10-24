@@ -3179,7 +3179,7 @@ public partial class VersionsViewModel : PageViewModelBase
         if (SwitchTarget == LoaderKind.Vanilla)
         {
             // 提前返回也必须复位 loading：上一个请求（Forge/NeoForge）的 finally 因 id 不匹配
-            // 不会复位它，否则转圈与下拉禁用会一直停在这里（REVIEW-R34-R36 P3-7）。
+            // 不会复位它，否则转圈与下拉禁用会一直停在这里。
             IsLoadingLoaderSwitchVersions = false;
             LoaderSwitchVersionHint = "原版不需要加载器版本。";
             return;

@@ -267,16 +267,21 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --json
 dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-features docs/FEATURES.md
 ```
 
-代码引用写法：反引号单元内的首段是仓库相对路径（`src/` `tests/` `tools/` `docs/` 开头，或以 `.md` 结尾），其后跟符号名（可选）：
+代码引用写法：反引号单元内的首段是仓库相对路径（`src/` `tests/` `tools/` `docs/` 开头，或以 `.md` 结尾），其后跟符号名（可选），行号写在符号后的括号里、只作提示（旧的 `路径:行号 符号` 形态工具仍接受）：
 
 ```text
+`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory（:141）`
 `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.CacheDirectory`
-`tests/NebulaLauncher.Tests/DocsCheck_CommandTests.cs:150`
+`tests/NebulaLauncher.Tests/DocsCheck_CommandTests.cs（:150）`
 ```
 
 路径与符号都得在工作树里真实存在，路径缺失与符号缺失一样算失败。另有站内链接校验：`[文本](相对路径.md)` 形式的目标文件必须存在（`http(s)://`、`#锚点`、以 `/` 开头的不算）。
 
-默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。
+默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。约束层（`CONVENTIONS.md`、`README.md`、`AGENTS.md`）与证据链（`docs/agents/`、`docs/research/`）不占这 1000 行额度，但引用照样要校验：`--evidence <路径>...` 只做引用与链接校验、不进行数预算。全仓 15 份文档的口径是：
+
+```powershell
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md
+```
 
 退出码：
 

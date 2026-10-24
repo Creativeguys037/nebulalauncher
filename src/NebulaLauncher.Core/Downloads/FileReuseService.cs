@@ -13,7 +13,7 @@ namespace NebulaLauncher.Core.Downloads;
 /// 首次访问时后台枚举」——一次安装动辄几百个文件，逐个全盘遍历会把磁盘 IO 打满。
 ///
 /// 只索引 mods / resourcepacks / shaderpacks / saves 四类目录：libraries / assets / versions
-/// 在本启动器里本来就是全局共享的（docs/PCL2-PORTING.md §4.4），对它们做复用没有收益，
+/// 在本启动器里本来就是全局共享的，对它们做复用没有收益，
 /// 反而会让索引规模不可控。
 /// </summary>
 public sealed class FileReuseService

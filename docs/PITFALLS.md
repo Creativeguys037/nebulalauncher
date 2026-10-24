@@ -97,7 +97,7 @@ powershell -File build.ps1 -Clean
 ### 1.7 产物 exe 报 `UnauthorizedAccessException`
 - **症状**：发布产物在验证机上启动即抛 `UnauthorizedAccessException`，看起来像产物坏了。
 - **成因**：exe 启动时往 `%TEMP%` 写探测文件被拒。真实原因是这台机器不让这个进程写系统临时目录，不是 exe 的逻辑错误；换机器复现不出来。
-- **规避**：验证文件一律落产物自身目录（`AppContext.BaseDirectory`），别落系统临时目录。实现见 `src/NebulaLauncher.App/Program.cs:142 Program.TryRelaunchElevated` 的 probe-dir 分支。
+- **规避**：验证文件一律落产物自身目录（`AppContext.BaseDirectory`），别落系统临时目录。实现见 `src/NebulaLauncher.App/Program.cs Program.TryRelaunchElevated（:142）` 的 probe-dir 分支。
 
 ### 1.8 并行开发互相踩
 - **症状**：两个人同时构建/运行，一方突然出现对方的窗口、数据目录被改、或者自己的进程被别人 kill。
@@ -113,42 +113,43 @@ powershell -File build.ps1 -Clean
 - **成因**：Avalonia 的同步上下文在 UI 线程上，被同步等待的异步方法要回到 UI 线程完成，而 UI 线程正等着它——经典死锁。它在低负载机器上偶尔「能过」，所以最容易被放行。
 - **规避**：全链路 async/await，禁止 `.Result`、`.Wait()`、`GetAwaiter().GetResult()`（见 `CONVENTIONS.md` §3）。
 
-**唯一例外**：首帧前的同步预热 `src/NebulaLauncher.App/Services/StartupState.cs:24 StartupState.LoadBeforeFirstFrame`。它成立的前提是被调用的异步方法全程 `ConfigureAwait(false)`，不依赖调用线程的同步上下文——前提一旦被破坏（新加的 `await` 忘了 `ConfigureAwait(false)`），这个例外立刻变成死锁源。改预热链路里的任何一次 `await` 都要复核这一点。
+**唯一例外**：首帧前的同步预热 `src/NebulaLauncher.App/Services/StartupState.cs StartupState.LoadBeforeFirstFrame（:24）`。它成立的前提是被调用的异步方法全程 `ConfigureAwait(false)`，不依赖调用线程的同步上下文——前提一旦被破坏（新加的 `await` 忘了 `ConfigureAwait(false)`），这个例外立刻变成死锁源。改预热链路里的任何一次 `await` 都要复核这一点。
 
 ### 2.2 服务构造时不读盘，于是处处「未登录」
 - **症状**：首页、启动页、实例页都显示未登录，但账户文件明明有内容；手动进设置页再返回，就好了。
 - **成因**：账户服务不在构造时读盘（构造里做 IO 会拉长启动且可能死锁），首个读盘动作由页面触发。「谁先访问谁触发」在小范围里成立，一旦首帧渲染早于任何一次访问，整屏都是空态。
-- **规避**：首帧前统一预热一次，见 `StartupState.LoadBeforeFirstFrame`，调用点在 `src/NebulaLauncher.App/App.axaml.cs:56 StartupState` 内的首帧之前。回归用例 `tests/NebulaLauncher.Tests/AppStartup_StartupStateTests.cs:15 AppStartup_StartupStateTests`。
+- **规避**：首帧前统一预热一次，见 `StartupState.LoadBeforeFirstFrame`，调用点在 `src/NebulaLauncher.App/App.axaml.cs StartupState（:56）` 内的首帧之前。回归用例 `tests/NebulaLauncher.Tests/AppStartup_StartupStateTests.cs AppStartup_StartupStateTests（:15）`。
 
 ### 2.3 改了外部文件但界面不生效
 - **症状**：外部改写了设置 JSON 或导入了配置包，界面上的值没变；重启后有一定概率变对。
 - **成因**：`LoadAsync` 是幂等的——它用内部 `_loaded` 标记短路，第二次调用直接返回内存值。设计上是对的（避免重复读盘、避免变更风暴），但「读盘」和「重新读盘」是两个需求。
-- **规避**：需要重读时显式用 `ReloadAsync`，不要指望再调一次 `LoadAsync`。幂等判定见 `src/NebulaLauncher.Core/Settings/SettingsService.cs:52 SettingsService.LoadAsync`；导入路径的正确调用见 `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs:212 ProfileBundleService`。误用表现为「导入成功但没生效」，不报错。
+- **规避**：需要重读时显式用 `ReloadAsync`，不要指望再调一次 `LoadAsync`。幂等判定见 `src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.LoadAsync（:52）`；导入路径的正确调用见 `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs ProfileBundleService（:212）`。误用表现为「导入成功但没生效」，不报错。
 
 ### 2.4 把「暂停」当取消用
 - **症状**：点了暂停，以为在途下载会中断；或者反过来，写了「暂停后立即清理队列」，结果在途任务继续往已清理的目录里写。
 - **成因**：暂停是**闸门**不是取消。`Pause()` 只拦「启动下一个文件」，已经在跑的文件照旧下完；重试路径每次 attempt 都要重新过一次闸门。它不抛取消异常、不释放已占资源，所以任何「暂停即终态」的假设都会漏。
-- **规避**：判定暂停语义以 `src/NebulaLauncher.Core/Downloads/DownloadQueue.cs:236 DownloadQueue.Pause` 为准；外部批次（整包下载这类）不接受暂停，幂等复位点分散在多处，改动时四处都要看。回归用例 `tests/NebulaLauncher.Tests/CoreDownloads_PauseTests.cs:15 CoreDownloads_PauseTests`。
+- **规避**：判定暂停语义以 `src/NebulaLauncher.Core/Downloads/DownloadQueue.cs DownloadQueue.Pause（:236）` 为准；外部批次（整包下载这类）不接受暂停，幂等复位点分散在多处，改动时四处都要看。回归用例 `tests/NebulaLauncher.Tests/CoreDownloads_PauseTests.cs CoreDownloads_PauseTests（:15）`。
 
 ### 2.5 批量操作卡死界面
 - **症状**：批量启用 700 个模组时界面冻结 200ms+，鼠标指针变成等待。
 - **成因**：逐个文件做磁盘判据（存在性、可写性）本身就是同步 IO，循环留在 UI 线程上时整段阻塞；文件数越大越明显。
-- **规避**：判据取磁盘真实状态而不是内存里的返回值——`src/NebulaLauncher.Core/Mods/ContentBatch.cs:86 ContentBatch.IsEnabledOnDisk`（三态：启用 / 禁用 / 不可判定），并把整个循环放进 `Task.Run`。只信内存返回值的写法在文件被外部改动后会说谎，见 5.8。
+- **规避**：判据取磁盘真实状态而不是内存里的返回值——`src/NebulaLauncher.Core/Mods/ContentBatch.cs ContentBatch.IsEnabledOnDisk（:86）`（三态：启用 / 禁用 / 不可判定），并把整个循环放进 `Task.Run`。只信内存返回值的写法在文件被外部改动后会说谎，见 5.8。
 
 ### 2.6 跨页预填「有时候带不过去」
 - **症状**：从模组页跳到搜索页，目标实例偶尔是空的；先点别的页再回来看起来又对了。
-- **成因**：页面切换内部是「点了就走」——`Navigate` 里 `_ = RunPageLifecycleAsync(...)` 丢弃了任务引用（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs:649 MainWindowViewModel.RunPageLifecycleAsync` 是它的实现）。目标页的初始化时机不由调用方控制，先 Navigate 再 Publish 就会在初始化之后才写入。
+- **成因**：页面切换内部是「点了就走」——`Navigate` 里 `_ = RunPageLifecycleAsync(...)` 丢弃了任务引用（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RunPageLifecycleAsync（:649）` 是它的实现）。目标页的初始化时机不由调用方控制，先 Navigate 再 Publish 就会在初始化之后才写入。
 - **规避**：先 Publish 目标状态，再 Navigate；消费方取走即清（`Interlocked.Exchange`），避免同一份预填被两个页面读。
 
 ### 2.7 离开页面后定时器还在跑
 - **症状**：切走后 CPU 仍被占用；日志页的跟随在别的页面时还在滚动；账户状态变化把已销毁的页面又拉起来一次。
 - **成因**：订阅与计时是「激活期」语义，但代码里常常只在构造或首次加载时建一次，离开时不拆。事件订阅比定时器更难发现——它不占 CPU，只在有人触发时才炸。
-- **规避**：成对出现：订阅在 `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs:432 HomeViewModel.AttachAccountEvents` 这类激活入口，退订在离开与释放路径（`OnNavigatedFromAsync` / `Dispose(bool)`）必须都覆盖；日志跟随的定时器同样两条路都要停。
+- **规避**：成对出现：订阅在 `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel.AttachAccountEvents（:432）` 这类激活入口，退订在离开与释放路径（`OnNavigatedFromAsync` / `Dispose(bool)`）必须都覆盖；日志跟随的定时器同样两条路都要停。
 
 ### 2.8 `async void` 与丢弃的 `Task` 吞异常
 - **症状**：后台任务失败但没人报错，日志里一片安静，界面停在加载态。
 - **成因**：`_ = SomeAsync()` 丢弃任务引用后，异常无人观察；`async void` 的异常直接打到未处理异常通道，进程崩或静默。两种写法的共同点是「调用方拿到控制权时已经失去了错误信号」。
 - **规避**：内部触发的后台流程要么在方法内部 catch 并落到日志，要么返回可观察的任务；进入 `_ =` 丢弃之前确认它自己兜住了所有异常，并有终态复位（加载态不能只在成功路径里清）。
+- 代码位置：`src/NebulaLauncher.App/Views/WorldsView.axaml.cs WorldsView.OnImportModpackClick（:19）`（`async void` 事件处理器，异常只能靠方法内 try/catch 兜住）、`src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow.FlushAndCloseAsync（:310）`（同为 `async void`，:307 注释写明整段必须 try/catch）；同文件 `:337` 的 `_ = FlushSettingsAsync(reason)` 是丢弃任务实例。
 
 ---
 
@@ -157,62 +158,62 @@ powershell -File build.ps1 -Clean
 ### 3.1 数据目录选错了，写不进去
 - **症状**：首次启动即报写入失败，或者设置能改但保存后重启丢失。
 - **成因**：进程以受限完整性级别运行时，用户目录的写权限并不保证；ACL 上也没有显式 Deny，所以「看权限」看不出问题。用「写一个随机临时文件试试」判断可用性更糟——它可能在别处成功、在目标目录失败。
-- **规避**：按固定回退链选根：`%APPDATA%` → `%LOCALAPPDATA%` → `<exe 目录>\data`；游戏目录 `%APPDATA%\.minecraft` → `<数据根>\minecraft`。用户显式指定的目录不回退（他要的就是那里，失败就报错）。实现见 `src/NebulaLauncher.Core/Paths/LauncherPaths.cs:19 LauncherPaths` 与 `src/NebulaLauncher.Core/Paths/PathProbe.cs:11 PathProbe`。
+- **规避**：按固定回退链选根：`%APPDATA%` → `%LOCALAPPDATA%` → `<exe 目录>\data`；游戏目录 `%APPDATA%\.minecraft` → `<数据根>\minecraft`。用户显式指定的目录不回退（他要的就是那里，失败就报错）。实现见 `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths（:19）` 与 `src/NebulaLauncher.Core/Paths/PathProbe.cs PathProbe（:11）`。
 
 ### 3.2 用户数据混进 settings.json
 - **症状**：收藏、账户、窗口状态这类数据一旦写进 `settings.json`，出现「手动编辑后整份设置被覆盖」或「导出设置把他人的账户带走了」。
 - **成因**：`settings.json` 是「配置」，不是「数据」。两者生命周期不同：配置可以导出、可以被用户手改；数据不行。混在一起后，任何一次整份写回都会连数据一起重置。
-- **规避**：独立文件 + 原子写（写 `.tmp` 再 `File.Move` 覆盖），坏文件静默重建而不是抛到界面上。示例 `src/NebulaLauncher.Core/Versions/VersionFavorites.cs:83 VersionFavorites`。
+- **规避**：独立文件 + 原子写（写 `.tmp` 再 `File.Move` 覆盖），坏文件静默重建而不是抛到界面上。示例 `src/NebulaLauncher.Core/Versions/VersionFavorites.cs VersionFavorites（:83）`。
 
 ### 3.3 实例锁：锁错了范围、或者杀错了人
 - **症状**：同一实例能被启动两次并互相破坏存档；或者上一次异常退出后实例永久「正在运行」。
 - **成因**：锁的对象选错（锁进程名、锁全局）就会误伤；存活判定只看 PID 会因 PID 复用而永久锁死；写入不是原子的会留下半个锁文件。
-- **规避**：锁按**游戏目录**维度；存活判据是 PID + 启动时间（容差 1 秒，`src/NebulaLauncher.Core/Instances/InstanceLockService.cs:21 InstanceLockService`）；写入用唯一命名的 tmp 再 `File.Move`（不覆盖）；释放只删自己持有的令牌；读失败一律当僵死（宁可放行也不要永久锁死）；锁文件建不出来时退化成 no-op 放行。回归用例 `tests/NebulaLauncher.Tests/CoreInstances_LockTests.cs:19 CoreInstances_LockTests`。
+- **规避**：锁按**游戏目录**维度；存活判据是 PID + 启动时间（容差 1 秒，`src/NebulaLauncher.Core/Instances/InstanceLockService.cs InstanceLockService（:21）`）；写入用唯一命名的 tmp 再 `File.Move`（不覆盖）；释放只删自己持有的令牌；读失败一律当僵死（宁可放行也不要永久锁死）；锁文件建不出来时退化成 no-op 放行。回归用例 `tests/NebulaLauncher.Tests/CoreInstances_LockTests.cs CoreInstances_LockTests（:19）`。
 
 ### 3.4 清理把不该删的删了
 - **症状**：清理缓存后实例或存档消失；或者反过来，符号链接目标被连带删除。
 - **成因**：拼出来的路径没规范化就做「以数据根开头」判断，`..` 与大小写差异都能绕过；`ReparsePoint` 走的是链接目标，删的是链接之外的东西。
-- **规避**：先 `Path.GetFullPath` 规范化，再要求结果严格位于数据根之下（Windows 上用 `OrdinalIgnoreCase` 比较），跳过 `ReparsePoint`；日志按最后写入时间保留 7 天，缓存类别排除 `loader-install`（安装器临时目录，删了会打断在跑的安装）。实现 `src/NebulaLauncher.Core/Maintenance/StorageService.cs:26 StorageService`，回归用例 `tests/NebulaLauncher.Tests/CoreMaintenance_StorageTests.cs:14 CoreMaintenance_StorageTests`。
+- **规避**：先 `Path.GetFullPath` 规范化，再要求结果严格位于数据根之下（Windows 上用 `OrdinalIgnoreCase` 比较），跳过 `ReparsePoint`；日志按最后写入时间保留 7 天，缓存类别排除 `loader-install`（安装器临时目录，删了会打断在跑的安装）。实现 `src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:26）`，回归用例 `tests/NebulaLauncher.Tests/CoreMaintenance_StorageTests.cs CoreMaintenance_StorageTests（:14）`。
 
 ### 3.5 文件名判定踩 Windows 的三个坑
 - **症状**：用户建了一个叫 `CON` 的实例，之后目录操作全失败；或者判断「是不是 8.3 短名」时把 `MyMod~12.jar` 判错。
 - **成因**：三件事同时成立——`$` 是合法文件名字符（不能按正则元字符思路排除）；保留名必须**整名**比较（`CON.txt` 也非法）；8.3 短名的序号可以多位（`~\d+` 而不是 `~\d`）。
-- **规避**：统一走 `src/NebulaLauncher.Core/Paths/PathSafety.cs:61 PathSafety.ShortNamePattern` 这类集中判定，别在业务代码里手写正则。
+- **规避**：统一走 `src/NebulaLauncher.Core/Paths/PathSafety.cs PathSafety.ShortNamePattern（:61）` 这类集中判定，别在业务代码里手写正则。
 
 ### 3.6 实例目录：存相对名、不缓存绝对路径
 - **症状**：换了数据根之后旧实例全部指向不存在的位置；或者扫描实例时凭空多出一堆空目录。
 - **成因**：绝对路径被写进数据文件后，数据根一变全部失效；扫描过程顺手建目录会把「不存在的实例」变成「空实例」。
-- **规避**：实例目录只存相对名，绝对路径每次现算（`src/NebulaLauncher.Core/Instances/InstanceFolders.cs:19 InstanceFolders`）；扫描是只读操作，不建目录；内容页一律经实例上下文取目录（`src/NebulaLauncher.Core/Instances/InstanceContext.cs:18 InstanceContext`，见 6.D3）。
+- **规避**：实例目录只存相对名，绝对路径每次现算（`src/NebulaLauncher.Core/Instances/InstanceFolders.cs InstanceFolders（:19）`）；扫描是只读操作，不建目录；内容页一律经实例上下文取目录（`src/NebulaLauncher.Core/Instances/InstanceContext.cs InstanceContext（:18）`，见 6.D3）。
 
 ### 3.7 启动参数里的反斜杠被吃掉
 - **症状**：Windows 路径参数在传给游戏时反斜杠消失或成对解释错，游戏读不到资源。
 - **成因**：上游命令行解析器按 shell 规则处理反斜杠（`\\"` 之类的转义），Windows 路径里的 `\` 与 `"` 撞上就改写。用它解析用户自定义 JVM 参数会静默改内容。
-- **规避**：自己实现切分，只认双引号、不做反斜杠转义：`src/NebulaLauncher.Core/Launching/LaunchArgumentSplitter.cs:18 LaunchArgumentSplitter.Split`。回归用例 `tests/NebulaLauncher.Tests/CoreLaunch_ArgumentSplitterTests.cs:10 CoreLaunch_ArgumentSplitterTests`。
+- **规避**：自己实现切分，只认双引号、不做反斜杠转义：`src/NebulaLauncher.Core/Launching/LaunchArgumentSplitter.cs LaunchArgumentSplitter.Split（:18）`。回归用例 `tests/NebulaLauncher.Tests/CoreLaunch_ArgumentSplitterTests.cs CoreLaunch_ArgumentSplitterTests（:10）`。
 
 ### 3.8 安装器报临时目录不存在
 - **症状**：Forge/NeoForge 安装器启动即失败，报临时目录不可用。
 - **成因**：受限环境下系统临时目录不可写（同 1.7），安装器自己去那儿建目录就失败。
-- **规避**：安装期把 TMP/TEMP 指到数据根下的 `cache/loader-install`，安装结束随缓存清理。实现 `src/NebulaLauncher.Core/Installing/NebulaGameInstaller.cs:37 NebulaGameInstaller`；该目录已被缓存清理排除（见 3.4）。
+- **规避**：安装期把 TMP/TEMP 指到数据根下的 `cache/loader-install`，安装结束随缓存清理。实现 `src/NebulaLauncher.Core/Installing/NebulaGameInstaller.cs NebulaGameInstaller（:37）`；该目录已被缓存清理排除（见 3.4）。
 
 ### 3.9 日志第一行和上一行粘在一起
 - **症状**：日志里两条记录挤在同一行，形如 `...[12:00:01] 上一条消息[12:00:02] 新消息`。
 - **成因**：日志以追加模式打开，若上一次进程退出时最后一行没有换行符，新进程的第一条写入直接接在末尾。只在「跨进程、且上一次以半行结束」时出现。
-- **规避**：首次写当日日志前补一个换行，且只检查一次（不能每条都检查，会拖慢写入）：`src/NebulaLauncher.Core/Logging/FileLogger.cs:83 FileLogger.EnsureTrailingNewline`。
+- **规避**：首次写当日日志前补一个换行，且只检查一次（不能每条都检查，会拖慢写入）：`src/NebulaLauncher.Core/Logging/FileLogger.cs FileLogger.EnsureTrailingNewline（:83）`。
 
 ### 3.10 日志跟随读错内容
 - **症状**：日志页把同一行显示两遍；或者文件被截断后界面停在旧内容；或者跟随一次读进几十 MB 卡住界面。
 - **成因**：跟随实现要同时处理四种边界——文件以半行结束（不能推进偏移，否则该行永远读不全）、文件变短（截断）、偏移前一个字节不是换行（被轮转，内容已不是原来那段）、单次读取量无上限。
-- **规避**：判定集中在 `src/NebulaLauncher.Core/Logging/LogFollower.cs:24 LogFollower`：半行不推进偏移，`length < offset` 判截断，`offset-1` 非换行判轮转，单次读取封顶 256KB。回归用例 `tests/NebulaLauncher.Tests/CoreLogs_FollowTests.cs:11 CoreLogs_FollowTests`。
+- **规避**：判定集中在 `src/NebulaLauncher.Core/Logging/LogFollower.cs LogFollower（:24）`：半行不推进偏移，`length < offset` 判截断，`offset-1` 非换行判轮转，单次读取封顶 256KB。回归用例 `tests/NebulaLauncher.Tests/CoreLogs_FollowTests.cs CoreLogs_FollowTests（:11）`。
 
 ### 3.11 密码明文落盘、或者被导出带走
 - **症状**：配置文件里出现代理密码明文；或者导出的配置包在别人机器上还原出了自己的代理凭据。
 - **成因**：磁盘上只应存密文（`dpapi:` / `b64:` 前缀），但内存对象里是明文；任何「把字段序列化出去」的路径都会带出明文，包括配置包导出与设置导出两处。
-- **规避**：保存时用副本脱敏，解密失败按「未设置」处理（换机器后 DPAPI 必然解不开）；配置包导出必须同时剥掉 `proxyPassword` 与 `proxyPasswordProtected` 两个键，只剥一个等于没剥。实现 `src/NebulaLauncher.Core/Net/ProxyCredentialStore.cs:14 ProxyCredentialStore`，键白名单见 5.7。
+- **规避**：保存时用副本脱敏，解密失败按「未设置」处理（换机器后 DPAPI 必然解不开）；配置包导出必须同时剥掉 `proxyPassword` 与 `proxyPasswordProtected` 两个键，只剥一个等于没剥。实现 `src/NebulaLauncher.Core/Net/ProxyCredentialStore.cs ProxyCredentialStore（:14）`，键白名单见 5.7。
 
 ### 3.12 配置包把不该带的东西带走了
 - **症状**：把配置包发给别人，对方机器上出现了自己的账户；或者导入后本地设置被整份覆盖。
 - **成因**：导出走的是「复制整个数据目录」的实现，账户文件天然在里面；导入走的是「整体替换」，于是本机私有配置（窗口尺寸、缩放、主题这类机器相关项）被对方的值覆盖。
-- **规避**：配置包绝不含 `accounts.json`；设置导出剔除 4 个机器相关键；导入设置按 9 个白名单键逐键覆盖，不整份替换。实现 `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs:212 ProfileBundleService`，键集断言见 5.7。
+- **规避**：配置包绝不含 `accounts.json`；设置导出剔除 4 个机器相关键；导入设置按 9 个白名单键逐键覆盖，不整份替换。实现 `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs ProfileBundleService（:212）`，键集断言见 5.7。
 
 ---
 
@@ -226,17 +227,18 @@ powershell -File build.ps1 -Clean
 ### 4.2 样式 setter 打不过构造函数里的本地值
 - **症状**：给控件写了主题样式，运行后部分控件完全不变；把样式搬到更具体的选择器上仍然无效。
 - **成因**：Avalonia 的优先级里本地值高于样式 setter，构造函数里赋的值就是本地值。样式系统没错，是它在正确地输给一个看不见的赋值。
-- **规避**：控件里不要在构造函数写死视觉参数，或改用可控的属性/绑定。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/AuroraBackground.cs:22 AuroraBackground`、`src/NebulaLauncher.App/Controls/RingProgress.cs:13 RingProgress`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
+- **规避**：控件里不要在构造函数写死视觉参数，或改用可控的属性/绑定。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）`、`src/NebulaLauncher.App/Controls/RingProgress.cs RingProgress（:13）`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
 
 ### 4.3 `ColumnDefinition.Width` 绑不上 ViewModel
 - **症状**：想把两段进度条按比例分配宽度，绑定 `ColumnDefinition.Width` 后毫无反应，也没有绑定错误提示。
 - **成因**：`ColumnDefinition` 不在可视树上，拿不到继承的数据上下文。现象容易误判成「控件没有 DataContext」。
 - **规避**：不用列宽表达比例。内存三段条的做法是叠两条 `ProgressBar`（下层总量、上层已用），由视图模型算宽度。
+- 代码位置：`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView（:538）`（538-550 的注释块说明「两条 ProgressBar 叠在同一个格子里」而不是拼 Border 宽度）、`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView（:552）`（同一个 Grid 里三条 `<ProgressBar Minimum="0" Maximum="1"`：蓝/红按 `IsMemoryOverCommit` 互斥可见，黄条叠在上层）。
 
 ### 4.4 用夹过的比例相加判超额，永远不会触发
 - **症状**：内存分配明显超额，界面却不报警；或者反过来，刚好卡在阈值上抖动。
 - **成因**：每段的比例都做过 clamp（超过 100% 会压回 100%），把压过的比例相加比较，超额部分已经被丢掉。
-- **规避**：比字节，不比比例——`游戏堆 + 已用 > 总量` 这类判据直接用字节量。实现 `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs:1314 SettingsViewModel.IsOverCommit`。
+- **规避**：比字节，不比比例——`游戏堆 + 已用 > 总量` 这类判据直接用字节量。实现 `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.IsOverCommit（:1314）`。
 
 ### 4.5 `ListBox` 多选的 `SelectedItems` 绑定静默失效
 - **症状**：`SelectionMode=Multiple` 下把选中项绑到视图模型，绑定不生效也不报错；截图里点击行没有任何视觉变化。
@@ -246,27 +248,27 @@ powershell -File build.ps1 -Clean
 ### 4.6 关窗口关出无响应进程
 - **症状**：点关闭后窗口消失、进程还在；或者相反，本该退出却还在托盘里。
 - **成因**：关闭有三条出口（关到托盘 / 真正退出 / 系统关机），三条的判定条件不同，散落在各处时必然漏掉一条。
-- **规避**：判定收敛到一个纯函数：`src/NebulaLauncher.Core/Platforms/CloseBehavior.cs:26 CloseBehavior.ShouldExitOnClose`。三个参数缺一不可——托盘没建起来时必须退回「退出」而不是「关到托盘」（否则无出口）；截图模式不建托盘也不拦关闭；系统关机一律放行。
+- **规避**：判定收敛到一个纯函数：`src/NebulaLauncher.Core/Platforms/CloseBehavior.cs CloseBehavior.ShouldExitOnClose（:26）`。三个参数缺一不可——托盘没建起来时必须退回「退出」而不是「关到托盘」（否则无出口）；截图模式不建托盘也不拦关闭；系统关机一律放行。
 
 ### 4.7 窗口尺寸记错、越记越小
 - **症状**：设了 `1024×660`，下次启动变成 `1039×697`；或者最小化状态下关闭，下次以最小化尺寸打开。
 - **成因**：两个独立原因——尺寸参数在有的场景下是客户区下限而不是外框，多出边框与标题栏；在 `WindowState != Normal` 时保存会把最小化尺寸写进配置。
-- **规避**：首帧前读设置（截图参数 `--size` 优先），只在 `WindowState == Normal` 时更新；关闭记忆时两端都不写。判定 `src/NebulaLauncher.Core/Platforms/WindowMemory.cs:21 WindowMemory.ShouldPersist`。
+- **规避**：首帧前读设置（截图参数 `--size` 优先），只在 `WindowState == Normal` 时更新；关闭记忆时两端都不写。判定 `src/NebulaLauncher.Core/Platforms/WindowMemory.cs WindowMemory.ShouldPersist（:21）`。
 
 ### 4.8 刷新键名撞车
 - **症状**：按 F5 调用了某个页面的刷新，但调到了私有方法，或者七个页面行为不一致。
 - **成因**：多个页面各自有同名私有刷新方法，命令绑定指向谁取决于写在哪里，编译期不报错。
-- **规避**：基类统一入口 `src/NebulaLauncher.App/ViewModels/PageViewModelBase.cs:38 PageViewModelBase.ReloadCurrentAsync`，不要再新增名为 `RefreshAsync` 的成员。
+- **规避**：基类统一入口 `src/NebulaLauncher.App/ViewModels/PageViewModelBase.cs PageViewModelBase.ReloadCurrentAsync（:38）`，不要再新增名为 `RefreshAsync` 的成员。
 
 ### 4.9 Esc 把用户正在输入的内容吞掉
 - **症状**：在搜索框里按 Esc，本意是清空/退出输入，结果把整个页面关掉或回退。
 - **成因**：Esc 处理挂在窗口级，输入控件拿到焦点时没有标志位让位。
-- **规避**：Escape 的实现集中在一处并先判断焦点是否在输入控件：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs:510 MainWindowViewModel.Escape`。
+- **规避**：Escape 的实现集中在一处并先判断焦点是否在输入控件：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.Escape（:510）`。
 
 ### 4.10 图标解码失败导致整行空白
 - **症状**：某些模组/整合包的图标位置是空白，不是首字母占位。
 - **成因**：图标链是两段（下载 → 解码 → 显示），解码器遇到不支持的格式时抛异常或返回坏值，把占位层也一起顶掉。实际数据里 Modrinth 的图标是 webp、CurseForge 有 jpg，扩展名不可靠。
-- **规避**：解码失败返回空值，让首字母占位透出，绝不抛到界面层：`src/NebulaLauncher.App/Views/ModsView.axaml.cs:22 PathToImageConverter`。
+- **规避**：解码失败返回空值，让首字母占位透出，绝不抛到界面层：`src/NebulaLauncher.App/Views/ModsView.axaml.cs PathToImageConverter（:22）`。
 
 ---
 
@@ -275,22 +277,22 @@ powershell -File build.ps1 -Clean
 ### 5.1 加了属性但克隆漏了新字段
 - **症状**：给启动参数模型加一个属性，某条启动路径没有带上它，游戏行为异常但完全不报错。
 - **成因**：手写克隆容易漏；每加一个字段都可能漏一次，靠人看 diff 不可靠。
-- **规避**：反射守护——逐属性比对，漏了就点名哪个属性没拷。实现 `src/NebulaLauncher.Core/Launching/GameLauncher.cs:2258 GameLauncher.CloneWithMaxMemory`，守护用例 `tests/NebulaLauncher.Tests/CoreLaunch_LaunchOptionsCloneTests.cs:16 CoreLaunch_LaunchOptionsCloneTests`。加字段时这个用例会红，这就是它的用途。
+- **规避**：反射守护——逐属性比对，漏了就点名哪个属性没拷。实现 `src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.CloneWithMaxMemory（:2258）`，守护用例 `tests/NebulaLauncher.Tests/CoreLaunch_LaunchOptionsCloneTests.cs CoreLaunch_LaunchOptionsCloneTests（:16）`。加字段时这个用例会红，这就是它的用途。
 
 ### 5.2 只断言「返回了匹配」挡不住请求形状错误
 - **症状**：反查指纹的用例全绿，线上却一直是「未识别」；抓包才发现路径写成了单数、指纹按有符号发出。
 - **成因**：假服务端只要「匹配到就算成功」，就会同时接受错误路径与错误编码；而调用方把 4xx 降级成「未识别」，错误被吞成正常返回值。两层叠加，测试与运行时都安静。
-- **规避**：请求形状用例必须同时断言 path 与 body 的精确形状（这里是复数路径 + 无符号发送）：`tests/NebulaLauncher.Tests/CoreMods_CurseForgeFingerprintTests.cs:17 CoreMods_CurseForgeFingerprintTests` 里的 `指纹反查_请求用复数路径且指纹按无符号发送`。
+- **规避**：请求形状用例必须同时断言 path 与 body 的精确形状（这里是复数路径 + 无符号发送）：`tests/NebulaLauncher.Tests/CoreMods_CurseForgeFingerprintTests.cs CoreMods_CurseForgeFingerprintTests（:17）` 里的 `指纹反查_请求用复数路径且指纹按无符号发送`。
 
 ### 5.3 「只有一个入口」靠人守不住
 - **症状**：新增第二个构造启动参数的入口后，行为与旧入口悄悄分叉；很久以后才发现某个选项只在一个入口生效。
 - **成因**：分散构造的成本由未来的自己承担，代码评审看不出来，跑起来也不报错。
-- **规避**：源码守护——断言唯一构造点只出现在工厂里，别处出现 `new LaunchOptions` 即失败。守护用例 `tests/NebulaLauncher.Tests/AppLaunch_OptionsFactoryTests.cs:16 AppLaunch_OptionsFactoryTests`，唯一工厂 `src/NebulaLauncher.App/Services/LaunchOptionsFactory.cs:24 LaunchOptionsFactory`（见 6.D4）。
+- **规避**：源码守护——断言唯一构造点只出现在工厂里，别处出现 `new LaunchOptions` 即失败。守护用例 `tests/NebulaLauncher.Tests/AppLaunch_OptionsFactoryTests.cs AppLaunch_OptionsFactoryTests（:16）`，唯一工厂 `src/NebulaLauncher.App/Services/LaunchOptionsFactory.cs LaunchOptionsFactory（:24）`（见 6.D4）。
 
 ### 5.4 分页终止判据依赖 pageSize
 - **症状**：某个接口一改默认每页条数，抓取就提前结束或死循环；换成另一个服务端又正常。
 - **成因**：用「请求的 pageSize」推进行号，而服务端实际可能少给（限额、过滤、末页不满）；一旦实际返回少，行号推进过多直接跳过内容，推进过少则原地打转。
-- **规避**：用服务端实际返回条数推进（`index += 实际条数`，直到 `index >= totalCount`）；再叠按 Id 去重、双上限防死循环、`totalCount <= 0` 退回单页。合并路径见 `src/NebulaLauncher.Core/Mods/CrossSourceSearch.cs:357 CrossSourceSearch.Merge`，用例在 `tests/NebulaLauncher.Tests/CoreMods_CurseForgePagingTests.cs`。
+- **规避**：用服务端实际返回条数推进（`index += 实际条数`，直到 `index >= totalCount`）；再叠按 Id 去重、双上限防死循环、`totalCount <= 0` 退回单页。合并路径见 `src/NebulaLauncher.Core/Mods/CrossSourceSearch.cs CrossSourceSearch.Merge（:357）`，用例在 `tests/NebulaLauncher.Tests/CoreMods_CurseForgePagingTests.cs`。
 
 ### 5.5 `Select-String` 的 `**` 只等价一层目录
 - **症状**：全仓搜索某个符号，结论是「只有一处」，实际有三处；据此改出来的结论是错的。
@@ -316,7 +318,7 @@ Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOpt
 ### 5.8 样式重构用肉眼验收会漏
 - **症状**：合并样式类之后界面「看起来一样」，但某个页面的圆角或间距变了，很久没人发现。
 - **成因**：肉眼对像素级改动不敏感，尤其是渐变、阴影、亚像素对齐。
-- **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §8.4，视觉基线同在该节。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs:14 AppMods_BatchTests` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
+- **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §8.4，视觉基线同在该节。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs AppMods_BatchTests（:14）` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
 
 ### 5.9 文档里的代码引用会静默漂移
 - **症状**：文档写着「某接口声明在 Abstractions」「某方法是 `SaveAsync`」「`docs/CODE.md:49` 那段」——代码一改，路径还打得开，符号却早改名或挪了位置；人工 `grep` 也搜不出来，因为文档里只是一段纯文本。

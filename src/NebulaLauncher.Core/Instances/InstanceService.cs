@@ -647,7 +647,7 @@ public sealed partial class InstanceService : IInstanceService
         LoaderVersion = source.LoaderVersion,
         IsolationEnabled = source.IsolationEnabled,
         // 实例级启动覆盖。Clone 是手写映射，新字段漏一个就会被「保存一次」悄悄清空，
-        // 与 Loader 那次的坑同源（HANDOVER 5.1）。
+        // 与 Loader 那次的坑同源。
         JvmArguments = source.JvmArguments,
         GameArguments = source.GameArguments,
         LaunchBeforeCommand = source.LaunchBeforeCommand,

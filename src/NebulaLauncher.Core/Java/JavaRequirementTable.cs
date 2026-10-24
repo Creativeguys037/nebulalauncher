@@ -65,7 +65,7 @@ public static class JavaRequirementTable
 
         // JavaVersionConstraint.java:180 MODLAUNCHER_8。HMCL 里它其实是 suggested（枚举第二个参数 false），
         // 但 1.16.3～1.17.1 的 Forge 在 Java 18+ 上会因 JDK-8273826 崩在 modlauncher，
-        // 这里按 EXTENSIONS.md 条目 2 的做法收成 mandatory 上界 17：Java 8/11/16/17 全放行，只挡 18+。
+        // 这里收成 mandatory 上界 17：Java 8/11/16/17 全放行，只挡 18+。
         // 注意上界不能收到 16——1.17 Forge + Java 17 是合法组合。
         new(Mandatory: true, Game: (16003, 17001), Java: (0, 17), RequiresLoader: LoaderKind.Forge, Id: "MODLAUNCHER_8"),
 

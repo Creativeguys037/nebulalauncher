@@ -539,7 +539,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
                 return;
             case HomeViewModel home when home.HasLaunchPanel && home.ShowCancelLaunch:
                 // 只有界面上确实有「取消」按钮时才让 Esc 取消：进程起来后取消=移交后台，
-                // 那是 API 能力，不能用隐藏快捷键触发（REVIEW-R34-R36 P2-1）。
+                // 那是 API 能力，不能用隐藏快捷键触发。
                 home.CancelLaunchCommand.Execute(null);
                 return;
         }

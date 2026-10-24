@@ -138,7 +138,7 @@ public sealed class ServerService : IServerService, IDisposable
             }
             catch (OperationCanceledException)
             {
-                // 取消落在「内存已改、落盘未完成」：回滚再重抛（REVIEW-R34-R36 P3-11）。
+                // 取消落在「内存已改、落盘未完成」：回滚再重抛。
                 RollbackAdd(entry, replaced, replacedIndex);
                 throw;
             }
@@ -461,7 +461,7 @@ public sealed class ServerService : IServerService, IDisposable
     /// 把内存里的服务器列表写回磁盘。返回是否成功。
     ///
     /// 返回值必须被调用方检查：以前这里吞掉异常，界面显示「已添加」，
-    /// 重启后收藏消失且没有任何提示（AUDIT-2026-10-23 P1-4）。
+    /// 重启后收藏消失且没有任何提示。
     /// </summary>
     private async Task<bool> SaveAsync(CancellationToken cancellationToken)
     {

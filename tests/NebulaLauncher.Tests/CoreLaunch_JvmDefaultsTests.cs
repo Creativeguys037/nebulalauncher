@@ -246,7 +246,7 @@ public class CoreLaunch_JvmDefaultsTests
     [Fact]
     public void AppSettings_Clone_CopiesRelaxForgeChecks()
     {
-        // 漏拷的表现：设置页关掉 → 保存 → 重启后又打开了（HANDOVER §6 坑 3）。
+        // 漏拷的表现：设置页关掉 → 保存 → 重启后又打开了。
         var settings = new AppSettings { RelaxForgeChecks = false };
 
         Assert.False(settings.Clone().RelaxForgeChecks);

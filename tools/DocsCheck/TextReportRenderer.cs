@@ -10,7 +10,7 @@ public static class TextReportRenderer
     public static string Usage()
     {
         var builder = new StringBuilder();
-        builder.AppendLine("用法：DocsCheck [--root <仓库根>] [--docs <文档>...] [--json] [--allow-missing] [--emit-features <输出路径>] [--help]");
+        builder.AppendLine("用法：DocsCheck [--root <仓库根>] [--docs <文档>...] [--evidence <文档>...] [--json] [--allow-missing] [--emit-features <输出路径>] [--help]");
         builder.AppendLine();
         builder.AppendLine("  --root <路径>           仓库根，缺省为当前目录");
         builder.AppendLine("  --docs <路径>...        要校验的文档，缺省为五份必需文档：");
@@ -19,6 +19,7 @@ public static class TextReportRenderer
             builder.AppendLine(CultureInfo.InvariantCulture, $"                          {document}");
         }
 
+        builder.AppendLine("  --evidence <路径>...    证据链文档：只校验引用与链接，不进行数预算（如 docs/research/）");
         builder.AppendLine("  --json                  输出机读 JSON");
         builder.AppendLine("  --allow-missing         允许必需文档缺失：缺失记「跳过」而不算失败");
         builder.AppendLine("  --emit-features <路径>  重新生成功能三态文档，如 docs/FEATURES.md");
@@ -40,9 +41,9 @@ public static class TextReportRenderer
         builder.AppendLine(CultureInfo.InvariantCulture, $"根目录：{report.Root}");
         builder.AppendLine();
 
-        AppendReferences(builder, report.References);
+        AppendReferences(builder, report.References, report.EvidenceDocuments);
         AppendLinks(builder, report.Links);
-        AppendBudget(builder, report.Budget);
+        AppendBudget(builder, report.Budget, report.EvidenceDocuments);
         AppendFeatures(builder, report.Features);
         AppendTests(builder, report.Tests);
 
@@ -54,14 +55,18 @@ public static class TextReportRenderer
         return builder.ToString();
     }
 
-    private static void AppendReferences(StringBuilder builder, DocReferenceReport references)
+    private static void AppendReferences(
+        StringBuilder builder,
+        DocReferenceReport references,
+        IReadOnlyList<string> evidence)
     {
         builder.AppendLine("【文档引用】");
         foreach (var document in references.ScannedDocuments)
         {
             var count = references.References.Count(reference =>
                 string.Equals(reference.Document, document, StringComparison.Ordinal));
-            builder.AppendLine(CultureInfo.InvariantCulture, $"- {document}：{count} 处引用");
+            var scope = evidence.Contains(document, StringComparer.Ordinal) ? "（证据链，不计预算）" : string.Empty;
+            builder.AppendLine(CultureInfo.InvariantCulture, $"- {document}：{count} 处引用{scope}");
         }
 
         foreach (var failure in references.Failures)
@@ -109,7 +114,10 @@ public static class TextReportRenderer
         builder.AppendLine();
     }
 
-    private static void AppendBudget(StringBuilder builder, DocBudgetResult budget)
+    private static void AppendBudget(
+        StringBuilder builder,
+        DocBudgetResult budget,
+        IReadOnlyList<string> evidence)
     {
         builder.AppendLine("【行数预算】");
         foreach (var document in budget.Documents)
@@ -128,6 +136,13 @@ public static class TextReportRenderer
         foreach (var missing in budget.MissingDocuments)
         {
             builder.AppendLine(CultureInfo.InvariantCulture, $"- {missing}：缺失，不计入总量");
+        }
+
+        if (evidence.Count > 0)
+        {
+            builder.AppendLine(
+                CultureInfo.InvariantCulture,
+                $"- 另有 {evidence.Count} 份证据链文档（--evidence）：只校验引用与链接，不计入行数预算");
         }
 
         builder.AppendLine();
