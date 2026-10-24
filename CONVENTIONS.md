@@ -341,12 +341,12 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 
 | 形态 | 内容 | 实测体积（win-x64，2026-10-25） | 前提 |
 |---|---|---|---|
-| `minimal`（默认） | 框架依赖 + 单文件，原生库外置 | 24.7 MB / 3 文件 | 目标机需 .NET 8 Desktop Runtime |
+| `minimal`（默认） | 框架依赖 + 单文件，原生库外置 | 25.3 MB / 3 文件 | 目标机需 .NET 8 Desktop Runtime |
 | `fdd` | 框架依赖多文件 | 26.2 MB / 48 文件 | 同上 |
 | `folder` | 自包含、不裁剪 | 98.5 MB / 231 文件 | 无 |
-| `portable` | 自包含、裁剪、单个 exe | 23.8 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
+| `portable` | 自包含、裁剪、单个 exe | 24.1 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
 
-这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-25 的 `v1.0.1` 发布前实测（`minimal` 解压后 {{MIN_EXTRACTED}} 字节 / 3 文件，`portable` {{PORTABLE_BYTES}} 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径；`v1.0.0` 的对应数字是 `minimal` 25,926,442 字节 / `portable` 24,958,622 字节（那时 JSON 通路在便携版里是坏的，见 `docs/PITFALLS.md` 3.16）。
+这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-25 的 `v1.0.1` 发布前实测（`minimal` 解压后 26,510,634 字节 / 3 文件，`portable` 25,273,560 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径；`v1.0.0` 的对应数字是 `minimal` 25,926,442 字节 / `portable` 24,958,622 字节（那时 JSON 通路在便携版里是坏的，见 `docs/PITFALLS.md` 3.16）。
 
 **产物可用 = 三道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
