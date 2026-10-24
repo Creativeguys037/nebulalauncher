@@ -114,10 +114,10 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 ```bash
 dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 # 报告末尾那行就是本次口径，例如：
-# 【测试数】Fact 1673 + InlineData 757 = 2430
+# 【测试数】Fact 1691 + InlineData 757 = 2448
 ```
 
-2026-10-24 快照：xUnit 用例数 = `[Fact]` 1673 + `[InlineData]` 757 = **2430**。每个 `[InlineData]` 是一条独立用例，所以 `[Theory]` 本身不另计。测试框架是 xUnit（`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj xunit（:12）`）。
+2026-10-24 快照：xUnit 用例数 = `[Fact]` 1691 + `[InlineData]` 757 = **2448**。每个 `[InlineData]` 是一条独立用例，所以 `[Theory]` 本身不另计。测试框架是 xUnit（`tests/NebulaLauncher.Tests/NebulaLauncher.Tests.csproj xunit（:12）`）。
 
 本机沙箱拒绝 `dotnet test` 启动 testhost，仓库因此带 `tools/TestRunner` 作为等价入口；它反射测试程序集跑 xunit 用例，报出的条数比上面的属性计数少几条（不可实例化的测试类不计），判通过看它的输出，判文档规模看 `tools/DocsCheck`。
 
@@ -140,9 +140,11 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ### 已发布版本的口径
 
-版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.0</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它读程序集的 `AssemblyInformationalVersionAttribute` 并在 `+` 处截断构建哈希（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
+版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.0</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它走 `DiagnosticsSnapshot.DisplayVersionOf`：读程序集的 `AssemblyInformationalVersionAttribute`、在 `+` 处截断构建哈希、再补 `v` 前缀（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2119）`）。
 
 对外描述版本一律用发布号 `v1.0.0`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
+
+历史轮次记录没有删：`docs/research/` 下的旧审计与验收记录、以及 git 历史里的 R59 / `pub-rNN` 提交，都按原文留在原处，不回头改写。它们只作开发过程标识，不再是任何对外口径，也不参与版本号校验。
 
 ## 明确不做的事：12 条逐条复核
 

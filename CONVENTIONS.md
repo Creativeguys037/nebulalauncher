@@ -277,22 +277,26 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-featu
 
 路径与符号都得在工作树里真实存在，路径缺失与符号缺失一样算失败。另有站内链接校验：`[文本](相对路径.md)` 形式的目标文件必须存在（`http(s)://`、`#锚点`、以 `/` 开头的不算）。
 
-默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。约束层（`CONVENTIONS.md`、`README.md`、`AGENTS.md`）与证据链（`docs/agents/`、`docs/research/`）不占这 1000 行额度，但引用照样要校验：`--evidence <路径>...` 只做引用与链接校验、不进行数预算。全仓 15 份文档的口径是：
+默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。约束层（`CONVENTIONS.md`、`README.md`、`AGENTS.md`）与证据链（`docs/agents/`、`docs/research/`、`docs/release-notes/`）不占这 1000 行额度，但引用照样要校验：`--evidence <路径>...` 只做引用与链接校验、不进行数预算。全仓 16 份文档的口径是：
 
 ```powershell
-dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.0.0.md
 ```
+
+release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.0.0.md` 的 8 条已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
 
 退出码：
 
 | 码 | 含义 |
 |---|---|
 | 0 | 全过 |
-| 1 | 引用 / 站内链接 / 必需文档有问题 |
+| 1 | 引用 / 站内链接 / 必需文档 / 版本口径有问题 |
 | 2 | 行数预算越界 |
 | 3 | 上面两类都有 |
 
 （参数本身写错另计，退出码 64。）
+
+第 6 个检查器查版本口径漂移：`Directory.Build.props` 的 `<Version>`、§8.7 发布命令里的 tag、`docs/PROJECT.md` 的版本口径三处必须一致；`docs/release-notes` 目录下必须存在与版本号同名的 `v<版本>.md` 且含四节（概览、安装与体积、已知限制、证据链与签名说明）；三处文档里再出现本轮已废弃的两句旧口径原话（一句自称体积表权威、一句让对外引用轮次号）即失败。失败消息逐条给文件名、行号或缺失的节名，不用人眼比对三份文件。它只在「根目录有 `Directory.Build.props` 或 `NebulaLauncher.sln`」时生效——`--root` 指向只含文档的临时树时跳过，报告里显示「未检查」而不是「通过」。
 
 `--emit-features docs/FEATURES.md` 按 `tools/DocsCheck/feature-blocks.json` 里的探测点重新生成该文档，生成命令里的构建配置取自环境变量 `NEBULA_BUILD_CONFIG`（缺省 `Release`）。
 
@@ -329,9 +333,9 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 | `minimal`（默认） | 框架依赖 + 单文件，原生库外置 | 24.7 MB / 3 文件 | 目标机需 .NET 8 Desktop Runtime |
 | `fdd` | 框架依赖多文件 | 26.2 MB / 48 文件 | 同上 |
 | `folder` | 自包含、不裁剪 | 98.5 MB / 231 文件 | 无 |
-| `portable` | 自包含、裁剪、单个 exe | 21.8 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
+| `portable` | 自包含、裁剪、单个 exe | 23.8 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
 
-下表是最近一次 win-x64 发布的实测记录（2026-10-24 实测，口径对齐到 `ticket/21-doc-alignment` 的 `d375e98`，数字溯源见 `docs/research/release-checklist.md` 的核查记录）；每次发布以 release notes 为准。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
+这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-24 的 `v1.0.0` 发布前实测（`minimal` 解压后 25,926,954 字节 / 3 文件，`portable` 24,958,747 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径。
 
 **产物可用 = 两道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
@@ -342,12 +346,20 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 
 一个环境事实：这个 exe 写 `%TEMP%` 会被系统拒绝（`UnauthorizedAccessException`），所以自检的验证文件都落在产物目录里。
 
+**发布前置：HEAD 必须精确 tag 到 `v<Version>`。** `-Publish` 的第一件事是读 `Directory.Build.props` 的 `<Version>`、算出期望 tag（如 `v1.0.0`），再比对 `git describe --tags --exact-match` 的输出；没有 tag、或 tag 名与版本对不上，都在删除旧产物与 publish 之前失败，非 0 退出并打印「期望 tag: v1.0.0」。所以流程是**先打 tag 再构建**，§8.7 里的 `git tag -a` 因此提前成 §8.6 的第一步。`-AllowUntagged` 只跳过这一道，产物自检照跑；它只用于本地试验，**正式发版不得加**。
+
 ### 8.6 发布命令（照抄）
 
 ```powershell
 cd D:\agent_workspace\NebulaLauncher
 . .\env.ps1
 $env:AVALONIA_TELEMETRY_OPTOUT='1'
+
+# 0) 先打本地 tag：-Publish 会校验 HEAD 上的 tag 与 <Version> 一致（不打就失败）
+git status --short            # 必须为空或只剩已决定的改动
+git log --oneline -1          # HEAD 是定稿提交
+git tag -l v1.0.0             # 必须为空
+git tag -a v1.0.0 -m "Nebula Launcher v1.0.0"
 
 # 主产物：-OutDir 必须指向最内层目录，build.ps1 会把它整体删掉重建
 New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.0.0 | Out-Null
@@ -375,10 +387,7 @@ $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } 
 ### 8.7 GitHub Release
 
 ```powershell
-git status --short            # 必须为空或只剩已决定的改动
-git log --oneline -1          # HEAD 是定稿提交
-git tag -l v1.0.0             # 必须为空
-git tag -a v1.0.0 -m "Nebula Launcher v1.0.0"
+git tag -l v1.0.0             # 必须存在：§8.6 第一步已在本机打过
 git push origin v1.0.0
 gh release create v1.0.0 --draft --title "Nebula Launcher v1.0.0" `
   --notes-file docs\release-notes\v1.0.0.md `
