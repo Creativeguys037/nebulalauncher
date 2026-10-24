@@ -2111,22 +2111,12 @@ public sealed partial class SettingsViewModel : PageViewModelBase
 
     // ---------------- 关于 ----------------
 
-    public string AppVersion
-    {
-        get
-        {
-            var assembly = typeof(SettingsViewModel).Assembly;
-            var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-            if (!string.IsNullOrWhiteSpace(informational))
-            {
-                // CI 会把 commit hash 拼在 + 后面，界面只展示语义版本。
-                var plus = informational.IndexOf('+', StringComparison.Ordinal);
-                return plus > 0 ? informational[..plus] : informational;
-            }
-
-            return assembly.GetName().Version?.ToString() ?? "未知";
-        }
-    }
+    /// <summary>
+    /// 「关于」页显示的版本号。解析与展示格式都在 <see cref="DiagnosticsSnapshot.DisplayVersionOf"/>：
+    /// 崩溃导出走同一条链，两处因此不会一个 <c>v1.0.0</c> 一个 <c>1.0.0</c>。
+    /// 版本号的来源只有一处——仓库级构建属性里的 <c>Version</c>。
+    /// </summary>
+    public string AppVersion => DiagnosticsSnapshot.DisplayVersionOf(typeof(SettingsViewModel).Assembly);
 
     public string DotNetVersion => RuntimeInformation.FrameworkDescription;
 
