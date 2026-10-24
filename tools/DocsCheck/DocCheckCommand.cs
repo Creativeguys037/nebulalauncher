@@ -8,7 +8,12 @@ namespace NebulaLauncher.DocsCheck;
 /// <param name="Root">仓库根绝对路径。</param>
 /// <param name="Documents">文档相对路径（<c>/</c> 分隔）。</param>
 /// <param name="Json">是否输出机读 JSON。</param>
-public sealed record DocCheckOptions(string Root, IReadOnlyList<string> Documents, bool Json);
+/// <param name="EmitFeatures">传了 <c>--emit-features</c> 时是要写出的文档路径，否则为空。</param>
+public sealed record DocCheckOptions(
+    string Root,
+    IReadOnlyList<string> Documents,
+    bool Json,
+    string? EmitFeatures = null);
 
 /// <summary>一次检查的汇总。</summary>
 /// <param name="Root">仓库根绝对路径。</param>
@@ -61,6 +66,7 @@ public static class DocCheckCommand
         var root = basePath;
         var documents = new List<string>();
         var json = false;
+        string? emitFeatures = null;
 
         for (var index = 0; index < args.Count; index++)
         {
@@ -82,16 +88,26 @@ public static class DocCheckCommand
 
                     break;
 
+                case "--emit-features":
+                    if (index + 1 < args.Count && !IsOption(args[index + 1]))
+                    {
+                        emitFeatures = args[++index];
+                    }
+
+                    break;
+
                 case "--json":
                     json = true;
                     break;
             }
         }
 
+        var rootPath = Path.GetFullPath(root, basePath);
         return new DocCheckOptions(
-            Path.GetFullPath(root, basePath),
+            rootPath,
             documents.Count == 0 ? DefaultDocuments : documents,
-            json);
+            json,
+            emitFeatures is null ? null : Path.GetFullPath(emitFeatures, rootPath));
     }
 
     /// <summary>跑四段检查，不做参数解析。</summary>
@@ -123,10 +139,60 @@ public static class DocCheckCommand
             return 2;
         }
 
+        if (!string.IsNullOrWhiteSpace(options.EmitFeatures))
+        {
+            var emitExitCode = EmitFeatures(options, output);
+            if (emitExitCode != 0)
+            {
+                return emitExitCode;
+            }
+        }
+
         var report = Analyze(options);
         output.Write(Render(report, options.Json));
         output.WriteLine();
         return report.ExitCode;
+    }
+
+    /// <summary>
+    /// 按 <c>feature-blocks.json</c> 生成 <c>docs/FEATURES.md</c>。生成失败（超行数预算）时
+    /// 不写文件、返回 1；成功写出后由调用方接着跑全量检查，让新文档也过引用与预算。
+    /// </summary>
+    private static int EmitFeatures(DocCheckOptions options, TextWriter output)
+    {
+        var blocks = LoadBlocks(options.Root);
+        if (blocks.Count == 0)
+        {
+            output.WriteLine("生成失败：读不到 feature-blocks.json，无法确定功能点。");
+            return 1;
+        }
+
+        var document = FeatureDocGenerator.Generate(
+            options.Root,
+            blocks,
+            DateOnly.FromDateTime(DateTime.Now));
+
+        if (!document.Passed)
+        {
+            foreach (var violation in document.Violations)
+            {
+                output.WriteLine(violation);
+            }
+
+            return 1;
+        }
+
+        var target = Path.GetFullPath(options.EmitFeatures!, options.Root);
+        var directory = Path.GetDirectoryName(target);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.WriteAllText(target, document.Markdown);
+        var display = Path.GetRelativePath(options.Root, target).Replace('\\', '/');
+        output.WriteLine($"已生成 {display}：{document.Lines} 行（上限 {document.MaxLines} 行）");
+        return 0;
     }
 
     /// <summary>把报告渲染成文本或 JSON。</summary>

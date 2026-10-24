@@ -25,14 +25,30 @@ public static class FeatureStates
     };
 }
 
+/// <summary>
+/// 功能文档表格的四列：入口页面、ViewModel、Core 服务、落盘文件。
+/// 内容是 markdown 片段；其中的代码引用按引用契约写，工具会连同文档一起校验。
+/// </summary>
+/// <param name="Entry">入口页面列。</param>
+/// <param name="ViewModel">ViewModel 列。</param>
+/// <param name="Core">Core 服务列。</param>
+/// <param name="Storage">落盘文件列。</param>
+public sealed record FeatureColumns(string Entry, string ViewModel, string Core, string Storage);
+
 /// <summary>一个功能点及其探测点。</summary>
 /// <param name="Id">固定的功能点标识（也是名字，取票里那八个）。</param>
 /// <param name="CodeProbes">代码探测点。</param>
 /// <param name="TestProbes">测试探测点。</param>
+/// <param name="Title">块名的括注部分，如「安装与修复」；生成文档标题写成「装得上（安装与修复）」。</param>
+/// <param name="Summary">一句用户视角描述，生成文档里跟在标题下。</param>
+/// <param name="Columns">四列内容；缺省时生成器留空单元格。</param>
 public sealed record FeatureBlock(
     string Id,
     IReadOnlyList<CodeProbe> CodeProbes,
-    IReadOnlyList<CodeProbe> TestProbes);
+    IReadOnlyList<CodeProbe> TestProbes,
+    string Title = "",
+    string Summary = "",
+    FeatureColumns? Columns = null);
 
 /// <summary>一个功能点的扫描结果。</summary>
 /// <param name="Id">功能点标识。</param>
