@@ -1,0 +1,128 @@
+{
+  "blocks": [
+    {
+      "id": "装得上",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallAsync" },
+        { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallLoaderAsync" },
+        { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.VerifyAsync" },
+        { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallVanillaAsync" },
+        { "path": "src/NebulaLauncher.Core/Installing/InstallService.cs", "symbol": "InstallService.InstallFabricLikeAsync" },
+        { "path": "src/NebulaLauncher.Core/Installing/NeoForgeInstallerBridge.cs", "symbol": "NeoForgeInstallerBridge.InstallAsync" },
+        { "path": "src/NebulaLauncher.Core/Installing/InstallServiceCollectionExtensions.cs", "symbol": "InstallServiceCollectionExtensions" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreInstalling_LoaderStageTests.cs", "symbol": "CoreInstalling_LoaderStageTests" },
+        { "path": "tests/NebulaLauncher.Tests/CoreAssets_ModpackInstallTests.cs", "symbol": "CoreAssets_ModpackInstallTests" }
+      ]
+    },
+    {
+      "id": "下得动",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Downloads/DownloadQueue.cs", "symbol": "DownloadQueue.DownloadAsync" },
+        { "path": "src/NebulaLauncher.Core/Downloads/DownloadQueue.cs", "symbol": "DownloadQueue.DownloadFileAsync" },
+        { "path": "src/NebulaLauncher.Core/Downloads/DownloadSourceGovernor.cs", "symbol": "DownloadSourceGovernor" },
+        { "path": "src/NebulaLauncher.Core/Downloads/SpeedLimiter.cs", "symbol": "SpeedLimiter" },
+        { "path": "src/NebulaLauncher.Core/Downloads/FileReuseService.cs", "symbol": "FileReuseService" },
+        { "path": "src/NebulaLauncher.Core/Downloads/DownloadSourceProbe.cs", "symbol": "DownloadSourceProbe" },
+        { "path": "src/NebulaLauncher.Core/Downloads/LoaderMetaFetcher.cs", "symbol": "LoaderMetaUrls" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreDownloads_PauseTests.cs", "symbol": "CoreDownloads_PauseTests" },
+        { "path": "tests/NebulaLauncher.Tests/CoreDownloads_SourceGovernorTests.cs", "symbol": "CoreDownloads_SourceGovernorTests" },
+        { "path": "tests/NebulaLauncher.Tests/CoreDownloads_MirrorFallbackTests.cs", "symbol": "CoreDownloads_MirrorFallbackTests" }
+      ]
+    },
+    {
+      "id": "开得起来",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Launching/GameLauncher.cs", "symbol": "GameLauncher.LaunchAsync" },
+        { "path": "src/NebulaLauncher.Core/Launching/GameLauncher.cs", "symbol": "GameLauncher.BuildMinecraftPath" },
+        { "path": "src/NebulaLauncher.Core/Launching/JvmArgumentBuilder.cs", "symbol": "JvmArgumentBuilder" },
+        { "path": "src/NebulaLauncher.Core/Launching/PreflightChecker.cs", "symbol": "PreflightChecker" },
+        { "path": "src/NebulaLauncher.Core/Launching/MemoryAdvisor.cs", "symbol": "MemoryAdvisor" },
+        { "path": "src/NebulaLauncher.Core/Launching/LaunchArgumentDeduplicator.cs", "symbol": "LaunchArgumentDeduplicator" },
+        { "path": "src/NebulaLauncher.Core/Launching/MinecraftLauncherFactory.cs", "symbol": "MinecraftLauncherFactory" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreLaunch_JvmArgumentTests.cs", "symbol": "CoreLaunch_JvmArgumentTests" }
+      ]
+    },
+    {
+      "id": "管得住内容",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Mods/ContentService.cs", "symbol": "ContentService" },
+        { "path": "src/NebulaLauncher.Core/Mods/ModrinthService.cs", "symbol": "ModrinthService" },
+        { "path": "src/NebulaLauncher.Core/Mods/CurseForgeService.cs", "symbol": "CurseForgeService" },
+        { "path": "src/NebulaLauncher.Core/Mods/ModUpdateService.cs", "symbol": "ModUpdateService" },
+        { "path": "src/NebulaLauncher.Core/Mods/ModFingerprint.cs", "symbol": "ModFingerprint" },
+        { "path": "src/NebulaLauncher.Core/Mods/CrossSourceSearch.cs", "symbol": "CrossSourceSearch" },
+        { "path": "src/NebulaLauncher.Core/Mods/ContentBatch.cs", "symbol": "ContentBatch" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreAssets_ContentTests.cs", "symbol": "CoreAssets_ContentTests" },
+        { "path": "tests/NebulaLauncher.Tests/AppHome_ModsCollectionTests.cs", "symbol": "AppHome_ModsCollectionTests" }
+      ]
+    },
+    {
+      "id": "存得下",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Settings/SettingsService.cs", "symbol": "SettingsService" },
+        { "path": "src/NebulaLauncher.Core/Accounts/AccountService.cs", "symbol": "AccountService" },
+        { "path": "src/NebulaLauncher.Core/Servers/ServerService.cs", "symbol": "ServerService" },
+        { "path": "src/NebulaLauncher.Core/Versions/VersionFavorites.cs", "symbol": "VersionFavorites" },
+        { "path": "src/NebulaLauncher.Core/Paths/LauncherPaths.cs", "symbol": "LauncherPaths" },
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceContext.cs", "symbol": "InstanceContext" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreLaunch_SettingsServiceTests.cs", "symbol": "CoreLaunch_SettingsServiceTests" },
+        { "path": "tests/NebulaLauncher.Tests/AppSettings_VersionTypeTests.cs", "symbol": "AppSettings_VersionTypeTests" }
+      ]
+    },
+    {
+      "id": "连得上",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Net/NetworkProbe.cs", "symbol": "NetworkProbe" },
+        { "path": "src/NebulaLauncher.Core/Net/ProxyConfigurator.cs", "symbol": "ProxyConfigurator" },
+        { "path": "src/NebulaLauncher.Core/Net/ProxyAddressParser.cs", "symbol": "ProxyAddressParser" },
+        { "path": "src/NebulaLauncher.Core/Servers/ServerQueryService.cs", "symbol": "ServerQueryService" },
+        { "path": "src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs", "symbol": "MicrosoftDeviceCodeAuth" },
+        { "path": "src/NebulaLauncher.Core/Accounts/AuthlibAuthService.cs", "symbol": "AuthlibAuthService" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreNet_ProxyTests.cs", "symbol": "CoreNet_ProxyTests" }
+      ]
+    },
+    {
+      "id": "看得见",
+      "code": [
+        { "path": "src/NebulaLauncher.App/App.axaml.cs", "symbol": "App.BuildServices" },
+        { "path": "src/NebulaLauncher.App/ViewModels/HomeViewModel.cs", "symbol": "HomeViewModel" },
+        { "path": "src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs", "symbol": "SettingsViewModel" },
+        { "path": "src/NebulaLauncher.App/ViewModels/DownloadViewModel.cs", "symbol": "DownloadViewModel" },
+        { "path": "src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs", "symbol": "MainWindowViewModel" },
+        { "path": "src/NebulaLauncher.App/Views/MainWindow.axaml" },
+        { "path": "src/NebulaLauncher.App/Views/HomeView.axaml" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/AppHome_ModsCollectionTests.cs", "symbol": "AppHome_ModsCollectionTests" },
+        { "path": "tests/NebulaLauncher.Tests/AppShell_ShellProgressTests.cs", "symbol": "AppShell_ShellProgressTests" }
+      ]
+    },
+    {
+      "id": "改得动",
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs", "symbol": "InstanceService.SwitchLoaderAsync" },
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceService.Trash.cs", "symbol": "InstanceService.RestoreFromTrashAsync" },
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceService.Trash.cs", "symbol": "InstanceService.PurgeTrashAsync" },
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceLockService.cs", "symbol": "InstanceLockService" },
+        { "path": "src/NebulaLauncher.Core/Instances/IsolationPolicy.cs", "symbol": "IsolationPolicyResolver" },
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceFolders.cs", "symbol": "InstanceFolderService" },
+        { "path": "src/NebulaLauncher.Core/Instances/InstanceFolders.cs", "symbol": "InstanceFolders" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreInstances_LoaderSwitchTests.cs", "symbol": "CoreInstances_LoaderSwitchTests" }
+      ]
+    }
+  ]
+}

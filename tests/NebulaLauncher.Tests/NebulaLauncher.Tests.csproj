@@ -19,6 +19,9 @@
     <!-- App 层的纯逻辑（ShellProgress 的进度映射与节流）需要直接测。
          App 是 WinExe，但 .NET 允许引用 exe 程序集；测试只触碰不依赖 Avalonia 的类型。 -->
     <ProjectReference Include="..\..\src\NebulaLauncher.App\NebulaLauncher.App.csproj" />
+
+    <!-- docs 引用校验与三态扫描工具：判定逻辑与命令行外壳分离，纯逻辑直接测。 -->
+    <ProjectReference Include="..\..\tools\DocsCheck\DocsCheck.csproj" />
   </ItemGroup>
 
 </Project>
