@@ -140,9 +140,9 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ### 已发布版本的口径
 
-仓库没有产品语义版本号：App 与 Core 的 csproj、`Directory.Build.props` 都没有 `<Version>`，也没有 git tag。关于页显示的 `AppVersion` 读程序集的 `AssemblyInformationalVersionAttribute`，有 `+hash` 后缀时把它剥掉（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
+版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.0</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它读程序集的 `AssemblyInformationalVersionAttribute` 并在 `+` 处截断构建哈希（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
 
-实际发布按开发轮次标识：产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里），交接文档用 `pub-rNN` 指代，当前最新一轮是 R59。因此对外描述版本时，引用轮次号而不是编一个「v1.x」。
+对外描述版本一律用发布号 `v1.0.0`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
 
 ## 明确不做的事：12 条逐条复核
 
@@ -220,7 +220,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ## 已知边界
 
-- 微软账户的真实登录需要一次人工授权才能在实机验收；代码侧只覆盖到设备码流程与令牌持久化（`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth（:45）`）。
+- 微软账户的真实登录于 2026-10-24 用户实机验证通过（按裁决不复跑、仓内不留证据）；代码侧覆盖设备码流程与令牌持久化（`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth（:45）`）。
 - macOS 没有发布物与实机验收，见第 1 条。
 - `portable` 形态依赖 `%TEMP%\.net\<app>` 可写；该路径被安防软件拦截时启动失败，改用 `fdd` / `folder`。
 - 仓内仍有旧口径：已删的最终范围清单里的测试数 2235、页面名「实例/存档/关于」，README 的静态能力矩阵停在早期轮次。本文与上面的测试命令是当前口径；发现冲突时以代码与本文为准。

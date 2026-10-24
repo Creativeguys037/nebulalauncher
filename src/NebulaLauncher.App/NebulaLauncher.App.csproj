@@ -9,8 +9,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 
-    <!-- 发布形态默认「框架依赖」：约 26 MB，需要目标机装 .NET 8 Desktop Runtime。
-         自包含（约 98 MB）用 build.ps1 -SelfContained 显式请求。
+    <!-- 发布形态默认「框架依赖」，需要目标机装 .NET 8 Desktop Runtime。
+         自包含用 build.ps1 -Mode folder 显式请求；四种形态的体积见 CONVENTIONS.md §8.5。
          裁剪默认关闭：Avalonia 的 XAML/反射面在 full trim 下容易运行期缺成员。 -->
     <PublishTrimmed>false</PublishTrimmed>
     <TrimMode>partial</TrimMode>
