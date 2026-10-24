@@ -62,7 +62,7 @@ public sealed class DocsCheck_ReferenceTests
     }
 
     [Fact]
-    public void 类型不在文件里声明时报告符号不存在()
+    public void 类型名在文件里完全不出现时报告符号不存在()
     {
         using var temp = new TempDirectory();
         Write(temp, "src/App/Foo.cs", "public sealed class Other\n{\n}\n");
@@ -72,6 +72,39 @@ public sealed class DocsCheck_ReferenceTests
 
         var failure = Assert.Single(report.Failures);
         Assert.Equal(DocReferenceFailure.SymbolMissing, failure.Reason);
+    }
+
+    [Fact]
+    public void 符号只出现在使用点而未在该文件声明时引用成立()
+    {
+        // 文档引用的是使用点：StartupState 的声明在别的文件，被引文件里只有调用。
+        using var temp = new TempDirectory();
+        Write(temp, "src/App/App.axaml.cs", "AppBuilder.Configure<App>();\nStartupState.LoadBeforeFirstFrame(Services);\n");
+        Write(temp, "docs/PITFALLS.md", "见 `src/App/App.axaml.cs:56 StartupState`。\n");
+
+        var report = DocReferenceChecker.Check(temp.Path, ["docs/PITFALLS.md"]);
+
+        Assert.True(report.Passed, string.Join("；", report.Failures.Select(f => f.Reason)));
+    }
+
+    [Fact]
+    public void 多段符号按段判定且非源码文件同样匹配()
+    {
+        // csproj 里引的是包名 CmlLib.Core，没有类型声明，也不该要求声明。
+        using var temp = new TempDirectory();
+        Write(
+            temp,
+            "src/Core/Core.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n    <PackageReference Include=\"CmlLib.Core\" Version=\"4.1.0\" />\n  </ItemGroup>\n</Project>\n");
+        Write(temp, "docs/PROJECT.md", "见 `src/Core/Core.csproj:3 CmlLib.Core`。\n");
+
+        var report = DocReferenceChecker.Check(temp.Path, ["docs/PROJECT.md"]);
+
+        Assert.True(report.Passed, string.Join("；", report.Failures.Select(f => f.Reason)));
+
+        Write(temp, "docs/PROJECT.md", "见 `src/Core/Core.csproj:3 CmlLib.Other`。\n");
+        var renamed = DocReferenceChecker.Check(temp.Path, ["docs/PROJECT.md"]);
+        Assert.Equal(DocReferenceFailure.SymbolMissing, Assert.Single(renamed.Failures).Reason);
     }
 
     [Fact]
