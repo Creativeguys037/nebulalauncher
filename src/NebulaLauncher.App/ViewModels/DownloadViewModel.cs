@@ -165,10 +165,34 @@ public partial class DownloadViewModel : PageViewModelBase
     [ObservableProperty]
     private bool _isSourceDegraded;
 
+    /// <summary>
+    /// 手动镜像档的劣化提示（来自 governor 的 <c>ManualDegradeHint</c>）。
+    ///
+    /// 与 <see cref="IsSourceDegraded"/> 刻意分成两条通道：手动档**没有**换源，
+    /// 若把它塞进降级状态，状态行会说「已降级到某源」而实际上一个字节都没换，
+    /// 用户按这句话去查日志只会更困惑。这条只说明「镜像看起来坏了，要不要自己改设置」。
+    /// </summary>
+    [ObservableProperty]
+    private string? _sourceManualHint;
+
+    /// <summary>
+    /// 手动镜像档且镜像正在连续失败：状态点改用警示色。
+    ///
+    /// 与 <see cref="IsSourceDegraded"/> 并列而不是复用它：手动档没有换源，
+    /// 用「已降级」那套措辞会让用户去找一个不存在的自动切换记录。
+    /// </summary>
+    public bool IsSourceManualHint => !string.IsNullOrEmpty(SourceManualHint);
+
     /// <summary>未降级（或手动档）：状态点用中性色。视图里不引用取反转换器。</summary>
-    public bool IsSourceNormal => !IsSourceDegraded;
+    public bool IsSourceNormal => !IsSourceDegraded && !IsSourceManualHint;
 
     partial void OnIsSourceDegradedChanged(bool value) => OnPropertyChanged(nameof(IsSourceNormal));
+
+    partial void OnSourceManualHintChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IsSourceManualHint));
+        OnPropertyChanged(nameof(IsSourceNormal));
+    }
 
     /// <summary>全部远程版本。</summary>
     public ObservableCollection<RemoteVersionRow> Versions { get; } = new();
@@ -1860,16 +1884,25 @@ public partial class DownloadViewModel : PageViewModelBase
         var reason = _sourceProvider?.DegradeReason;
         var degraded = strategy == DownloadSource.Auto && !string.IsNullOrEmpty(reason);
 
+        // 手动镜像档不会换源（PITFALLS D9），所以这里用独立的提示通道；
+        // 自动档即便同时拿到提示也不显示：那时候降级原因已经解释得更彻底。
+        var manualHint = strategy == DownloadSource.Mirror
+            ? _sourceProvider?.ManualDegradeHint
+            : null;
+
         SourceStatusText = strategy switch
         {
             DownloadSource.Auto => degraded
                 ? $"下载源：自动 · 已降级到{DescribeSource(effective)}（{reason}）"
                 : $"下载源：自动 · 当前 {DescribeSource(effective)}",
             DownloadSource.Official => "下载源：官方源（手动）",
-            _ => "下载源：BMCLAPI 镜像（手动）",
+            _ => manualHint is null
+                ? "下载源：BMCLAPI 镜像（手动）"
+                : "下载源：BMCLAPI 镜像（手动 · 可能不可用）",
         };
 
         IsSourceDegraded = degraded;
+        SourceManualHint = manualHint;
     }
 
     /// <summary>状态行里的源名：自动模式显示的是本次会话实际在用的那一侧。</summary>

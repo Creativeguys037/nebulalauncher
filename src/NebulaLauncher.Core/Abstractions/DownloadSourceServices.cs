@@ -27,7 +27,19 @@ public interface IDownloadSourceProvider
     /// <summary>本次会话发生降级的时刻；未降级为 null。</summary>
     DateTimeOffset? DegradedAtUtc { get; }
 
-    /// <summary>降级、恢复、或策略变化时触发，供界面刷新状态行。</summary>
+    /// <summary>
+    /// 手动档的镜像劣化提示：非 null 表示「镜像看起来已经不可用」，可直接显示给用户。
+    ///
+    /// 为什么与 <see cref="DegradeReason"/> 分开：<see cref="DegradeReason"/> 是自动档**已经切换了方向**
+    /// 的结论，手动档不切换（PITFALLS D9 裁决），只能给提示。两者语义不同，合并会让界面
+    /// 把「已经自动改道」和「需要用户自己改设置」显示成同一件事。
+    ///
+    /// 默认实现返回 null：这是追加能力（CONVENTIONS §5），既有实现者不受影响，
+    /// 也不强制任何实现去理解手动档语义。
+    /// </summary>
+    string? ManualDegradeHint => null;
+
+    /// <summary>降级、恢复、手动档劣化提示变化、或策略变化时触发，供界面刷新状态行。</summary>
     event EventHandler? Changed;
 }
 

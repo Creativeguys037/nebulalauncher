@@ -58,6 +58,17 @@ internal static class MinecraftLauncherFactory
 
         RemoveJavaRuntimeExtractors(parameters);
 
+        // 版本清单的求值必须进程内串行化：库每次求值都用 File.Create 重写
+        // <mc>/versions/version_manifest_v2.json，而本工厂每次都 new 一个 launcher
+        // （每实例各持一个 loader），安装 / 启动补全 / 命令行构建 / 修复四条链并发时
+        // 后到的那个会撞 ERROR_SHARING_VIOLATION。详见 SerializedVersionLoader。
+        // 参数为空时不动它：那意味着用户显式关掉了所有版本来源，
+        // 包一层反而会把「取不到版本」变成「取到空集合」，掩盖真实原因。
+        if (parameters.VersionLoader is { } originalLoader)
+        {
+            parameters.VersionLoader = new SerializedVersionLoader(originalLoader);
+        }
+
         return new MinecraftLauncher(parameters);
     }
 

@@ -117,6 +117,18 @@ public sealed partial class InstallService
         // 修复时也能在下载页的任务面板看到逐个文件的状态。它不会和上面
         // DownloadTargetsAsync 的普通批次撞车——两者在同一方法内先后执行；
         // 与安装互斥由 RepairAsync/InstallAsync 共用的 _installGate 保证。
+        //
+        // 前提：版本描述必须在。CmlLib 的 InstallAsync 对「versions/<name>/<name>.json
+        // 不存在」只会抛 KeyNotFoundException: Cannot find <name>——那是库的内部表征，
+        // 用户看不出「这个实例是导入时没写版本 json」这件事，也没法据此决定下一步。
+        // 所以先自己判定并给出可执行的说明，不去调那个必然失败的入口。
+        if (!VersionDescriptionExists(versionName))
+        {
+            state.Failed.Add(DescribeMissingVersionDescription(versionName));
+            _log?.Warn($"修复 {versionName}：缺少版本描述文件，跳过补齐");
+            return;
+        }
+
         IDownloadTaskScope? repairScope = null;
         try
         {
@@ -579,6 +591,35 @@ public sealed partial class InstallService
     }
 
     // ---------------- 版本链 ----------------
+
+    /// <summary>
+    /// 版本描述 <c>versions/&lt;id&gt;/&lt;id&gt;.json</c> 是否存在。
+    ///
+    /// 这是「这个版本能不能被 CmlLib 解析」的最低前提。整包导入在「不同时安装游戏」
+    /// 时只建实例目录、不写版本 json（那是刻意的：写一个 <c>inheritsFrom</c> 为空的
+    /// 版本只会让版本页多一条「损坏」），于是它的修复必然走到「没有版本描述」这条路上。
+    /// </summary>
+    private bool VersionDescriptionExists(string versionName)
+    {
+        if (string.IsNullOrWhiteSpace(versionName))
+        {
+            return false;
+        }
+
+        var jsonPath = Path.Combine(_paths.VersionsDirectory, versionName, versionName + ".json");
+        return File.Exists(jsonPath);
+    }
+
+    /// <summary>
+    /// 「缺少版本描述」的可读说明。
+    ///
+    /// 只说「找不到文件」是不够的：用户是从版本页点的修复，他要的是下一步做什么。
+    /// 这里给两条互斥的出路——重新导入整包（拿回作者声明的版本），
+    /// 或者到版本页把游戏装上（自己造一份父版本）。
+    /// </summary>
+    private static string DescribeMissingVersionDescription(string versionName) =>
+        $"缺少版本描述文件 versions/{versionName}/{versionName}.json：这个版本无法被安装器解析。"
+        + "它通常来自「导入整合包时没有同时安装游戏」——请在版本页为它安装游戏，或重新导入该整合包。";
 
     private async Task<VersionChain?> TryReadVersionChainAsync(string versionName, CancellationToken cancellationToken)
     {

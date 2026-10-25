@@ -425,9 +425,13 @@ public sealed class AuthlibInjectorService : IAuthlibInjectorService
             Group = "authlib-injector",
         };
 
-        var ok = await queue.DownloadFileAsync(item, progress, cancellationToken).ConfigureAwait(false);
+        // 走旁路：第三方验证账户的启动前准备可能发生在「安装刚结束、队列还被
+        // 安装的外部批次占着」的那几秒里。走普通批次会被互斥检查拒掉，
+        // 表现为「准备 authlib-injector 失败：安装批次正在进行…」——用户既没在下载页
+        // 看到任何进度，也不知道该等多久。见票 27 缺陷 D。
+        var result = await queue.DownloadBypassAsync([item], progress, cancellationToken).ConfigureAwait(false);
 
-        if (!ok)
+        if (!result.Success)
         {
             TryDelete(staging);
             LastError = $"下载 authlib-injector {release.Version} 失败，请检查网络或更换下载源。";

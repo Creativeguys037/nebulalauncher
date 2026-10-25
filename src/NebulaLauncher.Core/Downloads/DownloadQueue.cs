@@ -155,6 +155,8 @@ public sealed class DownloadQueue
 
     private int _speedLimitKb;
 
+    private int _maxConcurrency = 64;
+
     /// <summary>
     /// 暂停闸门。关闭时每个下载任务在真正发请求之前挂起。
     ///
@@ -193,10 +195,24 @@ public sealed class DownloadQueue
         _client = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _log = log;
         _reuse = reuse;
-        MaxConcurrency = Math.Clamp(maxConcurrency, 1, 256);
+        MaxConcurrency = maxConcurrency;
     }
 
-    public int MaxConcurrency { get; }
+    /// <summary>
+    /// 单批次的逐文件并发上限。
+    ///
+    /// 为什么是可写的：它是设置页「并发下载数」那根滑块的下游。改成只读的构造参数时，
+    /// 用户在设置里把 64 调到 8（或反过来）对已经建好的单例队列毫无影响——
+    /// 设置项看着能改，实际不起作用（票 27 缺陷 B）。
+    ///
+    /// 与 <see cref="SpeedLimitKb"/> 同样是「批级快照」：只在
+    /// <see cref="DownloadAsync"/> 开头读一次去建信号量，批次进行中改只影响下一批。
+    /// </summary>
+    public int MaxConcurrency
+    {
+        get => Volatile.Read(ref _maxConcurrency);
+        set => Volatile.Write(ref _maxConcurrency, Math.Clamp(value, 1, 256));
+    }
 
     /// <summary>
     /// 速度上限（KB/s），0 表示不限速。每次 <see cref="DownloadAsync"/> 开始时读取一次，
@@ -450,22 +466,11 @@ public sealed class DownloadQueue
         reporter.Report(force: true);
         RaiseTasksChanged(force: true);
 
-        // 限速=0 时 limiter 为 null，读循环里只剩一次 null 判断，不进入令牌计算。
-        var speedLimitKb = SpeedLimitKb;
-        var limiter = speedLimitKb > 0 ? new SpeedLimiter(speedLimitKb) : null;
-
-        using var throttle = new SemaphoreSlim(MaxConcurrency);
-
-        var tasks = new Task[items.Count];
-        for (var i = 0; i < items.Count; i++)
-        {
-            var item = items[i];
-            tasks[i] = RunOneAsync(item, counters, reporter, tracker, throttle, limiter, cancellationToken);
-        }
-
+        DownloadBatchResult result;
         try
         {
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            result = await DispatchAsync(items, counters, reporter, tracker, respectPause: true, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch
         {
@@ -481,7 +486,6 @@ public sealed class DownloadQueue
 
         reporter.Report(force: true);
 
-        var result = counters.ToResult();
         CompleteBatch(tracker, result);
         ResetPause();
         return result;
@@ -496,6 +500,99 @@ public sealed class DownloadQueue
         var result = await DownloadAsync([item], progress, cancellationToken).ConfigureAwait(false);
         return result.Success;
     }
+
+    /// <summary>
+    /// 旁路下载：照常下载与计数，但**不占用任务面板、不写批次历史**，
+    /// 因此可以与安装的外部批次并发进行（票 27 缺陷 D）。
+    ///
+    /// ## 为什么需要它
+    /// 安装期间队列被 <see cref="BeginExternalBatch"/> 独占，普通 <see cref="DownloadAsync"/>
+    /// 直接抛「安装批次正在进行」。而被安装过程自己需要的下载恰好走的是普通批次：
+    /// Java 运行时（26.1.2 需要 Java 25+）、authlib-injector。于是形成死锁式体验——
+    /// 不先退出安装就装不了 Java，不装 Java 就装不完游戏。日志里同一条
+    /// 「安装批次正在进行」连撞四次，就是这个形状。
+    ///
+    /// ## 为什么是「不抢快照」而不是「允许并发覆盖快照」
+    /// 安装面板那 3000 行是用户唯一能看懂的进度。让 Java 的 30 个文件把面板换掉，
+    /// 用户会以为安装进度丢了（见 <see cref="BeginExternalBatch"/> 的说明与
+    /// <see cref="DownloadAsync"/> 的互斥检查）。旁路批次干脆不进面板：
+    /// 它只有几十个文件、几秒钟，进度由调用方自己用 <paramref name="progress"/> 消化。
+    ///
+    /// ## 边界
+    /// 仍然受并发上限与限速约束（同一个设置、同一份网络）；仍然会被取消令牌中断；
+    /// 但**不改变**暂停状态——暂停是「这一批普通下载」的语义，旁路不该替用户按暂停或恢复。
+    /// </summary>
+    /// <param name="items">待下载文件。</param>
+    /// <param name="progress">聚合进度；旁路不产生逐文件快照，调用方只能从这里看进度。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    public async Task<DownloadBatchResult> DownloadBypassAsync(
+        IReadOnlyList<DownloadItem> items,
+        IProgress<DownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Count == 0)
+        {
+            progress?.Report(DownloadProgress.Empty);
+            return DownloadBatchResult.Empty;
+        }
+
+        // 局部 tracker：只为让 RunOneAsync 的既有实现原样复用（它按条目记状态）。
+        // 不赋给 _tracker、不订阅 Changed，所以面板与历史都看不到这一批。
+        var tracker = new BatchTaskTracker(ResolveBatchName(items), items);
+
+        var counters = new BatchCounters(items);
+        var reporter = new ProgressReporter(counters, progress, () => IsPaused);
+
+        // 正常结束不写历史、不发快照：这两件事都由 _tracker 触发，而旁路从不接管它。
+        var result = await DispatchAsync(items, counters, reporter, tracker, respectPause: false, cancellationToken)
+            .ConfigureAwait(false);
+
+        reporter.Report(force: true);
+        return result;
+    }
+
+    /// <summary>
+    /// 两批共用的调度内核：建并发闸门与限速器，把每个条目派给 <see cref="RunOneAsync"/>，等全部收尾。
+    ///
+    /// 抽出来是因为普通批次与旁路批次在这件事上只有「要不要受暂停约束」一个差别；
+    /// 各写一份的话，将来给下载循环加约束（比如按主机限流）只改一处就会漏掉另一处。
+    /// </summary>
+    private async Task<DownloadBatchResult> DispatchAsync(
+        IReadOnlyList<DownloadItem> items,
+        BatchCounters counters,
+        ProgressReporter reporter,
+        BatchTaskTracker tracker,
+        bool respectPause,
+        CancellationToken cancellationToken)
+    {
+        // 限速=0 时 limiter 为 null，读循环里只剩一次 null 判断，不进入令牌计算。
+        var speedLimitKb = SpeedLimitKb;
+        var limiter = speedLimitKb > 0 ? new SpeedLimiter(speedLimitKb) : null;
+
+        using var throttle = new SemaphoreSlim(MaxConcurrency);
+
+        var tasks = new Task[items.Count];
+        for (var i = 0; i < items.Count; i++)
+        {
+            tasks[i] = RunOneAsync(
+                items[i], counters, reporter, tracker, throttle, limiter, cancellationToken, respectPause);
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        return counters.ToResult();
+    }
+
+    /// <summary>
+    /// 按需等待暂停闸门。
+    ///
+    /// 旁路批次（<see cref="DownloadBypassAsync"/>）不参与暂停语义：它的典型调用者
+    /// 是「安装过程中要装 Java」，而安装牌的外部批次本来就拒绝暂停
+    /// （见 <see cref="Pause"/>），替用户把旁路也挂住只会让安装卡在缺 Java 上。
+    /// </summary>
+    private Task WaitPauseAsync(bool respectPause, CancellationToken cancellationToken) =>
+        respectPause ? _pauseGate.WaitAsync(cancellationToken) : Task.CompletedTask;
 
     /// <summary>
     /// 把一批任务快照排成「可直接绑定到列表」的顺序：
@@ -758,7 +855,8 @@ public sealed class DownloadQueue
         BatchTaskTracker tracker,
         SemaphoreSlim throttle,
         SpeedLimiter? limiter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool respectPause = true)
     {
         await throttle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -766,7 +864,7 @@ public sealed class DownloadQueue
             // 暂停闸门放在并发槽之后：这条路径覆盖「跳过 / 复用 / 下载」全部出口，
             // 而闸门本身不占用任何资源，暂停期间只是让这些任务停在原地。
             // 取消令牌照常生效——暂停中取消要能立刻收尾（见 DownloadAsync 的 catch）。
-            await _pauseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await WaitPauseAsync(respectPause, cancellationToken).ConfigureAwait(false);
 
             if (IsUpToDate(item))
             {
@@ -796,7 +894,7 @@ public sealed class DownloadQueue
 
                 // 重试之间也要过闸门：暂停恰好发生在退避等待里时，
                 // 下一次尝试不能绕过暂停直接发请求（那样「暂停后不再启动新文件」就有例外）。
-                await _pauseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await WaitPauseAsync(respectPause, cancellationToken).ConfigureAwait(false);
 
                 try
                 {

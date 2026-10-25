@@ -86,6 +86,12 @@
                      VerticalAlignment="Center"
                      IsVisible="{Binding IsSourceDegraded}"
                      Fill="{DynamicResource Status.Warning}" />
+            <!-- 手动镜像档的劣化提示：没有换源，只是镜像在连续失败。
+                 用同一个警示色表达「这条状态需要你看一眼」，但文案由 ViewModel 分开写。 -->
+            <Ellipse Width="6" Height="6"
+                     VerticalAlignment="Center"
+                     IsVisible="{Binding IsSourceManualHint}"
+                     Fill="{DynamicResource Status.Warning}" />
             <TextBlock Text="{Binding SourceStatusText}"
                        Classes="muted"
                        Foreground="{DynamicResource Text.Secondary}"

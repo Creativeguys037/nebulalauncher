@@ -59,6 +59,25 @@ public sealed partial class InstallService : IInstallService, IDisposable
 
     private DownloadSource _source = DownloadSource.BmclApi;
 
+    /// <summary>
+    /// 单版本安装的逐文件并发上限，默认 8。
+    ///
+    /// 为什么需要这个属性：它下游是 CmlLib 安装器的 <c>maxParallel</c>，
+    /// 而设置页「并发下载数」默认 64。只接下载队列不接安装器时，用户把 64 调到 16
+    /// 只影响 mod/资源那几个文件，真正的瓶颈——装 26.1.2 时那 3000+ 个库文件——
+    /// 仍然恒按 8 个一批走（票 27 缺陷 B）。
+    ///
+    /// 与队列的 <see cref="DownloadQueue.MaxConcurrency"/> 同理，是「安装级快照」：
+    /// <see cref="CreateLauncher"/> 每次新建启动器时读一次，安装中途改只影响下一次安装。
+    /// </summary>
+    public int MaxParallel
+    {
+        get => _maxParallel;
+        set => _maxParallel = Math.Clamp(value, 1, 256);
+    }
+
+    private int _maxParallel = 8;
+
     public InstallService(
         ILauncherPaths paths,
         IPlatformService platform,
@@ -844,7 +863,8 @@ public sealed partial class InstallService : IInstallService, IDisposable
         MinecraftLauncherFactory.Create(
             new MinecraftPath(_paths.MinecraftDirectory),
             _client,
-            taskScope);
+            taskScope,
+            maxParallel: MaxParallel);
 
     private async Task<string?> ResolveJavaPathAsync(string minecraftVersion, CancellationToken cancellationToken)
     {

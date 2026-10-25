@@ -13,8 +13,10 @@ namespace NebulaLauncher.Core.Downloads;
 /// 不做持久化——镜像的可用性按天变化，把「昨天劣化」写进设置只会让用户不明所以。
 ///
 /// ## 判据（每次请求结束回灌一次 <see cref="DownloadAttemptResult"/>）
-/// 1. 只有策略为 <see cref="DownloadSource.Auto"/>、且当前处于镜像优先阶段时才采样；
-///    手动档（Official / Mirror）完全不采样、不受影响。
+/// 1. <see cref="DownloadSource.Auto"/> 档在当前处于镜像优先阶段时采样，用于降级判定；
+///    手动镜像档只采样镜像失败次数、用于产出 <see cref="ManualDegradeHint"/>，
+///    **不改变 <see cref="Effective"/>、不产出 <see cref="DegradeReason"/>**；
+///    手动官方档完全不采样（用户明确不要镜像，镜像好坏与他无关）。
 /// 2. 首选源不是镜像的样本不参与镜像判据。
 /// 3. 镜像失败（含「镜像失败后回退成功」）记一次**连续失败**；镜像直接成功则把连续失败清零。
 /// 4. 连续失败 ≥ <see cref="MirrorFailureStreakThreshold"/>（3）次 → 降级，原因「镜像连续失败 3 次」。
@@ -50,6 +52,13 @@ public sealed class DownloadSourceGovernor : IDownloadSourceProvider, IDownloadS
     private int _mirrorSlowSamples;
     private DateTimeOffset? _degradedAtUtc;
     private string? _reason;
+
+    /// <summary>
+    /// 手动镜像档下的连续失败计数。与 <see cref="_mirrorFailureStreak"/> 分开：
+    /// 手动档的计数只用来决定「要不要提醒用户」，永远不参与降级判定，混在一起会让
+    /// 「用户自己选的镜像」被自动逻辑牵着走（PITFALLS D9）。
+    /// </summary>
+    private int _manualMirrorFailureStreak;
 
     /// <param name="clock">时间源。测试注入可控时钟；生产用 <see cref="DateTimeOffset.UtcNow"/>。</param>
     /// <param name="strategy">
@@ -119,6 +128,33 @@ public sealed class DownloadSourceGovernor : IDownloadSourceProvider, IDownloadS
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// 只在手动 <see cref="DownloadSource.Mirror"/> 档产出。文案里必须给出可执行的下一步：
+    /// 这条提示的自变量是「用户没有让启动器替他决定」，所以唯一的出路就是提示他去改设置；
+    /// 只说「镜像坏了」而不说「能怎么办」等于把问题丢回去。
+    /// </remarks>
+    public string? ManualDegradeHint
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_strategy != DownloadSource.Mirror)
+                {
+                    return null;
+                }
+
+                if (_manualMirrorFailureStreak < MirrorFailureStreakThreshold)
+                {
+                    return null;
+                }
+
+                return $"镜像连续失败 {MirrorFailureStreakThreshold} 次，可能已不可用：可在设置里改用自动或官方源";
+            }
+        }
+    }
+
     /// <summary>
     /// 设置策略（来自设置服务）。策略变化会清空本会话的劣化状态并触发 <see cref="Changed"/>。
     /// 非法值（枚举越界）按镜像优先处理。
@@ -142,69 +178,111 @@ public sealed class DownloadSourceGovernor : IDownloadSourceProvider, IDownloadS
     }
 
     /// <summary>
-    /// 回灌一次请求结果。手动档、已降级期间、以及首选源不是镜像的样本都会被忽略。
+    /// 回灌一次请求结果。首选源不是镜像的样本、手动官方档、以及自动档已降级期间的样本都会被忽略。
     /// </summary>
     public void Report(DownloadAttemptResult result)
     {
-        string? degradedReason = null;
+        bool changed;
 
         lock (_gate)
         {
-            if (_strategy != DownloadSource.Auto)
-            {
-                return;
-            }
-
-            // 已降级期间不做镜像采样：这段时间的请求本来就走官方，结果不反映镜像质量。
-            if (EvaluateLocked() != DownloadSource.Mirror)
-            {
-                return;
-            }
-
             if (result.PrimarySource != DownloadSource.Mirror)
             {
                 return;
             }
 
-            if (result.PrimarySucceeded)
+            if (_strategy == DownloadSource.Mirror)
             {
-                _mirrorFailureStreak = 0;
+                changed = ReportManualLocked(result);
+            }
+            else if (_strategy == DownloadSource.Auto)
+            {
+                changed = ReportAutoLocked(result);
+            }
+            else
+            {
+                // 手动官方档：用户已经明确不要镜像，镜像质量与他的下载无关，采样只会白建计数。
                 return;
-            }
-
-            _mirrorFailureStreak++;
-
-            if (result.FallbackUsed && result.FallbackElapsed > TimeSpan.Zero)
-            {
-                var margin = result.PrimaryElapsed - result.FallbackElapsed;
-                if (margin > SlowComparisonMargin)
-                {
-                    _mirrorSlowSamples++;
-                }
-            }
-
-            if (_mirrorFailureStreak >= MirrorFailureStreakThreshold)
-            {
-                degradedReason = $"镜像连续失败 {MirrorFailureStreakThreshold} 次";
-            }
-            else if (_mirrorSlowSamples >= MirrorSlowSampleThreshold)
-            {
-                degradedReason = $"镜像比官方慢 {SlowComparisonMargin.TotalSeconds:0} 秒以上 {MirrorSlowSampleThreshold} 次";
-            }
-
-            if (degradedReason is not null)
-            {
-                _degradedAtUtc = _clock();
-                _reason = degradedReason;
-                _mirrorFailureStreak = 0;
-                _mirrorSlowSamples = 0;
             }
         }
 
-        if (degradedReason is not null)
+        if (changed)
         {
             RaiseChanged();
         }
+    }
+
+    /// <summary>自动档的降级判定。返回「是否刚发生降级」。调用方必须持有 <see cref="_gate"/>。</summary>
+    private bool ReportAutoLocked(DownloadAttemptResult result)
+    {
+        // 已降级期间不做镜像采样：这段时间的请求本来就走官方，结果不反映镜像质量。
+        if (EvaluateLocked() != DownloadSource.Mirror)
+        {
+            return false;
+        }
+
+        if (result.PrimarySucceeded)
+        {
+            _mirrorFailureStreak = 0;
+            return false;
+        }
+
+        _mirrorFailureStreak++;
+
+        if (result.FallbackUsed && result.FallbackElapsed > TimeSpan.Zero)
+        {
+            var margin = result.PrimaryElapsed - result.FallbackElapsed;
+            if (margin > SlowComparisonMargin)
+            {
+                _mirrorSlowSamples++;
+            }
+        }
+
+        string? degradedReason = null;
+
+        if (_mirrorFailureStreak >= MirrorFailureStreakThreshold)
+        {
+            degradedReason = $"镜像连续失败 {MirrorFailureStreakThreshold} 次";
+        }
+        else if (_mirrorSlowSamples >= MirrorSlowSampleThreshold)
+        {
+            degradedReason = $"镜像比官方慢 {SlowComparisonMargin.TotalSeconds:0} 秒以上 {MirrorSlowSampleThreshold} 次";
+        }
+
+        if (degradedReason is null)
+        {
+            return false;
+        }
+
+        _degradedAtUtc = _clock();
+        _reason = degradedReason;
+        _mirrorFailureStreak = 0;
+        _mirrorSlowSamples = 0;
+        return true;
+    }
+
+    /// <summary>
+    /// 手动镜像档的计数。返回「是否需要刷新界面」。
+    ///
+    /// 只数连续失败，不数慢速样本：慢速判据的意义是「自动模式该不该换源」，
+    /// 而手动档换不换是用户的事，提示他只说最确定的那件事——请求正在失败。
+    /// 调用方必须持有 <see cref="_gate"/>。
+    /// </summary>
+    private bool ReportManualLocked(DownloadAttemptResult result)
+    {
+        if (result.PrimarySucceeded)
+        {
+            var hintWasVisible = _manualMirrorFailureStreak >= MirrorFailureStreakThreshold;
+            _manualMirrorFailureStreak = 0;
+
+            // 计数归零后提示消失，界面得知道，否则会留着一条过时的警告。
+            return hintWasVisible;
+        }
+
+        _manualMirrorFailureStreak++;
+
+        // 只在「刚好越过阈值」的那一次通知：之后每条失败都通知会让状态行无谓重绘。
+        return _manualMirrorFailureStreak == MirrorFailureStreakThreshold;
     }
 
     /// <summary>清空本次会话的劣化状态（保留策略）。诊断/测试用。</summary>
@@ -257,6 +335,7 @@ public sealed class DownloadSourceGovernor : IDownloadSourceProvider, IDownloadS
         _reason = null;
         _mirrorFailureStreak = 0;
         _mirrorSlowSamples = 0;
+        _manualMirrorFailureStreak = 0;
     }
 
     /// <summary>把任意枚举值收敛到三个合法值之一（越界值按镜像优先）。</summary>

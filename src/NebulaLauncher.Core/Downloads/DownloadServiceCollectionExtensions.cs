@@ -52,9 +52,12 @@ public static class DownloadServiceCollectionExtensions
             {
                 // DownloadQueue 按「批级快照」读取限速值，所以这里把变更同步到属性上，
                 // 下一次 DownloadAsync 即可生效，不必重建队列。
+                // 并发数漏接是票 27 缺陷 B：设置页那根滑块看着能拖，实际从没进过下载队列。
+                queue.MaxConcurrency = settings.Current.DownloadThreads;
                 queue.SpeedLimitKb = settings.Current.DownloadSpeedLimitKb;
                 settings.Changed += (_, updated) =>
                 {
+                    queue.MaxConcurrency = updated.DownloadThreads;
                     queue.SpeedLimitKb = updated.DownloadSpeedLimitKb;
                     // 设置变更包括切换 .minecraft 目录：旧索引里的路径可能已经不在新根下。
                     reuse.InvalidateCache();

@@ -694,8 +694,12 @@ public sealed class JavaService : IJavaService, IDisposable
             Group = "Java",
         };
 
-        var ok = await _queue.DownloadFileAsync(item, progress, cancellationToken).ConfigureAwait(false);
-        if (!ok)
+        // 走旁路：Java 运行时经常是在「安装游戏」的过程中被要的（版本需要 Java 25+，
+        // 本机只有 8/21）。那时队列被安装的外部批次独占，走普通 DownloadAsync 会抛
+        // 「安装批次正在进行」——不装 Java 就装不完游戏，不退出安装又装不了 Java。
+        // 见票 27 缺陷 D 与 DownloadQueue.DownloadBypassAsync。
+        var result = await _queue.DownloadBypassAsync([item], progress, cancellationToken).ConfigureAwait(false);
+        if (!result.Success)
         {
             _log?.Error($"下载 Java {package.MajorVersion} 失败：{url}");
             return null;
@@ -888,7 +892,9 @@ public sealed class JavaService : IJavaService, IDisposable
                 return null;
             }
 
-            var batch = await _queue.DownloadAsync(items, progress, cancellationToken).ConfigureAwait(false);
+            // 同样走旁路：这条路径最常被触发的时刻正是「安装 26.1.2 发现缺 Java 25」，
+            // 而那一刻队列被安装的外部批次独占。见票 27 缺陷 D。
+            var batch = await _queue.DownloadBypassAsync(items, progress, cancellationToken).ConfigureAwait(false);
 
             if (!batch.Success)
             {
