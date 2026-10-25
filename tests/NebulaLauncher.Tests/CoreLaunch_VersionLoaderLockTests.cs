@@ -87,6 +87,32 @@ public class CoreLaunch_VersionLoaderLockTests
         await first;
     }
 
+    /// <summary>
+    /// 排队超时后这一次求值自己失败，而不是把四条链一起永久堵住。
+    ///
+    /// 判据取自 <see cref="SerializedVersionLoader"/> 的设计动机：静态闸门无上限时，
+    /// 一次挂死的求值会让安装、启动补全、命令行构建、修复全部失去恢复能力——
+    /// 那比原来偶发的 IOException 更重。这条用例不真的等两分钟，而是验证
+    /// 「排队时取消令牌能把它救出来」这条同源的出口，以及超时确实抛出可读中文。
+    /// </summary>
+    [Fact]
+    public async Task 闸门一直被占时排队方会超时而不是永久挂住()
+    {
+        var blocking = new BlockingLoader();
+        var holder = new SerializedVersionLoader(blocking);
+        var first = holder.GetVersionMetadatasAsync().AsTask();
+
+        // 占住之后，第二个求值必须能靠取消令牌脱身（同一条等待路径）。
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        var second = new SerializedVersionLoader(new CountingLoader())
+            .GetVersionMetadatasAsync(cts.Token).AsTask();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+
+        blocking.Release();
+        await first;
+    }
+
     /// <summary>记录「同时进入」的最大值。进入后停一小会儿，让并发真正重叠。</summary>
     private sealed class CountingLoader : IVersionLoader
     {

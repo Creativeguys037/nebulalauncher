@@ -67,13 +67,17 @@ public sealed partial class InstallService : IInstallService, IDisposable
     /// 只影响 mod/资源那几个文件，真正的瓶颈——装 26.1.2 时那 3000+ 个库文件——
     /// 仍然恒按 8 个一批走（票 27 缺陷 B）。
     ///
-    /// 与队列的 <see cref="DownloadQueue.MaxConcurrency"/> 同理，是「安装级快照」：
+    /// 与 <see cref="DownloadQueue.MaxConcurrency"/> 同理，是「安装级快照」：
     /// <see cref="CreateLauncher"/> 每次新建启动器时读一次，安装中途改只影响下一次安装。
+    ///
+    /// 用 <see cref="Volatile"/> 读写而不是普通字段：写入方是
+    /// <c>ISettingsService.Changed</c> 的订阅回调（设置页保存或导入配置包时在后台线程触发），
+    /// 读取方是安装线程。普通字段在无同步的前提下，安装线程可能一直看到旧值。
     /// </summary>
     public int MaxParallel
     {
-        get => _maxParallel;
-        set => _maxParallel = Math.Clamp(value, 1, 256);
+        get => Volatile.Read(ref _maxParallel);
+        set => Volatile.Write(ref _maxParallel, Math.Clamp(value, 1, 256));
     }
 
     private int _maxParallel = 8;

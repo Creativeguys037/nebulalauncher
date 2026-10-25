@@ -192,7 +192,8 @@ public sealed class GameLauncher : IGameLauncher
                 return string.Empty;
             }
 
-            var launcher = MinecraftLauncherFactory.Create(BuildMinecraftPath(options), _http?.Client);
+            var launcher = MinecraftLauncherFactory.Create(
+                BuildMinecraftPath(options), _http?.Client, maxParallel: ResolveMaxParallel());
             var launchOption = BuildLaunchOption(options, java, launcher.MinecraftPath, authlibArguments, ResolveVersionArgumentInfo(options));
 
             using var process = await launcher
@@ -389,7 +390,8 @@ public sealed class GameLauncher : IGameLauncher
 
             progress?.Report(new LaunchProgress(LaunchPhase.CheckingFiles, "正在检查游戏文件…"));
 
-            var launcher = MinecraftLauncherFactory.Create(BuildMinecraftPath(options), _http?.Client);
+            var launcher = MinecraftLauncherFactory.Create(
+                BuildMinecraftPath(options), _http?.Client, maxParallel: ResolveMaxParallel());
             var launchOption = BuildLaunchOption(options, java, launcher.MinecraftPath, authlibArguments, ResolveVersionArgumentInfo(options));
 
             var fileProgress = new SyncProgress<InstallerProgressChangedEventArgs>(args =>
@@ -1031,6 +1033,17 @@ public sealed class GameLauncher : IGameLauncher
     /// </summary>
     private string? ResolveVersionArgumentInfo(LaunchOptions options) =>
         options.VersionArgumentInfo ?? _settings?.Current.VersionArgumentInfo;
+
+    /// <summary>
+    /// 启动前补齐文件（以及命令行构建）时的逐文件并发上限。
+    ///
+    /// 与 <c>InstallService.MaxParallel</c> 同源同口径：都是设置页那根「并发下载数」滑块。
+    /// 只接安装页不接启动链的话，用户把它从 64 调到 8 只影响安装，而「点启动时补齐那 788 MB」
+    /// 仍按 8 个一批走——这正是票 27 缺陷 B 说的「游戏本体逐文件下载并发恒为 8」。
+    /// 设置服务缺失（单测、临时宿主）时回落到工厂默认值。
+    /// </summary>
+    private int ResolveMaxParallel() =>
+        _settings is null ? 8 : Math.Clamp(_settings.Current.DownloadThreads, 1, 256);
 
     /// <summary>
     /// 摘掉空值 <c>--versionType ""</c> 的两个 token（PCL2 <c>ModLaunch.vb:1538-1544</c>）。

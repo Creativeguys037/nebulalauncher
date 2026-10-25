@@ -99,6 +99,17 @@
           </StackPanel>
         </Border>
 
+        <!-- 手动档劣化的整句提示。单独一行而不是塞进上面的状态行：
+             这句带「可在设置里改用自动或官方源」这条唯一的自救路径，手动档的用户
+             没有别的办法（启动器不会替他换源，见 PITFALLS D9），所以它必须完整可读，
+             不能被状态行那点宽度挤掉。 -->
+        <TextBlock Text="{Binding SourceManualHint}"
+                   Classes="caption"
+                   Foreground="{DynamicResource Status.Warning}"
+                   Margin="4,0,0,0"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding SourceManualHint, Converter={x:Static conv:Converters.HasValue}}" />
+
         <!-- 源测速结果：一行结论（官方 320ms · BMCLAPI 镜像 190ms · 建议用 …）。
              只提示、不改设置；两侧都失败时用警示色，与「差不多」区分开。 -->
         <TextBlock Text="{Binding SourceProbeNormalText}"

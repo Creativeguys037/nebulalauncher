@@ -40,13 +40,31 @@ internal sealed class SerializedVersionLoader(IVersionLoader inner) : IVersionLo
     /// </summary>
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
+    /// <summary>
+    /// 排队等闸门的上限。
+    ///
+    /// 无上限是危险的：这个闸门是进程级的，一次挂死的求值会把安装、启动补全、命令行构建、
+    /// 修复四条链一起永久堵住——那比原来偶发的 <c>IOException</c> 更难恢复，
+    /// 因为用户连重试都不会有反应。超时后让这一次求值自己失败，代价是单个操作报错，
+    /// 而不是整个进程失去下载版本的能力。
+    ///
+    /// 取 2 分钟：正常求值是「一次 HTTP + 写一个小文件」，几百毫秒量级；
+    /// 弱网下最坏也就几十秒，2 分钟足够覆盖，又不会让用户觉得界面卡死。
+    /// </summary>
+    private static readonly TimeSpan GateTimeout = TimeSpan.FromMinutes(2);
+
     private readonly IVersionLoader _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
     /// <inheritdoc />
     public async ValueTask<VersionMetadataCollection> GetVersionMetadatasAsync(
         CancellationToken cancellationToken = default)
     {
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!await Gate.WaitAsync(GateTimeout, cancellationToken).ConfigureAwait(false))
+        {
+            throw new TimeoutException(
+                $"等待版本清单闸门超时（{GateTimeout.TotalSeconds:0} 秒）：另一次版本清单求值还没有返回。请稍后重试。");
+        }
+
         try
         {
             return await _inner.GetVersionMetadatasAsync(cancellationToken).ConfigureAwait(false);

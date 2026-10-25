@@ -19,10 +19,12 @@ public sealed class DocsCheck_CountTests
     private const int BaselineFacts = 1658;
 
     /// <summary>
-    /// InlineData 的精确基线。改测试时同步这里：票 #27 把「缺版本描述」的两条 Fact
-    /// 合并成一条 Theory + 两个 InlineData（两档共用同一份说明），净增 2。
+    /// InlineData 的精确基线。改测试时同步这里。
+    /// 票 #27 记录两次变化：把「缺版本描述」的两条 Fact 合并成一条 Theory + 两个
+    /// InlineData（两档共用同一份说明），净增 2；随后为「工厂把 maxParallel 交给
+    /// 安装器」补了一条 4 个 InlineData 的 Theory，净增 4。
     /// </summary>
-    private const int BaselineInlineData = 759;
+    private const int BaselineInlineData = 763;
 
     [Fact]
     public void 按Fact与InlineData计数()

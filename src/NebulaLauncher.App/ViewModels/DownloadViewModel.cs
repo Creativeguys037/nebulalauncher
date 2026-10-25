@@ -1902,6 +1902,11 @@ public partial class DownloadViewModel : PageViewModelBase
         };
 
         IsSourceDegraded = degraded;
+
+        // 把 governor 写的整句原样交出去，不要在这里压成「可能不可用」：
+        // 那句话已经带了「可在设置里改用自动或官方源」这个唯一的出路，
+        // 而手动档的用户没有别的自救路径（启动器不会替他换源，见 PITFALLS D9）。
+        // 压缩文案等于把提示降级成一句不带动作的抱怨。
         SourceManualHint = manualHint;
     }
 
