@@ -400,11 +400,12 @@ Get-FileHash .\NebulaLauncher-v1.0.0-win-x64.zip -Algorithm SHA256
 - 直接后果：v1.0.0 起各版本**可直接作为公开下载渠道**，此前「只能作内部存档」的结论作废。
 - 转 public 前评估过的三条路（转 public、加协作者、别处镜像产物）中选了第一条。私有状态下的行为（Release 只对有 repo 读权限的账号可见、匿名访问返回 404）仅作历史记录，不再适用于当前仓库。
 
-### H.3 LICENSE（转 public 后仍未决，现在是真实缺口）
+### H.3 LICENSE（已决：2026-10-25 落 MIT）
 
-- 仓库无 LICENSE / COPYING / NOTICE（`ls -a | grep -Ei 'license|changelog|notice'` 零命中，转 public 后复查结论不变）。
-- `README.md:245-259`「数据与许可」已写明第三方内容：`src/NebulaLauncher.Core/Resources/WikiEntries.txt` 来自 PCL2（作者龙腾猫跃）与 MC 百科，按 PCL《存储库合理使用指南》使用，并给出移除路径。这段是**合规声明**，不能替代项目自身的许可证。
-- 私有仓库可以不写；**现在仓库已 public，无 LICENSE 等于「保留所有权利」**——他人不可合法使用、修改或再分发，GitHub 上也不会显示许可证标签。建议 MIT 或显式专有声明。**仍未决，需用户拍板。**
+- 原状：仓库无 LICENSE / COPYING / NOTICE（`ls -a | grep -Ei 'license|changelog|notice'` 零命中）。
+- 现决：根目录新增 `LICENSE`，采用 **MIT**，版权行 `Copyright (c) 2026 Creativeguys037`。`README.md` 新增「许可」一节指向该文件，并明确第三方内容不在本项目许可范围内。
+- `README.md` 原有的「数据与许可」一段写明第三方内容：`src/NebulaLauncher.Core/Resources/WikiEntries.txt` 来自 PCL2（作者龙腾猫跃）与 MC 百科，按 PCL《存储库合理使用指南》使用，并给出移除路径。该段是**合规声明**，与项目自身的 MIT 许可并存，不互相替代。
+- 转 public 后无 LICENSE 等于「保留所有权利」的风险由此解除。
 
 ### H.4 CHANGELOG（建议不加）
 

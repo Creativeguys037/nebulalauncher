@@ -429,6 +429,7 @@ gh release view v1.0.3 --json isDraft,name,tagName,assets,url
 
 模组中文名来自 **MC 百科**（mcmod.cn）条目，数据文件 `src/NebulaLauncher.Core/Resources/WikiEntries.txt` 取自 [PCL2](https://github.com/Meloong-Git/PCL) 的 `PCLCS/Resource/WikiEntries.txt`，解析规则移植自同仓库 `PCLCS/Resource/WikiEntry.cs`（落点是 `src/NebulaLauncher.Core/Mods/ModNameTable.cs`）。
 
+- **许可边界**：仓库根目录的 `LICENSE` 是 MIT，只覆盖本项目自己的代码与文档。第三方数据不因被打进产物而转为 MIT——`WikiEntries.txt` 及其移植规则仍按来源条款使用，不得因为「它在我们的仓库里」就当作 MIT 内容再分发。
 - 本仓库不是 PCL 的官方衍生版本，也未获 PCL 作者背书；与该数据 / 规则相关的部分按 PCL《存储库合理使用指南》使用。
 - 署名：PCL（Plain Craft Launcher）作者 **龙腾猫跃**；译名数据整理者 **MC 百科**。
 - 移除路径：删掉 `src/NebulaLauncher.Core/Resources/WikiEntries.txt` 并移除 `src/NebulaLauncher.Core/NebulaLauncher.Core.csproj` 里的 `<EmbeddedResource>` 项——译名表变空，模组卡片回退显示资源站原名，其余功能不受影响（`CoreMods_LegacyMetadataTests` 里的嵌入资源哨兵测试会失败，那正是这条移除路径的探针）。
