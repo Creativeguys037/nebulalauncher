@@ -411,7 +411,7 @@ gh release create v1.0.3 --draft --title "Nebula Launcher v1.0.3" `
 gh release view v1.0.3 --json isDraft,name,tagName,assets,url
 ```
 
-附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。**「Publish release」由人在网页点**，命令只建草稿。私有仓库下该 Release 的匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
+附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。**「Publish release」由人在网页点**，命令只建草稿。仓库已转 public（2026-10-25），该 Release 匿名访问返回 200、附件可直接下载；若将来转回私有，需在 notes 里同步说明匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
 
 ### 8.8 并行协作的三条硬规则
 

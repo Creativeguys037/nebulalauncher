@@ -9,7 +9,7 @@
 
 现有 docs/PUBLISH-CHECK.md 的**流程判据（脚本行为、两道产物关、失败条件）全部仍然成立**，但其中的**体积数字全部过期**，且 HANDOVER R59 记录的 SHA256 在磁盘上已无对应文件可复核。
 产物形态建议：`minimal`（框架依赖、24.72 MiB / 3 文件）做 v1.0.0 主产物，加发 `portable`（自包含单文件）做免装运行时备选，`fdd` / `folder` 不发。
-阻塞项有三个：`<Version>` 在任何构建文件里都不存在（版本号只靠 SDK 默认值"碰巧"是 1.0.0）、GitHub Release 在 PRIVATE 仓库下匿名不可见、exe 未签名。
+阻塞项有两个：`<Version>` 在任何构建文件里都不存在（版本号只靠 SDK 默认值"碰巧"是 1.0.0）、exe 未签名。原第三条「GitHub Release 在 PRIVATE 仓库下匿名不可见」已随仓库转 public 失效（见 H.2）。
 
 ---
 
@@ -324,7 +324,7 @@ gh release view v1.0.0 --web       # 人工看一眼渲染与附件
 - 附件用**绝对路径**给 `gh`，避免 cwd 歧义；文件名即远端 asset 名，所以本地必须先按 C.2 命名好。
 - `--notes-file` 的文件必须在工作区里（`gh` 直接读本地文件，不入 git 也能用，但建议入库以便追溯）。
 - 若某次只发 `minimal`（`portable` 未过自检），把 portable 那一行删掉，并在 notes §4 里删掉对应段落——不要留"文件不存在"的说明。
-- 私有仓库下 `gh release create` 正常可用；匿名访问该 Release URL 返回 404（见 H.2）。
+- 仓库转 public 前后 `gh release create` 均正常可用；转 public 后匿名访问该 Release URL 返回 200（见 H.2）。
 
 ---
 
@@ -350,7 +350,7 @@ Get-ChildItem -File |
 ### F.2 随产物发布
 
 1. `SHA256SUMS.txt` 作为 Release 的**第三个附件**上传（`gh release create` 里多一个参数即可，见 E.4）。
-2. 同时把它的**全文**贴进 Release notes 第 6 节。理由：私有仓库的附件下载需要登录，notes 正文是唯一能被截图/转述的部分。
+2. 同时把它的**全文**贴进 Release notes 第 6 节。理由：notes 正文是用户不必下附件就能核对的部分，附件挂掉或改版时它仍可被截图/转述。
 3. notes 里给用户一行验证命令：
 
 ```powershell
@@ -382,7 +382,7 @@ Get-FileHash .\NebulaLauncher-v1.0.0-win-x64.zip -Algorithm SHA256
 11. **人工审阅 draft**：附件 3 个、notes 七段齐全、§6 校验和与 `SHA256SUMS.txt` 逐字一致、§7 未签名说明在。
 12. **[阻塞] 点 Publish**：在 GitHub 网页把 draft 改为 published（`gh release edit v1.0.0 --draft=false` 也可，但建议人眼过一遍再点）。
 13. **决定是否买代码签名证书**：不买 → 保留未签名说明；买 → 走 EV/OV 证书 + `signtool`，并重写 notes §7。
-14. **决定仓库可见性**：PRIVATE 保持 → Release 只在有 repo 权限的人之间可见；要对外 → 转 public（见 H.2）。
+14. 决定仓库可见性：**已决**——仓库已于 2026-10-25 转为 public，Release 可匿名访问与下载（见 H.2）。
 
 ---
 
@@ -394,17 +394,17 @@ Get-FileHash .\NebulaLauncher-v1.0.0-win-x64.zip -Algorithm SHA256
 - 无法在本轮验证（无干净机、无签名证书）。可做的只有：Release notes 写清 SHA256 与"属性→数字签名 为空属预期"，让用户自行比对后选择"仍要运行"。
 - 结论：**不构成发布阻塞**，但必须在 notes §5/§7 写明，否则首批用户会当成恶意软件。
 
-### H.2 PRIVATE 仓库的 Release 可见性（结构性约束）
+### H.2 仓库可见性（已决：2026-10-25 已转 public）
 
-- 私有仓库的 Release 只对有 repo 读权限的账号可见；未登录或非协作者访问 Release URL / API 返回 404，附件下载需要登录。
-- 直接后果：`v1.0.0` 在当前仓库状态下**无法作为公开下载渠道**，只能作为内部存档/交付渠道。
-- 若要"发给人下载"，只有三条路：转 public、加协作者、或在别处（网盘/自有站点）镜像产物。**本轮未决**，需用户明确 1.0.0 的受众。
+- 现状：`Creativeguys037/nebulalauncher` 为 PUBLIC。实测 `https://api.github.com/repos/Creativeguys037/nebulalauncher` 与 `.../releases/tags/v1.0.3` 匿名均返回 200，附件 `browser_download_url` 可直接下载；v1.0.0 至 v1.0.3 四个 Release 均已 publish（`isDraft=false`）。
+- 直接后果：v1.0.0 起各版本**可直接作为公开下载渠道**，此前「只能作内部存档」的结论作废。
+- 转 public 前评估过的三条路（转 public、加协作者、别处镜像产物）中选了第一条。私有状态下的行为（Release 只对有 repo 读权限的账号可见、匿名访问返回 404）仅作历史记录，不再适用于当前仓库。
 
-### H.3 LICENSE（未决，转 public 前必须解决）
+### H.3 LICENSE（转 public 后仍未决，现在是真实缺口）
 
-- 仓库无 LICENSE / COPYING / NOTICE（`ls -a | grep -Ei 'license|changelog|notice'` 零命中）。
+- 仓库无 LICENSE / COPYING / NOTICE（`ls -a | grep -Ei 'license|changelog|notice'` 零命中，转 public 后复查结论不变）。
 - `README.md:245-259`「数据与许可」已写明第三方内容：`src/NebulaLauncher.Core/Resources/WikiEntries.txt` 来自 PCL2（作者龙腾猫跃）与 MC 百科，按 PCL《存储库合理使用指南》使用，并给出移除路径。这段是**合规声明**，不能替代项目自身的许可证。
-- 私有仓库可以不写；一旦转 public，无 LICENSE 等于"保留所有权利"，他人不可合法使用/分发。建议 MIT 或显式专有声明。**未决**。
+- 私有仓库可以不写；**现在仓库已 public，无 LICENSE 等于「保留所有权利」**——他人不可合法使用、修改或再分发，GitHub 上也不会显示许可证标签。建议 MIT 或显式专有声明。**仍未决，需用户拍板。**
 
 ### H.4 CHANGELOG（建议不加）
 
