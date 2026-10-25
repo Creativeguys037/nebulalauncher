@@ -291,10 +291,10 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-featu
 默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。约束层（`CONVENTIONS.md`、`README.md`、`AGENTS.md`）与证据链（`docs/agents/`、`docs/research/`、`docs/release-notes/`）不占这 1000 行额度，但引用照样要校验：`--evidence <路径>...` 只做引用与链接校验、不进行数预算。全仓 16 份文档的口径是：
 
 ```powershell
-dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.0.1.md
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.0.2.md
 ```
 
-release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.0.1.md` 的 8 条已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
+release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.0.2.md` 的已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
 
 退出码：
 
@@ -372,23 +372,23 @@ $env:AVALONIA_TELEMETRY_OPTOUT='1'
 # 0) 先打本地 tag：-Publish 会校验 HEAD 上的 tag 与 <Version> 一致（不打就失败）
 git status --short            # 必须为空或只剩已决定的改动
 git log --oneline -1          # HEAD 是定稿提交
-git tag -l v1.0.1             # 必须为空
-git tag -a v1.0.1 -m "Nebula Launcher v1.0.1"
+git tag -l v1.0.2             # 必须为空
+git tag -a v1.0.2 -m "Nebula Launcher v1.0.2"
 
 # 主产物：-OutDir 必须指向最内层目录，build.ps1 会把它整体删掉重建
-New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.0.1 | Out-Null
+New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.0.2 | Out-Null
 pwsh -NoProfile -File .\build.ps1 -Publish -Mode minimal `
-    -OutDir D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64
+    -OutDir D:\agent_workspace\pub\v1.0.2\NebulaLauncher-v1.0.2-win-x64
 
 # 备选产物（不加 -SkipVerify；不过关就不发 portable）
-pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.0.1\_portable
-Move-Item D:\agent_workspace\pub\v1.0.1\_portable\NebulaLauncher.exe `
-          D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64-portable.exe
-Remove-Item D:\agent_workspace\pub\v1.0.1\_portable -Recurse -Force
+pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.0.2\_portable
+Move-Item D:\agent_workspace\pub\v1.0.2\_portable\NebulaLauncher.exe `
+          D:\agent_workspace\pub\v1.0.2\NebulaLauncher-v1.0.2-win-x64-portable.exe
+Remove-Item D:\agent_workspace\pub\v1.0.2\_portable -Recurse -Force
 
 # 打包 → 校验和 → 上传（顺序不能换）
-cd D:\agent_workspace\pub\v1.0.1
-tar -a -c -f NebulaLauncher-v1.0.1-win-x64.zip NebulaLauncher-v1.0.1-win-x64
+cd D:\agent_workspace\pub\v1.0.2
+tar -a -c -f NebulaLauncher-v1.0.2-win-x64.zip NebulaLauncher-v1.0.2-win-x64
 $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
@@ -401,14 +401,14 @@ $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } 
 ### 8.7 GitHub Release
 
 ```powershell
-git tag -l v1.0.1             # 必须存在：§8.6 第一步已在本机打过
-git push origin v1.0.1
-gh release create v1.0.1 --draft --title "Nebula Launcher v1.0.1" `
-  --notes-file docs\release-notes\v1.0.1.md `
-  "D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64.zip" `
-  "D:\agent_workspace\pub\v1.0.1\NebulaLauncher-v1.0.1-win-x64-portable.exe" `
-  "D:\agent_workspace\pub\v1.0.1\SHA256SUMS.txt"
-gh release view v1.0.1 --json isDraft,name,tagName,assets,url
+git tag -l v1.0.2             # 必须存在：§8.6 第一步已在本机打过
+git push origin v1.0.2
+gh release create v1.0.2 --draft --title "Nebula Launcher v1.0.2" `
+  --notes-file docs\release-notes\v1.0.2.md `
+  "D:\agent_workspace\pub\v1.0.2\NebulaLauncher-v1.0.2-win-x64.zip" `
+  "D:\agent_workspace\pub\v1.0.2\NebulaLauncher-v1.0.2-win-x64-portable.exe" `
+  "D:\agent_workspace\pub\v1.0.2\SHA256SUMS.txt"
+gh release view v1.0.2 --json isDraft,name,tagName,assets,url
 ```
 
 附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。**「Publish release」由人在网页点**，命令只建草稿。私有仓库下该 Release 的匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。

@@ -41,11 +41,11 @@ public class CoreDiagnostics_LauncherVersionTests
         var informational = typeof(DiagnosticsSnapshot).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
-        Assert.Equal("1.0.1", informational);
+        Assert.Equal("1.0.2", informational);
     }
 
     /// <summary>
-    /// 验收点：<see cref="DiagnosticsSnapshot.LauncherVersionOf"/> 对当前程序集返回 <c>1.0.1</c>。
+    /// 验收点：<see cref="DiagnosticsSnapshot.LauncherVersionOf"/> 对当前程序集返回 <c>1.0.2</c>。
     /// 用 App 程序集而不是 Core：设置页与崩溃导出读的正是它。
     /// </summary>
     [Fact]
@@ -53,10 +53,10 @@ public class CoreDiagnostics_LauncherVersionTests
     {
         var actual = DiagnosticsSnapshot.LauncherVersionOf(typeof(SettingsViewModel).Assembly);
 
-        Assert.Equal("1.0.1", actual);
+        Assert.Equal("1.0.2", actual);
     }
 
-    /// <summary>设置页「关于」要显示 <c>v1.0.1</c>：<c>v</c> 是展示层加的前缀，不属于版本本身。</summary>
+    /// <summary>设置页「关于」要显示 <c>v1.0.2</c>：<c>v</c> 是展示层加的前缀，不属于版本本身。</summary>
     [Fact]
     public void 展示版本带v前缀()
     {
@@ -83,7 +83,7 @@ public class CoreDiagnostics_LauncherVersionTests
     {
         var actual = DiagnosticsSnapshot.DisplayVersionOf(typeof(SettingsViewModel).Assembly);
 
-        Assert.Equal("v1.0.1", actual);
+        Assert.Equal("v1.0.2", actual);
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public class CoreDiagnostics_LauncherVersionTests
             GeneratedAt = new DateTimeOffset(2026, 10, 24, 20, 0, 0, TimeSpan.FromHours(8)),
         });
 
-        Assert.Contains("版本: v1.0.1", text, StringComparison.Ordinal);
+        Assert.Contains("版本: v1.0.2", text, StringComparison.Ordinal);
     }
 
     /// <summary>拿不到版本时整行省略，不能出现「版本: 」这种半截行。</summary>
@@ -127,7 +127,7 @@ public class CoreDiagnostics_LauncherVersionTests
     /// <summary>
     /// AC：崩溃导出里的版本号与设置页一致。首页送进导出的就是 <see cref="DiagnosticsSnapshot.DisplayVersionOf"/>，
     /// 而 <c>CrashExportService</c> 只做原样拼接（不自己补前缀），所以落盘的 analysis 文本与 system.txt
-    /// 都应是同一个 <c>v1.0.1</c>，并且只出现一个 <c>v</c>——两处各加一次前缀就会变成 <c>vv1.0.0</c>。
+    /// 都应是同一个 <c>v1.0.2</c>，并且只出现一个 <c>v</c>——两处各加一次前缀就会变成 <c>vv1.0.0</c>。
     /// 这条走 Core 的公共入口，不实例化任何 Avalonia 类型。
     /// </summary>
     [Fact]
@@ -141,7 +141,7 @@ public class CoreDiagnostics_LauncherVersionTests
             "2026-10-24 20:00:00.000 [INFO ] 测试" + Environment.NewLine);
 
         var expected = DiagnosticsSnapshot.DisplayVersionOf(typeof(SettingsViewModel).Assembly);
-        Assert.Equal("v1.0.1", expected);
+        Assert.Equal("v1.0.2", expected);
 
         var request = new CrashExportRequest(
             new CrashReport(IsCrash: true, Summary: "测试用结论。", Suggestions: []),
@@ -161,8 +161,8 @@ public class CoreDiagnostics_LauncherVersionTests
         var analysis = ReadZipEntry(result.ArchivePath!, "crash-analysis.txt");
         var system = ReadZipEntry(result.ArchivePath!, "system.txt");
 
-        Assert.Contains("启动器版本: v1.0.1", analysis, StringComparison.Ordinal);
-        Assert.Contains("版本: v1.0.1", system, StringComparison.Ordinal);
+        Assert.Contains("启动器版本: v1.0.2", analysis, StringComparison.Ordinal);
+        Assert.Contains("版本: v1.0.2", system, StringComparison.Ordinal);
         Assert.DoesNotContain("vv", analysis, StringComparison.Ordinal);
         Assert.DoesNotContain("vv", system, StringComparison.Ordinal);
     }

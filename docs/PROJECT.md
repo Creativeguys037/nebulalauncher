@@ -140,9 +140,9 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ### 已发布版本的口径
 
-版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.1</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它走 `DiagnosticsSnapshot.DisplayVersionOf`：读程序集的 `AssemblyInformationalVersionAttribute`、在 `+` 处截断构建哈希、再补 `v` 前缀（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2119）`）。
+版本号的唯一来源是 `Directory.Build.props` 的 `<Version>1.0.2</Version>`（票 #20 引入）。关于页与崩溃导出的 `system.txt` 都取 `SettingsViewModel.AppVersion`，它走 `DiagnosticsSnapshot.DisplayVersionOf`：读程序集的 `AssemblyInformationalVersionAttribute`、在 `+` 处截断构建哈希、再补 `v` 前缀（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2119）`）。
 
-对外描述版本一律用发布号 `v1.0.1`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
+对外描述版本一律用发布号 `v1.0.2`；轮次号（R59、`pub-rNN` 这类）只是内部开发标识，不进对外文案。产物默认放在仓库根的 `pub\`（已在 `.gitignore` 里）。
 
 历史轮次记录没有删：`docs/research/` 下的旧审计与验收记录、以及 git 历史里的 R59 / `pub-rNN` 提交，都按原文留在原处，不回头改写。它们只作开发过程标识，不再是任何对外口径，也不参与版本号校验。
 
