@@ -57,7 +57,17 @@ public sealed partial class InstallService
 
             var reporter = new RepairProgress(progress);
 
-            if (depth == RepairDepth.Deep)
+            // 版本描述必须在：两档都依赖它，而且它们是同一个事实的两种失败形状——
+            // Quick 档会把它交给 CmlLib 的 InstallAsync，库只抛 KeyNotFoundException:
+            // Cannot find <name>；Deep 档由 ReadVersionChainAsync 抛 FileNotFoundException，
+            // 冒泡成「修复中断：…」。同一件事两套文案，用户都看不出下一步做什么。
+            // 所以判定放在分档之前：一个入口、一份说明，两档行为一致。
+            if (!VersionDescriptionExists(name))
+            {
+                _log?.Warn($"修复 {name}：缺少版本描述文件，无法修复");
+                state.Failed.Add(DescribeMissingVersionDescription(name));
+            }
+            else if (depth == RepairDepth.Deep)
             {
                 await RepairDeepAsync(name, state, reporter, cancellationToken).ConfigureAwait(false);
             }
@@ -118,17 +128,7 @@ public sealed partial class InstallService
         // DownloadTargetsAsync 的普通批次撞车——两者在同一方法内先后执行；
         // 与安装互斥由 RepairAsync/InstallAsync 共用的 _installGate 保证。
         //
-        // 前提：版本描述必须在。CmlLib 的 InstallAsync 对「versions/<name>/<name>.json
-        // 不存在」只会抛 KeyNotFoundException: Cannot find <name>——那是库的内部表征，
-        // 用户看不出「这个实例是导入时没写版本 json」这件事，也没法据此决定下一步。
-        // 所以先自己判定并给出可执行的说明，不去调那个必然失败的入口。
-        if (!VersionDescriptionExists(versionName))
-        {
-            state.Failed.Add(DescribeMissingVersionDescription(versionName));
-            _log?.Warn($"修复 {versionName}：缺少版本描述文件，跳过补齐");
-            return;
-        }
-
+        // 版本描述是否存在的判定在 RepairAsync 的入口处（两档共用），到这里一定成立。
         IDownloadTaskScope? repairScope = null;
         try
         {

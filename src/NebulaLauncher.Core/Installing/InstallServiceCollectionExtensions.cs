@@ -13,9 +13,9 @@ public static class InstallServiceCollectionExtensions
         // 用工厂注册而不是裸类型注册：安装器的逐文件并发要从设置注入，
         // 而设置服务在 tools/InstallProbe 这类宿主里并不存在，必须按「可选依赖」处理。
         //
-        // 显式列构造函数参数而不是 ActivatorUtilities.CreateInstance：
-        // InstallService 有一个 public 重载（拿 DownloadHttpClientFactory）和一个
-        // internal 测试重载（拿裸 HttpClient），两者参数个数相同，让容器去挑是碰运气。
+        // 显式列构造函数参数而不是靠容器构造：工厂里要拿到实例才能写 MaxParallel，
+        // 列出参数能让「这个服务需要什么」在这一处看全；容器构造会把依赖藏进
+        // InstallService 的签名里，改签名时这段不会报错，只在运行期解析失败。
         services.AddSingleton(sp =>
         {
             var service = new InstallService(

@@ -18,7 +18,11 @@ public sealed class DocsCheck_CountTests
     /// <summary>票 #8 记录的口径真值（本票新增测试之后、含 DocsCheck 自身的 Fact）。</summary>
     private const int BaselineFacts = 1658;
 
-    private const int BaselineInlineData = 757;
+    /// <summary>
+    /// InlineData 的精确基线。改测试时同步这里：票 #27 把「缺版本描述」的两条 Fact
+    /// 合并成一条 Theory + 两个 InlineData（两档共用同一份说明），净增 2。
+    /// </summary>
+    private const int BaselineInlineData = 759;
 
     [Fact]
     public void 按Fact与InlineData计数()
