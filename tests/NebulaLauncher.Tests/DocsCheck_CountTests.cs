@@ -23,8 +23,10 @@ public sealed class DocsCheck_CountTests
     /// 票 #27 记录两次变化：把「缺版本描述」的两条 Fact 合并成一条 Theory + 两个
     /// InlineData（两档共用同一份说明），净增 2；随后为「工厂把 maxParallel 交给
     /// 安装器」补了一条 4 个 InlineData 的 Theory，净增 4。
+    /// 票 #28 把账户类型文案收敛成共享映射，新增 10 个 InlineData
+    /// （三态映射表 3 + API 根非法或缺失 4 + 账户列表行 3），净增 10。
     /// </summary>
-    private const int BaselineInlineData = 763;
+    private const int BaselineInlineData = 773;
 
     [Fact]
     public void 按Fact与InlineData计数()

@@ -660,10 +660,10 @@ public partial class HomeViewModel : PageViewModelBase
 
         AccountName = string.IsNullOrWhiteSpace(account.Username) ? "未命名账户" : account.Username;
         AccountInitial = AccountName[..1].ToUpperInvariant();
-        AccountBadge = account.Type == AccountType.Microsoft ? "微软账户" : "离线账户";
+        AccountBadge = AccountTypeDisplay.BadgeOf(account.Type);
         AccountDetail = account.IsExpired
             ? "登录令牌已过期，启动时会自动刷新"
-            : $"UUID {ShortUuid(account.Uuid)}";
+            : AccountTypeDisplay.DetailOf(account, $"UUID {ShortUuid(account.Uuid)}");
     }
 
     private async Task<IReadOnlyList<VersionInfo>> LoadVersionsAsync()

@@ -793,16 +793,10 @@ public sealed partial class AccountsViewModel : PageViewModelBase
 
         ActiveName = active.Username;
         ActiveInitial = FirstLetter(active.Username);
-        ActiveTypeLabel = active.Type switch
-        {
-            AccountType.Microsoft => "微软账户",
-            AccountType.Authlib => "第三方验证",
-            _ => "离线账户",
-        };
+        ActiveTypeLabel = AccountTypeDisplay.BadgeOf(active.Type);
 
         var uuidPart = string.IsNullOrWhiteSpace(active.Uuid) ? "无 UUID" : $"UUID {active.Uuid}";
-        var host = active.Type == AccountType.Authlib ? AuthlibDisplay.HostOf(active.AuthServerUrl) : null;
-        ActiveDetail = host is null ? uuidPart : $"{host} · {uuidPart}";
+        ActiveDetail = AccountTypeDisplay.DetailOf(active, uuidPart);
         ActiveUseAurora = active.Type == AccountType.Microsoft;
     }
 
@@ -956,17 +950,6 @@ public sealed partial class AccountsViewModel : PageViewModelBase
 /// <summary>常用第三方验证服务商。ApiRoot 直接填进表单，用户仍可改成自己的地址。</summary>
 public sealed record AuthlibPreset(string Name, string ApiRoot);
 
-/// <summary>
-/// 第三方验证账户的展示辅助。只暴露主机名：完整 API 路径和令牌都不该出现在界面上。
-/// </summary>
-internal static class AuthlibDisplay
-{
-    public static string? HostOf(string? apiRoot)
-        => Uri.TryCreate(apiRoot, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)
-            ? uri.Host
-            : null;
-}
-
 /// <summary>账户列表中的一行。</summary>
 public sealed partial class AccountRowViewModel : ObservableObject
 {
@@ -975,15 +958,10 @@ public sealed partial class AccountRowViewModel : ObservableObject
         Account = account;
         Username = account.Username;
         Initial = string.IsNullOrWhiteSpace(account.Username) ? "?" : account.Username[..1].ToUpperInvariant();
-        TypeLabel = account.Type switch
-        {
-            AccountType.Microsoft => "微软",
-            AccountType.Authlib => "第三方验证",
-            _ => "离线",
-        };
+        TypeLabel = AccountTypeDisplay.ShortBadgeOf(account.Type);
         IsAuthlib = account.Type == AccountType.Authlib;
         AuthHost = IsAuthlib
-            ? AuthlibDisplay.HostOf(account.AuthServerUrl) ?? "未记录 API 根"
+            ? AccountTypeDisplay.HostOf(account.AuthServerUrl) ?? "未记录 API 根"
             : string.Empty;
         IsActive = string.Equals(account.Id, activeId, StringComparison.Ordinal);
         IsExpired = account.IsExpired;
