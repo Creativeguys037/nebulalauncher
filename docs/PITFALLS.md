@@ -1,9 +1,6 @@
 # 坑、裁决与易错点
 
-本文件收录两类东西：
-
-1. **踩过的坑**：现象明确、机制清楚、能落到一条代码位置或一条可复现命令上的失败模式。
-2. **架构级裁决**：已经定案的技术选择，连同「为什么这样选」和「反悔要付什么」。
+本文件收录两类东西：**踩过的坑**（现象明确、机制清楚、能落到一条代码位置或一条可复现命令上的失败模式）与**架构级裁决**（已经定案的技术选择，连同「为什么这样选」和「反悔要付什么」）。
 
 适用范围：`NebulaLauncher` 全仓（Core / App / tools）。正常用法看 `README.md` 与 `CONVENTIONS.md` §8；这里是「别这样做，做了就是这样挂」的索引。
 
@@ -13,17 +10,11 @@
 
 ### 0.1 每条坑的结构
 
-| 段 | 回答什么 |
-| --- | --- |
-| 症状 | 你看到什么：报错原文、退出码、截图表现 |
-| 成因 | 机制上为什么这样；为什么直觉修法无效 |
-| 规避 | 现在的正确做法，或一条可复现命令 |
+严格三段、顺序固定：**症状**（你看到什么：报错原文、退出码、截图表现）→ **成因**（机制上为什么这样；为什么直觉修法无效）→ **规避**（现在的正确做法，或一条可复现命令）。
 
 ### 0.2 引用写法
 
-- 代码位置写成 `路径:行号 类型.成员`，一个引用一个反引号单元。
-- 命令写成完整可复制的命令行，不省略参数。
-- 提到测试时给出用例名，改坏了应当变红。
+- 代码位置写成 `路径:行号 类型.成员`（一个引用一个反引号单元）；命令写成完整可复制的命令行，不省略参数；提到测试时给出用例名，改坏了应当变红。
 
 ### 0.3 与 CONVENTIONS.md 的关系
 
@@ -31,7 +22,7 @@
 
 | CONVENTIONS.md | 主题 | 对应本文条目 |
 | --- | --- | --- |
-| §0 | 环境、SDK 路径、`env.ps1` | 1.2、1.3、3.1 |
+| §0 | 环境、SDK 路径、`env.ps1` | 1.2、1.3、1.9、3.1 |
 | §1 | 单一 TFM、依赖版本 | 6.D1、1.4 |
 | §3 | 禁 `.Result` / `.Wait()` / `GetAwaiter().GetResult()` | 2.1、2.2 |
 | §3.1 | JSON 落盘代码的写法（context 登记 / `Of<T>()` / 具名请求体 / 泛型枚举转换器） | 3.16、3.17 |
@@ -63,7 +54,7 @@
 dotnet build -m:1 -p:BuildInParallel=false
 ```
 
-需要频繁重建时用独立配置目录（见 1.8），不要为了省事退回并行。
+需要频繁重建时用独立配置目录（见 1.8），不要为了省事退回并行。串行复跑还能把被并行掩盖的真实错误顶出来：同一仓库并行报 0 error，加 `-m:1` 后立刻暴露 1.9 的 `MSB3061`。
 
 ### 1.3 `MSB4018` + `AvaloniaStatsTask`
 - **症状**：构建在 XAML 编译任务上报 `MSB4018`，任务名是 `AvaloniaStatsTask`。
@@ -101,9 +92,14 @@ powershell -File build.ps1 -Clean
 - **规避**：验证文件一律落产物自身目录（`AppContext.BaseDirectory`），别落系统临时目录。实现见 `src/NebulaLauncher.App/Program.cs Program.TryRelaunchElevated（:142）` 的 probe-dir 分支。
 
 ### 1.8 并行开发互相踩
-- **症状**：两个人同时构建/运行，一方突然出现对方的窗口、数据目录被改、或者自己的进程被别人 kill。
-- **成因**：共享 `bin`/`obj`、共享默认数据目录、有人用 `Stop-Process` 清场。三条都是「看起来无害」的操作。
-- **规避**：三条硬规矩——构建用独立配置（`dotnet build -c <自己的配置名>`）；运行必须带 `--data-dir`；绝不 `Stop-Process` 别人的进程（含名字相同的）。见 `CONVENTIONS.md` §8.8。
+- **症状**：两个人同时构建/运行，一方突然出现对方的窗口、数据目录被改、或者自己的进程被别人 kill；提交之后 `git show --stat` 里冒出别人的未跟踪文件。
+- **成因**：共享 `bin`/`obj`、共享默认数据目录、有人用 `Stop-Process` 清场、`git add -A` 把整棵工作树当成自己的改动。四条都是「看起来无害」的操作。构建配置另有一个边界：`-c <自定义配置名>` 在解决方案级不成立，`dotnet build -c Lead` 报 `MSB4126: 指定的解决方案配置"Lead|Any CPU"无效`，因为 `NebulaLauncher.sln:24` 的 `SolutionConfigurationPlatforms` 只声明 `Debug|Any CPU` 与 `Release|Any CPU`；要隔离得对项目文件传 `-c`（`dotnet build src/NebulaLauncher.App/NebulaLauncher.App.csproj -c Lead`）。
+- **规避**：四条硬规矩——构建在项目级传独立配置（解决方案级只能用 Debug/Release）；运行必须带 `--data-dir`；绝不 `Stop-Process` 别人的进程（含名字相同的）；提交按路径逐个 `git add <文件>`，不用 `-A`/`.`，误入后 `git reset --soft HEAD~1` 再 `git restore --staged <文件>` 修正。见 `CONVENTIONS.md` §8.8。
+
+### 1.9 工作区子目录被文件权限锁成只读，构建写不进 `obj/`
+- **症状**：`dotnet build` 报 `error MSB3061: 无法删除文件 "D:\agent_workspace\NebulaLauncher\src\NebulaLauncher.App\obj\Debug\net8.0\ref\NebulaLauncher.dll"。Access to the path 'D:\agent_workspace\NebulaLauncher\src\NebulaLauncher.App\obj\Debug\net8.0\ref\NebulaLauncher.dll' is denied.`，或 `error : Access to the path '...\tools\TestRunner\obj\<guid>.tmp' is denied.`；同一份代码换台机器就正常。
+- **成因**：子进程按受限令牌写盘，而 ACL 上没有显式 Deny，所以「看权限」看不出问题。工作区根缺少当前用户的 `WRITE_OWNER`（`Get-Acl` 只剩 `TakeOwnership, Synchronize`），沙箱无法为子目录补授权，整棵工作树对 `dotnet`、`bash`、`gh` 全变成只读；同类拒绝也打掉测试宿主启动与 shell-out CLI 的管道（`failed to run git: pipe: Access is denied.`），所以别先怀疑代码。
+- **规避**：用沙箱 ACL 诊断技能修一次（它备份原 DACL 并打印回滚命令）；复核方式是往 `src\NebulaLauncher.App\obj` 建一个探针文件，写不进去就还是权限问题。见 `CONVENTIONS.md` §0。
 
 ---
 
@@ -112,9 +108,7 @@ powershell -File build.ps1 -Clean
 ### 2.1 `.Result` / `.Wait()` 把 UI 线程锁死
 - **症状**：界面卡住不动，无响应；调试器里 UI 线程停在 `.Result`。
 - **成因**：Avalonia 的同步上下文在 UI 线程上，被同步等待的异步方法要回到 UI 线程完成，而 UI 线程正等着它——经典死锁。它在低负载机器上偶尔「能过」，所以最容易被放行。
-- **规避**：全链路 async/await，禁止 `.Result`、`.Wait()`、`GetAwaiter().GetResult()`（见 `CONVENTIONS.md` §3）。
-
-**唯一例外**：首帧前的同步预热 `src/NebulaLauncher.App/Services/StartupState.cs StartupState.LoadBeforeFirstFrame（:24）`。它成立的前提是被调用的异步方法全程 `ConfigureAwait(false)`，不依赖调用线程的同步上下文——前提一旦被破坏（新加的 `await` 忘了 `ConfigureAwait(false)`），这个例外立刻变成死锁源。改预热链路里的任何一次 `await` 都要复核这一点。
+- **规避**：全链路 async/await，禁止 `.Result`、`.Wait()`、`GetAwaiter().GetResult()`（见 `CONVENTIONS.md` §3）。唯一例外是首帧前的同步预热 `src/NebulaLauncher.App/Services/StartupState.cs StartupState.LoadBeforeFirstFrame（:24）`：它成立的前提是被调用的异步方法全程 `ConfigureAwait(false)`，不依赖调用线程的同步上下文——前提一旦被破坏（新加的 `await` 忘了 `ConfigureAwait(false)`），这个例外立刻变成死锁源；改预热链路里的任何一次 `await` 都要复核这一点。
 
 ### 2.2 服务构造时不读盘，于是处处「未登录」
 - **症状**：首页、启动页、实例页都显示未登录，但账户文件明明有内容；手动进设置页再返回，就好了。
@@ -149,8 +143,7 @@ powershell -File build.ps1 -Clean
 ### 2.8 `async void` 与丢弃的 `Task` 吞异常
 - **症状**：后台任务失败但没人报错，日志里一片安静，界面停在加载态。
 - **成因**：`_ = SomeAsync()` 丢弃任务引用后，异常无人观察；`async void` 的异常直接打到未处理异常通道，进程崩或静默。两种写法的共同点是「调用方拿到控制权时已经失去了错误信号」。
-- **规避**：内部触发的后台流程要么在方法内部 catch 并落到日志，要么返回可观察的任务；进入 `_ =` 丢弃之前确认它自己兜住了所有异常，并有终态复位（加载态不能只在成功路径里清）。
-- 代码位置：`src/NebulaLauncher.App/Views/WorldsView.axaml.cs WorldsView.OnImportModpackClick（:19）`（`async void` 事件处理器，异常只能靠方法内 try/catch 兜住）、`src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow.FlushAndCloseAsync（:310）`（同为 `async void`，:307 注释写明整段必须 try/catch）；同文件 `:337` 的 `_ = FlushSettingsAsync(reason)` 是丢弃任务实例。
+- **规避**：内部触发的后台流程要么在方法内部 catch 并落到日志，要么返回可观察的任务；进入 `_ =` 丢弃之前确认它自己兜住了所有异常，并有终态复位（加载态不能只在成功路径里清）。位置：`src/NebulaLauncher.App/Views/WorldsView.axaml.cs WorldsView.OnImportModpackClick（:19）`（`async void` 事件处理器，异常只能靠方法内 try/catch 兜住）、`src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow.FlushAndCloseAsync（:310）`（同为 `async void`，:307 注释写明整段必须 try/catch）；同文件 `:337` 的 `_ = FlushSettingsAsync(reason)` 是丢弃任务实例。
 
 ### 2.9 `InvalidatePageCache()` 丢弃当前页，但不走离开生命周期
 - **症状**：在设置页改完数据后需要重载当前页，重载后离开钩子没跑：该停的定时器还在跑、该退的订阅还在。同一份代码在正常切页时表现正常，只有走「失效重载」这条路才漏。
@@ -278,8 +271,7 @@ powershell -File build.ps1 -Clean
 ### 4.3 `ColumnDefinition.Width` 绑不上 ViewModel
 - **症状**：想把两段进度条按比例分配宽度，绑定 `ColumnDefinition.Width` 后毫无反应，也没有绑定错误提示。
 - **成因**：`ColumnDefinition` 不在可视树上，拿不到继承的数据上下文。现象容易误判成「控件没有 DataContext」。
-- **规避**：不用列宽表达比例。内存三段条的做法是叠两条 `ProgressBar`（下层总量、上层已用），由视图模型算宽度。
-- 代码位置：`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView（:538）`（538-550 的注释块说明「两条 ProgressBar 叠在同一个格子里」而不是拼 Border 宽度）、`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView（:552）`（同一个 Grid 里三条 `<ProgressBar Minimum="0" Maximum="1"`：蓝/红按 `IsMemoryOverCommit` 互斥可见，黄条叠在上层）。
+- **规避**：不用列宽表达比例。内存三段条的做法是叠两条 `ProgressBar`（下层总量、上层已用），由视图模型算宽度。位置：`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView（:538）`（538-550 的注释块说明「两条 ProgressBar 叠在同一个格子里」而不是拼 Border 宽度）、`src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView（:552）`（同一个 Grid 里三条 `<ProgressBar Minimum="0" Maximum="1"`：蓝/红按 `IsMemoryOverCommit` 互斥可见，黄条叠在上层）。
 
 ### 4.4 用夹过的比例相加判超额，永远不会触发
 - **症状**：内存分配明显超额，界面却不报警；或者反过来，刚好卡在阈值上抖动。
@@ -321,6 +313,11 @@ powershell -File build.ps1 -Clean
 - **成因**：提示文本每次取值都实时读当前活动账户，但变更通知只在「跟随账户」开关或认证地址字段被 setter 改动时才重发；装载面板时把开关写成它已有的值（通常是 true），属性值没变就不触发通知，提示便不会重算。页面也没有订阅账户变化事件。
 - **规避**：账户切换本身要触发提示重算（订阅账户变化，或让相关 setter 强制通知），不要把刷新押在「开关值变化」这一条路径上。位置：`src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel.EditorAuthServerHint（:1953）`。
 
+### 4.12 账户类型文案三处各写一份，首页那份把三态压成二元
+- **症状**：第三方验证账户在账户页显示「第三方验证」，切到首页同一账户的徽标却显示「离线账户」；微软与离线账户两页一致，只有第三方验证分叉。
+- **成因**：账户类型是三态（离线 / 微软 / 第三方验证），三处界面各写一份文案判定，首页那份写成 `account.Type == AccountType.Microsoft ? "微软账户" : "离线账户"`，`Authlib` 与 `Offline` 一起落进 else。两份字面量并存时，改一处不会带动另一处，也不报错。
+- **规避**：类型文案只允许一处映射——`src/NebulaLauncher.App/ViewModels/AccountTypeDisplay.cs:14 AccountTypeDisplay.BadgeOf`，短标签由它派生 `src/NebulaLauncher.App/ViewModels/AccountTypeDisplay.cs:26 AccountTypeDisplay.ShortBadgeOf`，详情拼装同处的 `AccountTypeDisplay.DetailOf`；三处渲染改调它。用例 `tests/NebulaLauncher.Tests/AppAccounts_TypeDisplayTests.cs`、`tests/NebulaLauncher.Tests/AppHome_AccountBadgeTests.cs`，改回分散判定会变红。见 6.D12。
+
 ---
 
 ## 5. 测试与验证
@@ -349,10 +346,11 @@ powershell -File build.ps1 -Clean
 - **症状**：全仓搜索某个符号，结论是「只有一处」，实际有三处；据此改出来的结论是错的。
 - **成因**：`-Path 'src\**\*.cs'` 里 `**` 不是一个任意深度的通配，只等价一层目录。漏掉更深的文件不会有任何提示。
 - **规避**：涉及「全仓有几处」的核实，用递归枚举显式喂给 `Select-String`（`Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOptions'`），或直接用 grep 工具；凡由搜索结果支撑的结论（尤其是「只有一处」「不存在」），换一种搜索方式复核一次。
+
 ### 5.6 测试运行器的 SKIP 不是通过
-- **症状**：用例明明没跑，报告里也没有失败，于是当成通过。
-- **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。
-- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；日常按类名过滤跑单类。见 `CONVENTIONS.md` §8.2。
+- **症状**：用例明明没跑，报告里也没有失败，于是当成通过；或者带 `null` 参数的用例直接报 `TargetParameterCountException: Parameter count mismatch.`。
+- **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；`[InlineData(null)]` 被当成「没有参数」而不是「一个 null 参数」；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。
+- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；带 `null` 的场景写成独立 `[Fact]` 或换哨兵值，别用 `[InlineData(null)]`；日常按类名过滤跑单类。见 `CONVENTIONS.md` §8.2。
 
 ### 5.7 白名单键集必须写死在测试里
 - **症状**：导出的配置包多带了一个键，直到别人机器上被覆盖才发现。
@@ -388,6 +386,7 @@ powershell -File build.ps1 -Clean
 | D9 | 下载源 Auto 降级状态只在内存；手动档只提示、不换源 | 「今天镜像慢」不该变成永久配置；用户手动选定的源要免疫自动降级 | 落盘就等于把一次性网络抖动写成长期设置；去掉自动降级则弱网环境完全不可用。手动档的失败计数同样是内存态：它只用来在状态行提醒「镜像看起来坏了、可在设置里改用自动或官方源」，当前使用的源一个字节都不换 |
 | D10 | 内置 CurseForge API key，不再让用户填 | 反查与搜索对普通用户必须开箱可用 | key 随产物分发，必须换 key 得重新发布；同时要保证无 key 时不崩（错误往「不崩」方向漏） |
 | D11 | Java 上限只在大版本级阻断，补丁号级仅提示 | 用具体补丁号做硬门槛，会在相邻补丁上误杀（8u320 硬挡会拦掉 8u322） | 改成精确版本比对就会重现误杀，且误杀发生在启动前，用户没有自救路径 |
+| D12 | 账户类型文案只有一处映射 `AccountTypeDisplay`，短标签由长标签派生 | 三处各写一份判定时首页那份塌缩成二元，把「第三方验证」显示成「离线账户」（见 4.12）；两份字面量并存就还能各自漂移 | 拆回分散判定要改 `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs` 的 `AccountBadge`、`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs` 的 `ActiveTypeLabel` 与 `TypeLabel` 三处，并失去「一处改名处处跟随」的保证；没有守护拦得住重新分叉 |
 
 ### 6.1 裁决与坑的联动
 
@@ -396,3 +395,4 @@ powershell -File build.ps1 -Clean
 - D6 的反面就是 2.3：幂等不能靠「再调一次」绕过。
 - D7 的反面就是 2.4：闸门语义下的暂停不是终态。
 - D8 的反面就是 3.3：锁的三个组成缺一不可。
+- D12 的反面就是 4.12：类型文案只有一个映射，短标签由长标签派生。
