@@ -362,19 +362,10 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     /// <summary>主导航项。</summary>
     public ObservableCollection<NavigationItem> NavigationItems { get; } = new();
 
-    /// <summary>侧边栏底部导航项（日志 / 帮助 / 设置）。保留完整集合供高亮逻辑统一遍历。</summary>
+    /// <summary>侧边栏底部导航项（日志 / 帮助 / 设置）。</summary>
     public ObservableCollection<NavigationItem> FooterItems { get; } = new();
 
-    /// <summary>皮肤卡上方的页脚项：日志、帮助。</summary>
-    public ObservableCollection<NavigationItem> FooterUpperItems { get; } = new();
-
-    /// <summary>皮肤卡下方的页脚项：设置。</summary>
-    public ObservableCollection<NavigationItem> FooterLowerItems { get; } = new();
-
-    /// <summary>
-    /// 侧边栏常驻的 3D 皮肤卡。它与上面的页脚项共用同一批
-    /// <see cref="NavigationItem"/> 实例，高亮只在一处维护。
-    /// </summary>
+    /// <summary>侧边栏常驻的 3D 皮肤卡，位于主导航与页脚项之间。</summary>
     public SkinCardViewModel SkinCard { get; }
 
     [ObservableProperty]
@@ -776,14 +767,9 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         var help = new NavigationItem(NavigationKeys.Help, "帮助", NavigationKeys.IconHelp, isFooter: true);
         var settings = new NavigationItem(NavigationKeys.Settings, "设置", NavigationKeys.IconSettings, isFooter: true);
 
-        // 三个集合共享同一批实例：FooterItems 负责让高亮逻辑只遍历一处，
-        // 上下两段只决定它们和皮肤卡的先后位置。
+        // 页脚三项在皮肤卡下方，按「内容入口 → 配置入口」的顺序排。
         FooterItems.Add(logs);
         FooterItems.Add(help);
         FooterItems.Add(settings);
-
-        FooterUpperItems.Add(logs);
-        FooterUpperItems.Add(help);
-        FooterLowerItems.Add(settings);
     }
 }
