@@ -44,6 +44,9 @@ public static class NavigationKeys
     public const string Servers = "servers";
     public const string Worlds = "worlds";
 
+    /// <summary>皮肤页：网络皮肤库浏览与 3D 预览。</summary>
+    public const string Skins = "skins";
+
     /// <summary>日志中心：启动器日志与游戏日志的查看入口。</summary>
     public const string Logs = "logs";
 
@@ -78,6 +81,10 @@ public static class NavigationKeys
     /// <summary>地球 + 经纬线，用于「世界与备份」。</summary>
     public const string IconWorlds =
         "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.2 9h17.6M3.2 15h17.6M12 3a14 14 0 0 0 0 18M12 3a14 14 0 0 1 0 18";
+
+    /// <summary>上衣轮廓，用于「皮肤」。</summary>
+    public const string IconSkins =
+        "M9 3 5 4.5V9h2v12h10V9h2V4.5L15 3l-3 2z";
 
     /// <summary>文档 + 折角 + 三行文字，用于「日志」。</summary>
     public const string IconLogs =

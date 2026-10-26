@@ -1,0 +1,273 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:controls="using:NebulaLauncher.Controls"
+             x:Class="NebulaLauncher.Views.SkinsView"
+             x:DataType="vm:SkinsViewModel">
+
+  <UserControl.Styles>
+    <!-- 页签：选中态用强调色描边 + 柔底，与资源库页的分类胶囊同款。 -->
+    <Style Selector="Button.pill.tab.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- 浏览列表：卡片自带边框，去掉 ListBoxItem 的默认内边距与间距。 -->
+    <Style Selector="ListBox.skinList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+    </Style>
+
+    <!-- 选中态体现在卡片描边上：卡片背景不透明，ListBoxItem 的选中底色会被盖住。 -->
+    <Style Selector="Border.card.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,320">
+
+    <!-- 错误条：断网时出现，可关闭、可重试。已有内容不清空，所以重试成功即恢复。 -->
+    <Border Grid.Row="0" Grid.ColumnSpan="2"
+            Margin="0,0,0,10"
+            IsVisible="{Binding HasError}"
+            Background="{DynamicResource Status.Danger.Soft}"
+            BorderBrush="{DynamicResource Status.Danger}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource Radius.Md}"
+            Padding="14,10">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+        <Border Classes="badge danger" VerticalAlignment="Center">
+          <TextBlock Text="{Binding ErrorBadge}" />
+        </Border>
+        <TextBlock Grid.Column="1"
+                   Margin="10,0,10,0"
+                   Text="{Binding ErrorText}"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource Status.Danger}" />
+        <Button Grid.Column="2" Classes="ghost" Content="重试" Command="{Binding RetryCommand}" />
+        <Button Grid.Column="3" Classes="icon" Content="✕" Margin="4,0,0,0"
+                ToolTip.Tip="关闭这条提示"
+                Command="{Binding CloseErrorCommand}" />
+      </Grid>
+    </Border>
+
+    <!-- 账户条：跟随当前账户，只读展示，不提供切换器（切账户在账户页做）。 -->
+    <Border Grid.Row="1" Grid.ColumnSpan="2"
+            Classes="card"
+            Padding="16,12"
+            Margin="0,0,0,12">
+      <StackPanel Spacing="3">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding AccountName}" Classes="h3" VerticalAlignment="Center" />
+          <Border Classes="badge" VerticalAlignment="Center">
+            <TextBlock Text="{Binding AccountBadge}" />
+          </Border>
+        </StackPanel>
+        <TextBlock Text="{Binding AccountDetail}" Classes="muted" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- 左列：页签 + 搜索 + 列表 + 页码 -->
+    <Grid Grid.Row="2" Grid.Column="0"
+          RowDefinitions="Auto,*,Auto"
+          Margin="0,0,12,0">
+
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10">
+        <Button Classes="pill tab"
+                Classes.active="{Binding IsNetworkTab}"
+                Content="网络皮肤"
+                Command="{Binding SelectNetworkTabCommand}" />
+        <Button Classes="pill tab"
+                Classes.active="{Binding IsLocalTab}"
+                Content="本地皮肤"
+                Command="{Binding SelectLocalTabCommand}" />
+      </StackPanel>
+
+      <!-- 网络皮肤页签的内容 -->
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*"
+            IsVisible="{Binding IsNetworkTab}">
+
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+          <TextBox VerticalAlignment="Center"
+                   Watermark="搜皮肤名，回车"
+                   Text="{Binding Keyword}"
+                   KeyDown="OnSearchKeyDown" />
+          <Button Grid.Column="1" Classes="accent" Margin="8,0,0,0"
+                  Content="搜索"
+                  Command="{Binding SearchCommand}" />
+        </Grid>
+
+        <!-- 顶部细进度条：翻页时不遮挡已有行，断网时也还能看缓存下来的列表。 -->
+        <ProgressBar Grid.Row="1"
+                     IsVisible="{Binding IsLoading}"
+                     IsIndeterminate="True"
+                     Height="3"
+                     Margin="0,0,0,8" />
+
+        <Grid Grid.Row="2">
+          <!-- 首屏加载占位 -->
+          <Border Classes="card"
+                  IsVisible="{Binding ShowLoadingPlaceholder}"
+                  VerticalAlignment="Top"
+                  Padding="24,28">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+              <ProgressBar IsIndeterminate="True" Width="160" Height="4" />
+              <TextBlock Text="正在从皮肤库读取…" Classes="muted" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <!-- 浏览列表：一行 = 小图 + 名字 + 类型 + 人气 -->
+          <ListBox Classes="skinList"
+                   ItemsSource="{Binding Items}"
+                   SelectedItem="{Binding Selected}"
+                   IsVisible="{Binding !IsEmpty}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SkinEntryViewModel">
+                <Border Classes="card hoverable"
+                        Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                        Padding="10">
+                  <Grid ColumnDefinitions="44,*,Auto">
+                    <Border Width="44" Height="44"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            ClipToBounds="True"
+                            Background="{DynamicResource Surface.Sunken}">
+                      <Panel>
+                        <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                              IsVisible="{Binding !HasThumbnail}"
+                              Stroke="{DynamicResource Text.Muted}"
+                              StrokeThickness="1.4"
+                              Stretch="Uniform"
+                              Width="20" Height="20"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                        <Image Source="{Binding Thumbnail}"
+                               IsVisible="{Binding HasThumbnail}"
+                               Stretch="Uniform" />
+                      </Panel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}"
+                                 FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding LikesLabel}" Classes="caption" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding ModelLabel}" />
+                    </Border>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- 空状态：搜不到、或者这一页真的没有 -->
+          <Border Classes="card"
+                  IsVisible="{Binding IsEmpty}"
+                  VerticalAlignment="Top"
+                  Padding="24,28">
+            <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
+              <Border Width="52" Height="52"
+                      CornerRadius="26"
+                      Background="{DynamicResource Accent.Soft}"
+                      HorizontalAlignment="Center">
+                <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                      Stroke="{DynamicResource Accent.Primary}"
+                      StrokeThickness="1.6"
+                      Stretch="Uniform"
+                      Width="24" Height="24"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="没有找到皮肤" Classes="h3" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding EmptyHint}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Grid>
+
+      <!-- 本地皮肤页签：本片只放引导文案，实做留给下一张票 -->
+      <Border Grid.Row="1"
+              Classes="card"
+              IsVisible="{Binding IsLocalTab}"
+              VerticalAlignment="Top"
+              Padding="24,28">
+        <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
+          <TextBlock Text="本地皮肤还没有接入" Classes="h3" HorizontalAlignment="Center" />
+          <TextBlock Text="这一片只做网络皮肤库。本地皮肤的导入、切换和删除在下一张票里接上。"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+        </StackPanel>
+      </Border>
+
+      <!-- 页码：末页时「下一页」禁用 -->
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0"
+            IsVisible="{Binding IsNetworkTab}">
+        <Button Classes="pill"
+                Content="上一页"
+                IsEnabled="{Binding CanGoPrev}"
+                Command="{Binding PreviousPageCommand}" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock Text="{Binding PageLabel}" Classes="caption" />
+          <TextBlock Text="{Binding PageSummary}" Classes="caption" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="pill"
+                Content="下一页"
+                IsEnabled="{Binding CanGoNext}"
+                Command="{Binding NextPageCommand}" />
+      </Grid>
+    </Grid>
+
+    <!-- 右列：中等尺寸 3D 预览卡。可自转、可拖动。 -->
+    <Border Grid.Row="2" Grid.Column="1"
+            Classes="card"
+            Padding="0"
+            VerticalAlignment="Top"
+            ClipToBounds="True">
+      <StackPanel>
+        <Border Height="300"
+                Background="{DynamicResource Surface.Sunken}"
+                ClipToBounds="True">
+          <Panel>
+            <controls:SkinModelView Visual="{Binding PreviewVisual}"
+                                    Cursor="SizeAll"
+                                    ClipToBounds="True" />
+            <ProgressBar IsVisible="{Binding IsPreviewLoading}"
+                         IsIndeterminate="True"
+                         Height="3"
+                         VerticalAlignment="Top" />
+          </Panel>
+        </Border>
+
+        <StackPanel Margin="14,10,14,14" Spacing="4">
+          <TextBlock Text="{Binding PreviewName}"
+                     FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding PreviewDetail}"
+                     Classes="caption"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="按住拖动可以转视角，松手继续自转"
+                     Classes="muted"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

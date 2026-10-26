@@ -35,7 +35,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     [
         NavigationKeys.Home, NavigationKeys.Versions, NavigationKeys.Download,
         NavigationKeys.Mods, NavigationKeys.Library, NavigationKeys.Accounts, NavigationKeys.Servers,
-        NavigationKeys.Worlds, NavigationKeys.Logs, NavigationKeys.Help, NavigationKeys.Settings,
+        NavigationKeys.Worlds, NavigationKeys.Skins, NavigationKeys.Logs, NavigationKeys.Help, NavigationKeys.Settings,
     ];
 
     private static readonly Dictionary<string, (string Title, string Description)> PlaceholderMeta = new(StringComparer.Ordinal)
@@ -48,6 +48,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         [NavigationKeys.Accounts] = ("账户", "微软账户登录与离线账户管理。"),
         [NavigationKeys.Servers] = ("服务器", "服务器收藏与实时状态、MOTD、在线人数、延迟。"),
         [NavigationKeys.Worlds] = ("世界", "世界存档、备份与还原、整合包导入与导出。"),
+        [NavigationKeys.Skins] = ("皮肤", "皮肤库：浏览网络皮肤、拖动旋转 3D 预览、管理本地皮肤。"),
         [NavigationKeys.Logs] = ("日志", "日志中心：启动器日志与游戏日志的查看、按级别与关键字过滤。"),
         [NavigationKeys.Help] = ("帮助", "内置离线帮助：功能说明、常见问题与故障排查。"),
         [NavigationKeys.Settings] = ("设置", "游戏目录、Java 路径、内存、下载源、主题与动效、窗口材质。"),
@@ -762,6 +763,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         NavigationItems.Add(new NavigationItem(NavigationKeys.Accounts, "账户", NavigationKeys.IconAccounts));
         NavigationItems.Add(new NavigationItem(NavigationKeys.Servers, "服务器", NavigationKeys.IconServers));
         NavigationItems.Add(new NavigationItem(NavigationKeys.Worlds, "世界", NavigationKeys.IconWorlds));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Skins, "皮肤", NavigationKeys.IconSkins));
 
         var logs = new NavigationItem(NavigationKeys.Logs, "日志", NavigationKeys.IconLogs, isFooter: true);
         var help = new NavigationItem(NavigationKeys.Help, "帮助", NavigationKeys.IconHelp, isFooter: true);

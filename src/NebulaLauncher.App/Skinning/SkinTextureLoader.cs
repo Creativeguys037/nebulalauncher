@@ -148,6 +148,15 @@ public static class SkinTextureLoader
         }
     }
 
+    /// <summary>
+    /// 把一张已解好的皮肤图拼成可渲染的 <see cref="SkinVisual"/>（披风可选）。
+    ///
+    /// 皮肤页从皮肤站拿到的图走这里：体型由站点字段决定，老版布局仍由
+    /// <see cref="IsLegacyLayout"/> 判，不必让界面层再抄一遍规则。
+    /// </summary>
+    public static SkinVisual CreateVisual(ArgbSkinTexture skin, bool slim, ArgbSkinTexture? cape = null) =>
+        new(skin, NormalizeCape(cape), slim, IsLegacyLayout(skin));
+
     /// <summary>把 PNG 字节解成 <c>0xAARRGGBB</c> 像素。不是可识别的 PNG 时返回 null。</summary>
     public static ArgbSkinTexture? DecodePng(byte[] png, IAppLog? log = null)
     {

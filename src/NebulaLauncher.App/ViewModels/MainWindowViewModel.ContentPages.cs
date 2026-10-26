@@ -14,5 +14,6 @@ public partial class MainWindowViewModel
         RegisterPage(NavigationKeys.Library, () => Resolve<LibraryViewModel>());
         RegisterPage(NavigationKeys.Accounts, () => Resolve<AccountsViewModel>());
         RegisterPage(NavigationKeys.Servers, () => Resolve<ServersViewModel>());
+        RegisterPage(NavigationKeys.Skins, () => Resolve<SkinsViewModel>());
     }
 }
