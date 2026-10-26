@@ -64,11 +64,32 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     public MainWindowViewModel(IServiceProvider services)
     {
         Services = services;
+        SkinCard = new SkinCardViewModel(services);
         ApplyLaunchUiPreferences();
         RegisterPages();
         BuildNavigation();
         Navigate(NavigationKeys.Home);
+        _ = InitializeSkinCardAsync();
     }
+
+    /// <summary>
+    /// 皮肤卡的后台初始化。异常在这里就地落日志：调用方丢弃了这个任务（PITFALLS 2.8），
+    /// 让它静默失败在界面上只表现为「卡片一直停在默认皮肤」。
+    /// </summary>
+    private async Task InitializeSkinCardAsync()
+    {
+        try
+        {
+            await SkinCard.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            (Services.GetService(typeof(IAppLog)) as IAppLog)?.Warn("初始化侧边栏皮肤卡失败", ex);
+        }
+    }
+
+    /// <summary>窗口关闭时拆掉皮肤卡的账户订阅与在途请求。</summary>
+    public void ReleaseSkinCard() => SkinCard.Dispose();
 
     /// <summary>
     /// 把「动效开关 / 背景特效」两项设置接进壳层。
@@ -341,8 +362,20 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     /// <summary>主导航项。</summary>
     public ObservableCollection<NavigationItem> NavigationItems { get; } = new();
 
-    /// <summary>侧边栏底部导航项。</summary>
+    /// <summary>侧边栏底部导航项（日志 / 帮助 / 设置）。保留完整集合供高亮逻辑统一遍历。</summary>
     public ObservableCollection<NavigationItem> FooterItems { get; } = new();
+
+    /// <summary>皮肤卡上方的页脚项：日志、帮助。</summary>
+    public ObservableCollection<NavigationItem> FooterUpperItems { get; } = new();
+
+    /// <summary>皮肤卡下方的页脚项：设置。</summary>
+    public ObservableCollection<NavigationItem> FooterLowerItems { get; } = new();
+
+    /// <summary>
+    /// 侧边栏常驻的 3D 皮肤卡。它与上面的页脚项共用同一批
+    /// <see cref="NavigationItem"/> 实例，高亮只在一处维护。
+    /// </summary>
+    public SkinCardViewModel SkinCard { get; }
 
     [ObservableProperty]
     private PageViewModelBase? _currentPage;
@@ -739,8 +772,18 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         NavigationItems.Add(new NavigationItem(NavigationKeys.Servers, "服务器", NavigationKeys.IconServers));
         NavigationItems.Add(new NavigationItem(NavigationKeys.Worlds, "世界", NavigationKeys.IconWorlds));
 
-        FooterItems.Add(new NavigationItem(NavigationKeys.Logs, "日志", NavigationKeys.IconLogs, isFooter: true));
-        FooterItems.Add(new NavigationItem(NavigationKeys.Help, "帮助", NavigationKeys.IconHelp, isFooter: true));
-        FooterItems.Add(new NavigationItem(NavigationKeys.Settings, "设置", NavigationKeys.IconSettings, isFooter: true));
+        var logs = new NavigationItem(NavigationKeys.Logs, "日志", NavigationKeys.IconLogs, isFooter: true);
+        var help = new NavigationItem(NavigationKeys.Help, "帮助", NavigationKeys.IconHelp, isFooter: true);
+        var settings = new NavigationItem(NavigationKeys.Settings, "设置", NavigationKeys.IconSettings, isFooter: true);
+
+        // 三个集合共享同一批实例：FooterItems 负责让高亮逻辑只遍历一处，
+        // 上下两段只决定它们和皮肤卡的先后位置。
+        FooterItems.Add(logs);
+        FooterItems.Add(help);
+        FooterItems.Add(settings);
+
+        FooterUpperItems.Add(logs);
+        FooterUpperItems.Add(help);
+        FooterLowerItems.Add(settings);
     }
 }

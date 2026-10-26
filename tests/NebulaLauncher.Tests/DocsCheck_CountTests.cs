@@ -25,8 +25,10 @@ public sealed class DocsCheck_CountTests
     /// 安装器」补了一条 4 个 InlineData 的 Theory，净增 4。
     /// 票 #28 把账户类型文案收敛成共享映射，新增 10 个 InlineData
     /// （三态映射表 3 + API 根非法或缺失 4 + 账户列表行 3），净增 10。
+    /// 票 #40 给六方向纯色探针加了 6 个 InlineData（正/背/左/右/顶/底各一行），净增 6。
+    /// 票 #48 给皮肤头像服务加了 7 个 InlineData（皮肤 PNG 两种历史尺寸 2 + 模型归一化 5），净增 7。
     /// </summary>
-    private const int BaselineInlineData = 773;
+    private const int BaselineInlineData = 786;
 
     [Fact]
     public void 按Fact与InlineData计数()

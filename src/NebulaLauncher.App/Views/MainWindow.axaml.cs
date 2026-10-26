@@ -316,6 +316,9 @@ public partial class MainWindow : Window
 
         try
         {
+            // 窗口只剩最后这一条命：先把皮肤卡的账户订阅与在途请求拆掉，再真关。
+            (DataContext as MainWindowViewModel)?.ReleaseSkinCard();
+
             // await 回到 UI 线程（Closing 在 UI 线程触发，这里没有 ConfigureAwait(false)），
             // Close 再次进入 Closing；_closeFlushStarted 已置位，那一次直接放行。
             Close();

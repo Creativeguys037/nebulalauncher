@@ -164,6 +164,19 @@
 10. CurseForge 落盘：`src/NebulaLauncher.Core/Mods/CurseForgeService.cs CurseForgeService.InstallAsync（:868）` 同一模式（partial + `File.Move`，`:956`）。
 11. 外部边界：`api.modrinth.com`、`api.curseforge.com`（及 `mod.mcimirror.top` 镜像重写，见 `src/NebulaLauncher.Core/Downloads/DownloadInfrastructure.cs DownloadHttpClientFactory（:996）`）；禁用的内容改后缀 `.disabled`，由 `src/NebulaLauncher.Core/Mods/ContentBatch.cs ContentBatch` 管理。
 
+### 4.4 侧边栏 3D 皮肤卡（账户 → 像素）
+
+1. 壳层创建卡片 VM：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel（:64）` → `InitializeSkinCardAsync`（丢弃任务前已就地 try/catch 落日志，见 PITFALLS 2.8）；关闭时 `ReleaseSkinCard` 拆订阅。
+2. VM 跟随账户：`src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync`，订阅 `IAccountService.AccountsChanged`，每次变更 `ApplyAsync`（用 `Interlocked.Exchange` 取消上一次在途请求）。
+3. 取皮肤地址：`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs`。`BuildProfileUrl` 由 `Account.Uuid` 与 `AuthServerUrl` 拼会话服务器地址（第三方把 `/yggdrasil` 换成 `/sessionserver`，官方走 `sessionserver.mojang.com`）；`ParseProfile` 解 `properties[]` 里 `name=textures` 的 base64 载荷，得到 `SKIN.url` / `CAPE.url` / `metadata.model`。
+4. 下载与解码：`src/NebulaLauncher.App/Skinning/SkinTextureLoader.cs SkinTextureLoader.LoadAsync` → `DownloadTextureAsync` → `DecodePng`（`WriteableBitmap.Decode` + `Lock` + `Marshal.Copy`，只认 `Bgra8888` / `Rgba8888`，统一成 `0xAARRGGBB` 数组）。任何一步失败都退 `SkinVisual.Default` 并 `IAppLog.Warn`，**卡片永不空白**。
+5. 几何：`src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs Build` 按 MC 像素建 6 个部件（Steve 臂宽 4 / Alex 3，脚底 y=0 头顶 y=32），有皮肤时再叠 6 个外层（各边 +0.5 单位即纹理上的 +0.25）。UV 用 `BuildUv` 的 mojang 展开公式；**披风例外**，走 `BuildCapeUv`——披风图整块只有 22 宽，等宽公式会把背面推到 31 列而取到透明像素。
+6. 投影与剔除：`src/NebulaLauncher.App/Skinning/SkinProjector.cs Project`。矩阵顺序 `projection * view * model`，屏幕绕向叉积为负才算正面，最后按深度从远到近排序（画家算法）。
+7. 光栅：`src/NebulaLauncher.App/Skinning/SkinRasterizer.cs FillQuad` 用增量式边缘函数填三角形，`invArea` 保留符号，透视校正插值 `uv/w`，UV 钳到 `[uMin, uMax-1e-3]` 防止 `floor` 渗到隔壁格子。
+8. 上屏：`src/NebulaLauncher.App/Controls/SkinModelView.cs` 继承 `Control`，按 `IRenderRoot.RenderScaling` 建 `WriteableBitmap`（`Bgra8888` + `Premul`），逐帧 `SkinRenderer.Render` → 转 BGRA 预乘 → `Marshal.Copy` → `context.DrawImage`。33ms 定时器自转；`Motion.Enabled=false` 时停表（真静止）；左键拖动改 yaw/pitch。
+
+**与原票实现的偏离**：票面写的是「几何算出屏幕多边形 → `PushTransform` + clip 贴三角形」，实际改成**纯 CPU 软光栅到 `WriteableBitmap`**。理由：① 测试禁止触碰 Avalonia 类型（CONVENTIONS §8.2），像素级断言（六方向主色占比）只有纯 C# 光栅器能喂；② 同一份光栅代码给产品用，测试才真的证明了产品正确；③ 单帧 220×280 实测中位 6.2ms，60fps 预算 16.7ms 有余量，且避开了 68 个 geometry 的 tessellation 性能未知与相邻三角形接缝。
+
 ## 5. 依赖注入
 
 | 问题 | 答案 |

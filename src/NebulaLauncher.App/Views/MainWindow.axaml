@@ -185,7 +185,63 @@
 
             <StackPanel Grid.Row="1" Margin="0,0,0,12">
               <Border Height="1" Margin="20,0,20,8" Background="{DynamicResource Stroke.Subtle}" />
-              <ItemsControl ItemsSource="{Binding FooterItems}">
+              <ItemsControl ItemsSource="{Binding FooterUpperItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NavigationItem">
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsActive}"
+                            Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
+                            CommandParameter="{Binding Key}">
+                      <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Path Data="{Binding IconData}"
+                              StrokeThickness="1.6"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="17" Height="17"
+                              VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <!--
+                常驻的 3D 皮肤卡。放在「日志/帮助」与「设置」之间，
+                上面是内容入口、下面是配置入口，这张卡属于「我是谁」，不打断任何一组。
+                拖动卡片里的模型可以改视角，窗口滚动与它无关（它不在滚动区里）。
+              -->
+              <Border Margin="12,4,12,4"
+                      CornerRadius="{DynamicResource Radius.Md}"
+                      Background="{DynamicResource Surface.CardSolid}"
+                      BorderBrush="{DynamicResource Stroke.Subtle}"
+                      BorderThickness="1"
+                      ClipToBounds="True">
+                <StackPanel>
+                  <Border Height="104"
+                          Background="{DynamicResource Surface.Sunken}"
+                          ClipToBounds="True">
+                    <controls:SkinModelView
+                        ClipToBounds="True"
+                        Cursor="SizeAll"
+                        Visual="{Binding SkinCard.Visual}" />
+                  </Border>
+                  <StackPanel Margin="10,6,10,8" Spacing="1">
+                    <TextBlock Text="{Binding SkinCard.PlayerName}"
+                               FontSize="{DynamicResource FontSize.Small}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Primary}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding SkinCard.Detail}"
+                               FontSize="{DynamicResource FontSize.Caption}"
+                               Foreground="{DynamicResource Text.Muted}"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <ItemsControl ItemsSource="{Binding FooterLowerItems}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:NavigationItem">
                     <Button Classes="nav"
