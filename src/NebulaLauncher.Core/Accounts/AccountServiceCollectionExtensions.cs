@@ -16,6 +16,9 @@ public static class AccountServiceCollectionExtensions
             sp.GetRequiredService<IAppLog>(),
             sp.GetRequiredService<IPlatformService>()));
 
+        // 皮肤头像（按 UUID 取皮肤 PNG 并缓存）跟着账户模块走：它只依赖账户模型与路径。
+        services.AddCoreSkinAvatars();
+
         return services;
     }
 }

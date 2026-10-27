@@ -3,6 +3,7 @@
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
              xmlns:models="using:NebulaLauncher.Core.Models"
+             xmlns:controls="using:NebulaLauncher.Controls"
              x:Class="NebulaLauncher.Views.AccountsView"
              x:DataType="vm:AccountsViewModel">
 
@@ -50,20 +51,28 @@
           <Grid ColumnDefinitions="Auto,*,Auto">
 
             <Border Width="84" Height="84"
-                    CornerRadius="42"
+                    CornerRadius="{DynamicResource Radius.Sm}"
                     BorderBrush="{DynamicResource Stroke.Strong}"
                     BorderThickness="1"
-                    ClipToBounds="True">
+                    ClipToBounds="True"
+                    ToolTip.Tip="右键刷新头像">
+              <Border.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="刷新头像" Command="{Binding RefreshActiveAvatarCommand}" />
+                </ContextMenu>
+              </Border.ContextMenu>
               <Panel>
-                <Border CornerRadius="42"
+                <Border CornerRadius="{DynamicResource Radius.Sm}"
                         Background="{DynamicResource Gradient.Accent}"
                         IsVisible="{Binding !ActiveUseAurora}" />
-                <Border CornerRadius="42"
+                <Border CornerRadius="{DynamicResource Radius.Sm}"
                         Background="{DynamicResource Gradient.Aurora}"
                         IsVisible="{Binding ActiveUseAurora}" />
+                <!-- 皮肤还没取到（或取失败）时，下层首字母就是兜底；皮肤头部区域不透明，取到即盖住 -->
                 <TextBlock Text="{Binding ActiveInitial}"
                            Classes="avatarLetter"
                            FontSize="32" />
+                <controls:SkinAvatar Source="{Binding ActiveAvatar}" />
               </Panel>
             </Border>
 
@@ -169,15 +178,22 @@
                           Margin="0,0,0,8">
                     <Grid ColumnDefinitions="Auto,*,Auto">
 
-                      <Border Width="38" Height="38" CornerRadius="19" ClipToBounds="True">
+                      <Border Width="38" Height="38" CornerRadius="{DynamicResource Radius.Xs}" ClipToBounds="True"
+                              ToolTip.Tip="右键刷新头像">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="刷新头像" Command="{Binding RefreshAvatarCommand}" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
                         <Panel>
-                          <Border CornerRadius="19"
+                          <Border CornerRadius="{DynamicResource Radius.Xs}"
                                   Background="{DynamicResource Gradient.Accent}"
                                   IsVisible="{Binding !UseAurora}" />
-                          <Border CornerRadius="19"
+                          <Border CornerRadius="{DynamicResource Radius.Xs}"
                                   Background="{DynamicResource Gradient.Aurora}"
                                   IsVisible="{Binding UseAurora}" />
                           <TextBlock Text="{Binding Initial}" Classes="avatarLetter" FontSize="15" />
+                          <controls:SkinAvatar Source="{Binding Avatar}" />
                         </Panel>
                       </Border>
 

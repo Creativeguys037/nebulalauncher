@@ -1,17 +1,20 @@
 using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Services;
 
 namespace NebulaLauncher.ViewModels;
 
 /// <summary>
 /// 账户页：当前账户大卡片、账户列表、离线账户添加、微软设备码登录。
 ///
-/// 头像不依赖任何外部图片：用用户名首字母 + 令牌渐变底色画圆形，离线也能完整显示。
+/// 头像优先用皮肤脸（<see cref="Controls.SkinAvatar"/> 从整张皮肤纹理裁 8×8）；
+/// 位图还没取到、或解码失败时，外层占位色块顶上，界面不会出现空洞。
 /// </summary>
 public sealed partial class AccountsViewModel : PageViewModelBase
 {
@@ -20,6 +23,7 @@ public sealed partial class AccountsViewModel : PageViewModelBase
 
     private readonly IAccountService? _accounts;
     private readonly IPlatformService? _platform;
+    private readonly SkinAvatarLoader? _skinLoader;
 
     private CancellationTokenSource? _authCts;
     private CancellationTokenSource? _authlibCts;
@@ -32,6 +36,10 @@ public sealed partial class AccountsViewModel : PageViewModelBase
     {
         _accounts = services.GetService(typeof(IAccountService)) as IAccountService;
         _platform = services.GetService(typeof(IPlatformService)) as IPlatformService;
+        // 位图缓存挂在页面上而不是容器里：皮肤头像不写 App.axaml.cs 的注册表（并行协作的热点文件），
+        // 账户页与首页各持一份解码缓存，最多各自缓存几张 8×8 脸，代价可以忽略。
+        _skinLoader = (services.GetService(typeof(SkinAvatarLoader)) as SkinAvatarLoader)
+                      ?? new SkinAvatarLoader(services);
 
         IsDemoMode = _accounts is null;
 
@@ -86,6 +94,10 @@ public sealed partial class AccountsViewModel : PageViewModelBase
 
     [ObservableProperty]
     private string _activeInitial = "?";
+
+    /// <summary>当前账户的皮肤纹理。为空时大卡只画占位色块。</summary>
+    [ObservableProperty]
+    private Bitmap? _activeAvatar;
 
     [ObservableProperty]
     private string _activeTypeLabel = "游客";
@@ -754,8 +766,9 @@ public sealed partial class AccountsViewModel : PageViewModelBase
 
             foreach (var account in source)
             {
-                var row = new AccountRowViewModel(account, active?.Id);
+                var row = new AccountRowViewModel(account, active?.Id, _skinLoader);
                 Accounts.Add(row);
+                _ = row.LoadAvatarAsync();
             }
 
             ApplyActiveCard(active);
@@ -783,6 +796,7 @@ public sealed partial class AccountsViewModel : PageViewModelBase
         {
             ActiveName = "未登录";
             ActiveInitial = "?";
+            ActiveAvatar = null;
             ActiveTypeLabel = "游客";
             ActiveDetail = "添加一个账户后即可启动游戏。";
             ActiveExpiryText = string.Empty;
@@ -798,6 +812,52 @@ public sealed partial class AccountsViewModel : PageViewModelBase
         var uuidPart = string.IsNullOrWhiteSpace(active.Uuid) ? "无 UUID" : $"UUID {active.Uuid}";
         ActiveDetail = AccountTypeDisplay.DetailOf(active, uuidPart);
         ActiveUseAurora = active.Type == AccountType.Microsoft;
+
+        // 走缓存时同步返回，重进页面不会出现头像先空后有的闪烁。
+        _ = LoadActiveAvatarAsync(active);
+    }
+
+    /// <summary>取当前账户头像。失败时清空，外层占位色块顶上。</summary>
+    /// <param name="refresh">true 时绕过缓存重新拉皮肤；失败保留原头像。</param>
+    private async Task LoadActiveAvatarAsync(Account? active, bool refresh = false)
+    {
+        if (_skinLoader is null || active is null)
+        {
+            ActiveAvatar = null;
+            return;
+        }
+
+        try
+        {
+            var bitmap = await _skinLoader.LoadAsync(active, refresh);
+            if (bitmap is not null || !refresh)
+            {
+                ActiveAvatar = bitmap;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!refresh)
+            {
+                ActiveAvatar = null;
+            }
+
+            ErrorText = $"头像获取失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>右键当前账户头像 → 刷新：丢弃本地缓存，重新向皮肤服务查询。</summary>
+    [RelayCommand]
+    private async Task RefreshActiveAvatarAsync()
+    {
+        if (_accounts?.ActiveAccount is not { } active)
+        {
+            return;
+        }
+
+        InfoText = "正在刷新头像…";
+        await LoadActiveAvatarAsync(active, refresh: true);
+        InfoText = ActiveAvatar is null ? "头像刷新失败，已保留原头像。" : "头像已刷新。";
     }
 
     private void ApplyExpiryState(Account? active)
@@ -953,8 +1013,11 @@ public sealed record AuthlibPreset(string Name, string ApiRoot);
 /// <summary>账户列表中的一行。</summary>
 public sealed partial class AccountRowViewModel : ObservableObject
 {
-    public AccountRowViewModel(Account account, string? activeId)
+    private readonly SkinAvatarLoader? _skinLoader;
+
+    public AccountRowViewModel(Account account, string? activeId, SkinAvatarLoader? skinLoader = null)
     {
+        _skinLoader = skinLoader;
         Account = account;
         Username = account.Username;
         Initial = string.IsNullOrWhiteSpace(account.Username) ? "?" : account.Username[..1].ToUpperInvariant();
@@ -975,6 +1038,7 @@ public sealed partial class AccountRowViewModel : ObservableObject
 
     public string Username { get; }
 
+    /// <summary>用户名首字母。仅作无障碍文本兜底，不再画在头像上。</summary>
     public string Initial { get; }
 
     public string TypeLabel { get; }
@@ -992,4 +1056,45 @@ public sealed partial class AccountRowViewModel : ObservableObject
 
     /// <summary>微软账户用蓝紫渐变，离线账户用蓝青渐变，两张头像一眼能区分。</summary>
     public bool UseAurora { get; }
+
+    /// <summary>整张皮肤纹理；为空时列表行显示占位色块。</summary>
+    [ObservableProperty]
+    private Bitmap? _avatar;
+
+    /// <summary>取这一行的头像。Reload 时逐行调用，命中缓存基本是同步返回。</summary>
+    public async Task LoadAvatarAsync()
+    {
+        if (_skinLoader is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Avatar = await _skinLoader.LoadAsync(Account);
+        }
+        catch (Exception)
+        {
+            Avatar = null;
+        }
+    }
+
+    /// <summary>行内右键 → 刷新头像：丢弃缓存重新拉皮肤。</summary>
+    [RelayCommand]
+    private async Task RefreshAvatarAsync()
+    {
+        if (_skinLoader is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Avatar = await _skinLoader.LoadAsync(Account, refresh: true);
+        }
+        catch (Exception)
+        {
+            // 刷新失败保留原头像，不把列表打空。
+        }
+    }
 }

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -48,6 +49,7 @@ public partial class HomeViewModel : PageViewModelBase
     private readonly ICrashExportService? _crashExport;
     private readonly IInstallService? _install;
     private readonly IJavaService? _java;
+    private readonly SkinAvatarLoader? _skinLoader;
 
     private readonly List<string> _launchLog = new(LaunchLogLimit);
     private readonly object _launchLogGate = new();
@@ -103,7 +105,9 @@ public partial class HomeViewModel : PageViewModelBase
         IWindowActions? windowActions = null,
         ICrashExportService? crashExportService = null,
         IInstallService? installService = null,
-        IJavaService? javaService = null)
+        IJavaService? javaService = null,
+        SkinAvatarLoader? skinAvatarLoader = null,
+        IServiceProvider? services = null)
     {
         _accounts = accountService;
         _versions = versionService;
@@ -120,6 +124,8 @@ public partial class HomeViewModel : PageViewModelBase
         _crashExport = crashExportService;
         _install = installService;
         _java = javaService;
+        // 头像位图缓存不进容器注册表（App.axaml.cs 是并行协作热点）：容器没给就自己拿一个。
+        _skinLoader = skinAvatarLoader ?? (services is null ? null : new SkinAvatarLoader(services));
 
         // Detach 之后 LaunchAsync 已经返回，后台会话的崩溃结论只能靠事件回首页。
         if (_launcher is not null)
@@ -171,6 +177,10 @@ public partial class HomeViewModel : PageViewModelBase
 
     [ObservableProperty]
     private string _accountInitial = "?";
+
+    /// <summary>当前账户的皮肤纹理；为空时首页头像位置显示占位色块。</summary>
+    [ObservableProperty]
+    private Bitmap? _accountAvatar;
 
     [ObservableProperty]
     private string _accountBadge = "无账户";
@@ -641,6 +651,7 @@ public partial class HomeViewModel : PageViewModelBase
             HasAccount = false;
             AccountName = "未登录";
             AccountInitial = "?";
+            AccountAvatar = null;
             AccountBadge = "无账户";
             AccountDetail = "账户服务未就绪";
             return;
@@ -653,6 +664,7 @@ public partial class HomeViewModel : PageViewModelBase
         {
             AccountName = "未登录";
             AccountInitial = "+";
+            AccountAvatar = null;
             AccountBadge = "无账户";
             AccountDetail = "点击添加账户后即可开始游戏";
             return;
@@ -664,6 +676,47 @@ public partial class HomeViewModel : PageViewModelBase
         AccountDetail = account.IsExpired
             ? "登录令牌已过期，启动时会自动刷新"
             : AccountTypeDisplay.DetailOf(account, $"UUID {ShortUuid(account.Uuid)}");
+
+        _ = LoadAccountAvatarAsync(account);
+    }
+
+    /// <summary>取当前账户头像；失败时清空，占位色块顶上。</summary>
+    /// <param name="refresh">true 时绕过缓存重新拉皮肤。</param>
+    private async Task LoadAccountAvatarAsync(Account? account, bool refresh = false)
+    {
+        if (_skinLoader is null || account is null)
+        {
+            AccountAvatar = null;
+            return;
+        }
+
+        try
+        {
+            var bitmap = await _skinLoader.LoadAsync(account, refresh);
+            if (bitmap is not null || !refresh)
+            {
+                AccountAvatar = bitmap;
+            }
+        }
+        catch (Exception)
+        {
+            if (!refresh)
+            {
+                AccountAvatar = null;
+            }
+        }
+    }
+
+    /// <summary>右键首页头像 → 刷新：丢弃本地缓存重新查皮肤。</summary>
+    [RelayCommand]
+    private async Task RefreshAccountAvatarAsync()
+    {
+        if (_accounts?.ActiveAccount is not { } account)
+        {
+            return;
+        }
+
+        await LoadAccountAvatarAsync(account, refresh: true);
     }
 
     private async Task<IReadOnlyList<VersionInfo>> LoadVersionsAsync()

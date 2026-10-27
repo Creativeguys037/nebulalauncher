@@ -54,14 +54,24 @@
           <!-- 账户 -->
           <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
             <Border Width="54" Height="54"
-                    CornerRadius="27"
-                    Background="{DynamicResource Gradient.Accent}">
-              <TextBlock Text="{Binding AccountInitial}"
-                         FontSize="22"
-                         FontWeight="Bold"
-                         Foreground="White"
-                         HorizontalAlignment="Center"
-                         VerticalAlignment="Center" />
+                    CornerRadius="{DynamicResource Radius.Xs}"
+                    ClipToBounds="True"
+                    Background="{DynamicResource Gradient.Accent}"
+                    ToolTip.Tip="右键刷新头像">
+              <Border.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="刷新头像" Command="{Binding RefreshAccountAvatarCommand}" />
+                </ContextMenu>
+              </Border.ContextMenu>
+              <Panel>
+                <TextBlock Text="{Binding AccountInitial}"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                <controls:SkinAvatar Source="{Binding AccountAvatar}" />
+              </Panel>
             </Border>
 
             <StackPanel Spacing="4" VerticalAlignment="Center">
