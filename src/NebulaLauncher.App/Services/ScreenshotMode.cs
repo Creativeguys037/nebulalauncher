@@ -173,6 +173,18 @@ public static class ScreenshotMode
     /// </summary>
     public static bool SourceProbeDemo { get; set; }
 
+    /// <summary>
+    /// 皮肤页截图时在官方换肤区摆出一条确定性的失败反馈：<c>unauthorized</c> / <c>badrequest</c> / <c>throttled</c>。
+    ///
+    /// 为什么需要：401 / 尺寸不合格 / 429 三种失败长得完全不同（有没有「重试」、
+    /// 有没有「去账户页」、冷却提示在不在），而触发它们必须真发一次请求并拿到特定状态码。
+    /// 截图模式不能点击、也不该联网，没有这个开关就只能靠代码审查看布局。
+    /// 摆出来的是 <see cref="Skinning.SkinUploadFeedback"/> 的真实产出（走同一个
+    /// <c>For(result, …)</c> 映射），不是手写的假文案。与 <see cref="MissingJavaDemo"/>
+    /// 同一类截图专用开关，不是调试代码。
+    /// </summary>
+    public static string? SkinUploadFeedbackDemo { get; set; }
+
     /// <summary>解析后实际生效的 .minecraft 目录；两者都未指定时为 null（即平台默认）。</summary>
     public static string? EffectiveMinecraftDirectory =>
         MinecraftDirectory
@@ -247,6 +259,9 @@ public static class ScreenshotMode
                     break;
                 case "--source-probe":
                     SourceProbeDemo = true;
+                    break;
+                case "--skin-upload-feedback" when i + 1 < args.Length:
+                    SkinUploadFeedbackDemo = args[++i];
                     break;
                 case "--scroll" when i + 1 < args.Length && double.TryParse(args[i + 1], out var offset):
                     ScrollOffset = Math.Max(0, offset);
