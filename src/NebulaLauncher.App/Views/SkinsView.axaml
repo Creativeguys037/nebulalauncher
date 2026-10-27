@@ -78,16 +78,35 @@
           RowDefinitions="Auto,*,Auto"
           Margin="0,0,12,0">
 
-      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10">
-        <Button Classes="pill tab"
-                Classes.active="{Binding IsNetworkTab}"
-                Content="网络皮肤"
-                Command="{Binding SelectNetworkTabCommand}" />
-        <Button Classes="pill tab"
-                Classes.active="{Binding IsLocalTab}"
-                Content="本地皮肤"
-                Command="{Binding SelectLocalTabCommand}" />
-      </StackPanel>
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,10">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+          <Button Classes="pill tab"
+                  Classes.active="{Binding IsNetworkTab}"
+                  Content="网络皮肤"
+                  Command="{Binding SelectNetworkTabCommand}" />
+          <Button Classes="pill tab"
+                  Classes.active="{Binding IsLocalTab}"
+                  Content="本地皮肤"
+                  Command="{Binding SelectLocalTabCommand}" />
+        </StackPanel>
+
+        <!-- 本地页签的工具条：网络页签那边有搜索框，这里放目录相关的三个动作 -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                    HorizontalAlignment="Right"
+                    IsVisible="{Binding IsLocalTab}">
+          <Button Classes="pill"
+                  Content="刷新"
+                  ToolTip.Tip="重新扫描本地皮肤目录"
+                  Command="{Binding RefreshLocalCommand}" />
+          <Button Classes="pill"
+                  Content="打开目录"
+                  IsEnabled="{Binding IsLocalDirectoryAvailable}"
+                  Command="{Binding OpenLocalDirectoryCommand}" />
+          <Button Classes="accent"
+                  Content="从文件导入"
+                  Click="OnImportLocalSkinClick" />
+        </StackPanel>
+      </Grid>
 
       <!-- 网络皮肤页签的内容 -->
       <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*"
@@ -164,9 +183,24 @@
                       <TextBlock Text="{Binding LikesLabel}" Classes="caption" />
                     </StackPanel>
 
-                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding ModelLabel}" />
-                    </Border>
+                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                      <Border Classes="badge" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding ModelLabel}" />
+                      </Border>
+
+                      <!-- 票 42：把这一套存进本地皮肤目录，之后离线也能用 -->
+                      <Button Classes="pill"
+                              Content="下载到本地"
+                              IsEnabled="{Binding !IsSavingToLocal}"
+                              ToolTip.Tip="把这张皮肤存进本地皮肤目录"
+                              Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).DownloadToLocalCommand}"
+                              CommandParameter="{Binding}" />
+
+                      <TextBlock Text="{Binding LocalState}"
+                                 IsVisible="{Binding HasLocalState}"
+                                 Classes="caption"
+                                 HorizontalAlignment="Right" />
+                    </StackPanel>
                   </Grid>
                 </Border>
               </DataTemplate>
@@ -201,20 +235,162 @@
         </Grid>
       </Grid>
 
-      <!-- 本地皮肤页签：本片只放引导文案，实做留给下一张票 -->
-      <Border Grid.Row="1"
-              Classes="card"
-              IsVisible="{Binding IsLocalTab}"
-              VerticalAlignment="Top"
-              Padding="24,28">
-        <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
-          <TextBlock Text="本地皮肤还没有接入" Classes="h3" HorizontalAlignment="Center" />
-          <TextBlock Text="这一片只做网络皮肤库。本地皮肤的导入、切换和删除在下一张票里接上。"
-                     Classes="muted"
-                     TextWrapping="Wrap"
-                     TextAlignment="Center" />
-        </StackPanel>
-      </Border>
+      <!-- 本地皮肤页签（票 42）：磁盘上的 PNG，一行 = 平面小图 + 文件名 -->
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto"
+            IsVisible="{Binding IsLocalTab}">
+
+        <!-- 本地自己的错误条：打不开目录、删不掉文件都落在这里，不去挤网络那条 -->
+        <Border Grid.Row="0"
+                Classes="card"
+                IsVisible="{Binding HasLocalError}"
+                Padding="14,10"
+                Margin="0,0,0,8">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <Border Classes="badge" VerticalAlignment="Center">
+              <TextBlock Text="本地目录" />
+            </Border>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding LocalErrorText}"
+                       Margin="10,0"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="2" Classes="pill"
+                    Content="重试"
+                    VerticalAlignment="Center"
+                    Command="{Binding RefreshLocalCommand}" />
+          </Grid>
+        </Border>
+
+        <!-- 细进度条：重扫时不遮已有行，用户手上还有旧列表可点 -->
+        <ProgressBar Grid.Row="1"
+                     IsVisible="{Binding IsLocalLoading}"
+                     IsIndeterminate="True"
+                     Height="3"
+                     Margin="0,0,0,8" />
+
+        <Grid Grid.Row="2">
+          <!-- 首屏加载占位 -->
+          <Border Classes="card"
+                  IsVisible="{Binding ShowLocalLoadingPlaceholder}"
+                  VerticalAlignment="Top"
+                  Padding="24,28">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+              <ProgressBar IsIndeterminate="True" Width="160" Height="4" />
+              <TextBlock Text="正在读取本地皮肤目录…" Classes="muted" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <ListBox Classes="skinList"
+                   ItemsSource="{Binding LocalItems}"
+                   SelectedItem="{Binding SelectedLocal}"
+                   IsVisible="{Binding HasLocalItems}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:LocalSkinEntryViewModel">
+                <Border Classes="card hoverable"
+                        Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                        Padding="10">
+                  <Grid ColumnDefinitions="44,*,Auto,Auto">
+                    <Border Width="44" Height="44"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            ClipToBounds="True"
+                            Background="{DynamicResource Surface.Sunken}">
+                      <Panel>
+                        <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                              IsVisible="{Binding !HasThumbnail}"
+                              Stroke="{DynamicResource Text.Muted}"
+                              StrokeThickness="1.4"
+                              Stretch="Uniform"
+                              Width="20" Height="20"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                        <Image Source="{Binding Thumbnail}"
+                               IsVisible="{Binding HasThumbnail}"
+                               Stretch="Uniform" />
+                      </Panel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}"
+                                 FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding DetailLabel}" Classes="caption" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding ModelLabel}" />
+                    </Border>
+
+                    <Button Grid.Column="3" Classes="pill"
+                            Content="删除"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="删除这个皮肤文件"
+                            Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).DeleteLocalCommand}"
+                            CommandParameter="{Binding}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- 空态：引导 + 两个按钮（AC8：不白屏，给的是一条走得通的路） -->
+          <Border Classes="card"
+                  IsVisible="{Binding IsLocalEmpty}"
+                  VerticalAlignment="Top"
+                  Padding="24,28">
+            <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="460">
+              <Border Width="52" Height="52"
+                      CornerRadius="26"
+                      Background="{DynamicResource Accent.Soft}"
+                      HorizontalAlignment="Center">
+                <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                      Stroke="{DynamicResource Accent.Primary}"
+                      StrokeThickness="1.6"
+                      Stretch="Uniform"
+                      Width="24" Height="24"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="本地还没有皮肤" Classes="h3" HorizontalAlignment="Center" />
+              <TextBlock Text="把皮肤 PNG 导进来，或者直接丢进下面这个目录——放进去之后回到这一页就能看见。"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center" />
+              <TextBlock Text="{Binding LocalDirectory}"
+                         Classes="caption"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <Button Classes="accent"
+                        Content="从文件导入"
+                        Click="OnImportLocalSkinClick" />
+                <Button Classes="pill"
+                        Content="打开目录"
+                        IsEnabled="{Binding IsLocalDirectoryAvailable}"
+                        Command="{Binding OpenLocalDirectoryCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- 底部：目录路径常驻，用户想手丢文件时不用去别处找 -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,10,0,0"
+              IsVisible="{Binding HasLocalItems}">
+          <TextBlock Text="{Binding LocalDirectory}"
+                     Classes="caption"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding LocalSummary}"
+                     Classes="caption"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Grid>
 
       <!-- 页码：末页时「下一页」禁用 -->
       <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0"

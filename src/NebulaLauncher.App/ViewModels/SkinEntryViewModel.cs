@@ -31,4 +31,19 @@ public sealed partial class SkinEntryViewModel(SkinLibraryItem item) : Observabl
     public bool HasThumbnail => Thumbnail is not null;
 
     partial void OnThumbnailChanged(Bitmap? value) => OnPropertyChanged(nameof(HasThumbnail));
+
+    /// <summary>
+    /// 「下载到本地」的状态小字（票 42）：正在保存 / 已存到本地 / 失败原因。
+    /// 做成行内反馈而不是弹窗：用户往往连着点好几行，弹窗会挡住的正是下一行。
+    /// </summary>
+    [ObservableProperty]
+    private string? _localState;
+
+    public bool HasLocalState => !string.IsNullOrWhiteSpace(LocalState);
+
+    /// <summary>在途标记，用来禁掉这一行的按钮，防连点存出同名副本。</summary>
+    [ObservableProperty]
+    private bool _isSavingToLocal;
+
+    partial void OnLocalStateChanged(string? value) => OnPropertyChanged(nameof(HasLocalState));
 }
