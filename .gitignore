@@ -18,3 +18,6 @@ TestResults/
 data/
 logs/
 *.log
+
+# agent 工作区：临时检出、验证副本、截图与日志，不属于仓库内容
+.scratch/
