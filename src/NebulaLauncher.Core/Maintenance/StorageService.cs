@@ -66,6 +66,8 @@ public sealed class StorageService : IStorageService
         "backups",
         "saves",
         "minecraft",
+        // 本地皮肤库：用户自己导入的图，删掉就没有第二份，清缓存绝不能碰（票据 #42）。
+        "skins",
     ];
 
     private readonly ILauncherPaths _paths;
