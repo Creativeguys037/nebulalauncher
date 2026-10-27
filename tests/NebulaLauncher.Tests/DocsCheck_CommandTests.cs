@@ -233,7 +233,7 @@ public sealed class DocsCheck_CommandTests
         Assert.Equal("路径不存在", root.GetProperty("references").GetProperty("failures")[0].GetProperty("reason").GetString());
         Assert.True(root.GetProperty("budget").GetProperty("totalLines").GetInt32() > 0);
         Assert.Equal(0, root.GetProperty("links").GetProperty("failures").GetArrayLength());
-        Assert.Equal(8, root.GetProperty("features").GetArrayLength());
+        Assert.Equal(9, root.GetProperty("features").GetArrayLength());
         Assert.Equal("装得上", root.GetProperty("features")[0].GetProperty("id").GetString());
         Assert.Equal("不存在", root.GetProperty("features")[0].GetProperty("text").GetString());
         Assert.True(root.GetProperty("tests").GetProperty("total").GetInt32() >= 0);

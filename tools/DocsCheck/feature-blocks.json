@@ -187,6 +187,32 @@
       "tests": [
         { "path": "tests/NebulaLauncher.Tests/CoreInstances_LoaderSwitchTests.cs", "symbol": "CoreInstances_LoaderSwitchTests" }
       ]
+    },
+    {
+      "id": "换得动",
+      "title": "皮肤与材质",
+      "summary": "本地皮肤库、皮肤站换肤、官方账户换肤三条链路都在，披风只有皮肤站能传",
+      "columns": {
+        "entry": "`src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView`",
+        "viewModel": "`src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel`",
+        "core": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore`",
+        "storage": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`）"
+      },
+      "code": [
+        { "path": "src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs", "symbol": "LocalSkinStore" },
+        { "path": "src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs", "symbol": "LocalSkinFormat" },
+        { "path": "src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs", "symbol": "AuthlibSkinClient" },
+        { "path": "src/NebulaLauncher.App/Skinning/MojangSkinClient.cs", "symbol": "MojangSkinClient" },
+        { "path": "src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs", "symbol": "SkinLibraryClient" },
+        { "path": "src/NebulaLauncher.App/Skinning/SkinProfileParser.cs", "symbol": "SkinProfileParser" },
+        { "path": "src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs", "symbol": "SkinChangeNotifier" },
+        { "path": "src/NebulaLauncher.App/Skinning/SkinUploadPreflight.cs", "symbol": "SkinUploadPreflight" }
+      ],
+      "tests": [
+        { "path": "tests/NebulaLauncher.Tests/CoreSkinning_LocalSkinStoreTests.cs", "symbol": "CoreSkinning_LocalSkinStoreTests" },
+        { "path": "tests/NebulaLauncher.Tests/AppSkin_AuthlibSkinClientTests.cs", "symbol": "AppSkin_AuthlibSkinClientTests" },
+        { "path": "tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs", "symbol": "AppSkin_MojangSkinClientTests" }
+      ]
     }
   ]
 }

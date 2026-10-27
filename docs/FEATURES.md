@@ -1,9 +1,9 @@
-# 功能完成度（8 块三态）
+# 功能完成度（9 块三态）
 
 本文件由工具生成，请勿手改。
 
 - 生成命令：`dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-features docs/FEATURES.md`
-- 生成日期：2026-10-24
+- 生成日期：2026-10-27
 
 ## 三态定义
 
@@ -74,3 +74,11 @@
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
 | `src/NebulaLauncher.App/Views/SettingsView.axaml SettingsView` | `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel` | `src/NebulaLauncher.Core/Instances/InstanceService.Loader.cs InstanceService.SwitchLoaderAsync` | `src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService.SaveAsync`（`settings.json`） | 已实现 |
+
+## 9. 换得动（皮肤与材质）
+
+本地皮肤库、皮肤站换肤、官方账户换肤三条链路都在，披风只有皮肤站能传 —— 三态：已实现
+
+| 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
+| --- | --- | --- | --- | --- |
+| `src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView` | `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore` | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`） | 已实现 |
