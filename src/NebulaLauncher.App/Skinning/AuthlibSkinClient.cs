@@ -120,6 +120,53 @@ public sealed class AuthlibSkinClient : IDisposable
         return UploadAsync(account, "cape", model: null, png, "上传披风", cancellationToken);
     }
 
+    /// <summary>
+    /// 读当前角色的材质能力（<c>uploadableTextures</c>），决定披风按钮要不要点亮。
+    ///
+    /// <para>
+    /// 返回 <c>null</c> 表示<b>没读到</b>（地址缺失、网络失败、非 2xx、不是 JSON）——
+    /// 与「读到了，但什么都不允许」必须分开：前者调用方应保持原有判断，
+    /// 后者才是真的没权限。两者混为一谈会让一次断网把用户的披风权限「收走」。
+    /// </para>
+    ///
+    /// <para>
+    /// 用 <see cref="SkinProfileParser.BuildProfileUrl"/> 拼地址：它会按账户类型决定
+    /// 走官方会话服务器还是第三方站点，这里只关心第三方。
+    /// </para>
+    /// </summary>
+    public async Task<SkinCapabilities?> GetCapabilitiesAsync(Account account, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        if (SkinProfileParser.BuildProfileUrl(account) is not { } url)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return SkinProfileParser.ParseCapabilities(json);
+        }
+        catch (HttpRequestException ex)
+        {
+            _log?.Warn("读取皮肤站角色材质能力失败（连不上）。", ex);
+            return null;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _log?.Warn("读取皮肤站角色材质能力超时。");
+            return null;
+        }
+    }
+
     /// <summary>本地前置校验：文件头能读出宽高，且尺寸符合所选体型。返回 null 表示通过。</summary>
     private static string? ValidatePng(byte[] png, LocalSkinModel model)
     {

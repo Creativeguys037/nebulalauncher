@@ -335,6 +335,14 @@ public partial class App : Application
         services.AddSingleton<WindowActionsProxy>();
         services.AddSingleton<IWindowActions>(sp => sp.GetRequiredService<WindowActionsProxy>());
 
+        // ---- 皮肤（票 37 / 42 / 43 / 44） ----
+        // 三条通道都注册成单例：换肤客户端持有 HttpClient，按页面重建会反复开连接。
+        // 「皮肤已变更」广播必须是同一个实例，否则换肤页发的通知侧边栏收不到。
+        services.AddSingleton<Skinning.SkinLibraryClient>();
+        services.AddSingleton<Skinning.MojangSkinClient>();
+        services.AddSingleton<Skinning.AuthlibSkinClient>();
+        services.AddSingleton<Skinning.SkinChangeNotifier>(_ => Skinning.SkinChangeBus.Current);
+
         return services.BuildServiceProvider();
     }
 

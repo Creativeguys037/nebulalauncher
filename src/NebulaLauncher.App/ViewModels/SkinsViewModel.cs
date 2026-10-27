@@ -119,6 +119,10 @@ public sealed partial class SkinsViewModel : PageViewModelBase
                        ?? SkinChangeBus.Current;
         _navigation = services.GetService(typeof(INavigationService)) as INavigationService;
 
+        // 皮肤站通道（票 43）：同样容器优先、缺省自建。
+        _authlibClient = services.GetService(typeof(AuthlibSkinClient)) as AuthlibSkinClient
+                   ?? new AuthlibSkinClient(log: _log);
+
         Items.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasItems));
@@ -655,9 +659,408 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     }
 
     /// <summary>
-    /// 一次上传需要的全部输入：字节 + 体型，<paramref name="ErrorText"/> 非空表示没取到字节。
-    /// </summary>
+     /// 一次上传需要的全部输入：字节 + 体型，<paramref name="ErrorText"/> 非空表示没取到字节。
+     /// </summary>
     private sealed record SkinSource(byte[]? Png, LocalSkinModel Model, string? ErrorText);
+
+    // ==================== 皮肤站换肤（票 43） ====================
+
+    /// <summary>皮肤站材质客户端。容器里没注册时自建，跟随本页生命周期释放。</summary>
+    private AuthlibSkinClient? _authlibClient;
+
+    /// <summary>
+    /// 当前角色的服务端能力（<c>uploadableTextures</c>）。null 表示还没读到或读失败——
+    /// 此时披风按钮不点亮（见 <see cref="AuthlibSkinActions.Of"/>），不替用户猜。
+    /// </summary>
+    private SkinCapabilities? _authlibCapabilities;
+
+    /// <summary>皮肤站通道自己的冷却。与官方通道分开：一条通道被 429 不该连累另一条。</summary>
+    private readonly SkinUploadThrottle _authlibThrottle = new();
+
+    private Func<CancellationToken, Task<SkinUploadResult>>? _authlibRetry;
+
+    private CancellationTokenSource? _authlibCancellation;
+
+    private CancellationTokenSource? _authlibCooldownCancellation;
+
+    private CancellationTokenSource? _authlibProfileCancellation;
+
+    /// <summary>皮肤站换肤区此刻的按钮可用性。随当前账户与服务端能力变化。</summary>
+    [ObservableProperty]
+    private AuthlibSkinCapability _authlib = AuthlibSkinActions.Of(null);
+
+    /// <summary>皮肤站通道的一次操作结果。null 表示还没操作过。</summary>
+    [ObservableProperty]
+    private SkinUploadFeedback? _authlibFeedback;
+
+    public bool HasAuthlibFeedback => AuthlibFeedback is not null;
+
+    public bool IsAuthlibFeedbackError => AuthlibFeedback?.IsError ?? false;
+
+    public bool CanRetryAuthlib => AuthlibFeedback?.CanRetry == true && !_authlibThrottle.IsBlocked;
+
+    /// <summary>皮肤站通道的令牌过期也走账户页，但按钮与官方那条互不影响。</summary>
+    public bool GoToAccountPageFromAuthlibVisible => AuthlibFeedback?.GoToAccountPage == true;
+
+    public string AuthlibFeedbackText => AuthlibFeedback?.Text ?? string.Empty;
+
+    /// <summary>皮肤站通道冷却中的倒计时文案。</summary>
+    [ObservableProperty]
+    private string? _authlibCooldownText;
+
+    public bool HasAuthlibCooldown => !string.IsNullOrWhiteSpace(AuthlibCooldownText);
+
+    /// <summary>皮肤站通道正在上传/删除。</summary>
+    [ObservableProperty]
+    private bool _isAuthlibBusy;
+
+    /// <summary>
+    /// 「应用到皮肤站账户」（AC1）：把当前选中的那一套（网络行或本地行）传到皮肤站。
+    ///
+    /// 取字节复用官方那条路（<see cref="ReadSelectedSkinAsync"/>），但校验不同：
+    /// 官方只收 64×64 与 64×32，皮肤站按 <see cref="LocalSkinFormat"/> 的通用规则，
+    /// 所以两边各走各的前置检查，不能共用一个。
+    /// </summary>
+    [RelayCommand]
+    private Task ApplyToAuthlibAsync() => RunAuthlibAsync(UploadSelectedToAuthlibAsync, "皮肤站换肤");
+
+    /// <summary>把一张本地文件作为新皮肤上传（AC3）。与「应用选中行」的区别是来源可以是任意 PNG。</summary>
+    [RelayCommand]
+    private Task UploadLocalFileToAuthlibAsync() => RunAuthlibAsync(UploadPickedFileToAuthlibAsync, "上传皮肤");
+
+    /// <summary>上传披风（AC4）。按钮只有在服务端能力允许时才会出现。</summary>
+    [RelayCommand]
+    private Task UploadCapeAsync() => RunAuthlibAsync(UploadCapeCoreAsync, "上传披风");
+
+    /// <summary>删除当前皮肤（AC5）。</summary>
+    [RelayCommand]
+    private Task DeleteAuthlibSkinAsync() => RunAuthlibAsync(DeleteSkinCoreAsync, "删除皮肤");
+
+    /// <summary>删除披风（AC5）。</summary>
+    [RelayCommand]
+    private Task DeleteAuthlibCapeAsync() => RunAuthlibAsync(DeleteCapeCoreAsync, "删除披风");
+
+    /// <summary>失败态上的「重试」：只重放上一次那条操作。</summary>
+    [RelayCommand]
+    private Task RetryAuthlibAsync()
+    {
+        var retry = _authlibRetry;
+        return retry is null ? Task.CompletedTask : RunAuthlibAsync(retry, "皮肤站重试");
+    }
+
+    [RelayCommand]
+    private void DismissAuthlibFeedback()
+    {
+        AuthlibFeedback = null;
+        _authlibRetry = null;
+    }
+
+    /// <summary>皮肤站通道的「去账户页」。</summary>
+    [RelayCommand]
+    private void GoToAccountPageFromAuthlib()
+    {
+        if (_navigation is null)
+        {
+            AuthlibFeedback = SkinUploadFeedback.LocalError("打不开账户页，请从左侧导航手动进入。");
+            return;
+        }
+
+        _navigation.Navigate(NavigationKeys.Accounts);
+    }
+
+    /// <summary>
+    /// 读当前角色的 <c>uploadableTextures</c>，决定披风按钮显不显示（AC4）。
+    ///
+    /// 读失败不清空已知能力：断网时把「本来能传披风」降级成「不能传」，
+    /// 用户会以为权限被收走了。只有明确的响应才更新判断。
+    /// </summary>
+    private async Task LoadAuthlibCapabilitiesAsync(Account? account, CancellationToken cancellationToken)
+    {
+        if (account is not { Type: AccountType.Authlib } || _authlibClient is null)
+        {
+            return;
+        }
+
+        // 读不到（null）就保持现状：断网时把「本来能传披风」降级成「不能传」，
+        // 用户会以为权限被收走了。只有真正读到的响应才更新判断。
+        var capabilities = await _authlibClient.GetCapabilitiesAsync(account, cancellationToken).ConfigureAwait(true);
+        if (capabilities is null || cancellationToken.IsCancellationRequested || IsDisposed)
+        {
+            return;
+        }
+
+        _authlibCapabilities = capabilities;
+        Authlib = AuthlibSkinActions.Of(account, capabilities);
+    }
+
+    /// <summary>「应用到皮肤站账户」的实做。</summary>
+    private async Task<SkinUploadResult> UploadSelectedToAuthlibAsync(CancellationToken cancellationToken)
+    {
+        if (Authlib.CanUploadSkin is false)
+        {
+            return SkinUploadResult.Fail(Authlib.UnavailableText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _authlibClient is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持皮肤站换肤。");
+        }
+
+        var source = await ReadSelectedSkinAsync(cancellationToken).ConfigureAwait(true);
+        if (source is null)
+        {
+            return SkinUploadResult.Fail(IsLocalTab
+                ? "先选中一套本地皮肤再上传。"
+                : "先选中一套网络皮肤再上传。");
+        }
+
+        if (source.ErrorText is { } sourceError)
+        {
+            return SkinUploadResult.Fail(sourceError, isRetryable: true);
+        }
+
+        // 皮肤站的尺寸规则就是 LocalSkinFormat 那套（客户端里也会再拦一次）。
+        if (CheckSkinBytes(source.Png!, source.Model) is { } error)
+        {
+            return SkinUploadResult.Fail(error);
+        }
+
+        return await _authlibClient
+            .UploadSkinAsync(account, SkinModelMapping.ToKind(source.Model), source.Png!, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>「上传本地文件」的实做：路径由 View 的文件对话框拿到后塞进 <see cref="PendingUploadPath"/>。</summary>
+    private async Task<SkinUploadResult> UploadPickedFileToAuthlibAsync(CancellationToken cancellationToken)
+    {
+        if (Authlib.CanUploadSkin is false)
+        {
+            return SkinUploadResult.Fail(Authlib.UnavailableText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _authlibClient is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持皮肤站换肤。");
+        }
+
+        if (string.IsNullOrWhiteSpace(PendingUploadPath) || !File.Exists(PendingUploadPath))
+        {
+            return SkinUploadResult.Fail("没有选到文件。");
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = await Task.Run(() => File.ReadAllBytes(PendingUploadPath), cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return SkinUploadResult.Fail($"读不了这个文件：{ex.Message}");
+        }
+
+        // 上传的是自己的图，体型用界面上选中的那个（默认跟随账户）。
+        var model = SkinModelMapping.FromAccountValue(account.SkinModel);
+        if (CheckSkinBytes(bytes, model) is { } error)
+        {
+            return SkinUploadResult.Fail(error);
+        }
+
+        return await _authlibClient
+            .UploadSkinAsync(account, SkinModelMapping.ToKind(model), bytes, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>上传披风的实做。路径同样来自文件对话框。</summary>
+    private async Task<SkinUploadResult> UploadCapeCoreAsync(CancellationToken cancellationToken)
+    {
+        if (Authlib.CanUploadCape is false)
+        {
+            return SkinUploadResult.Fail(Authlib.CapeText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _authlibClient is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持皮肤站换肤。");
+        }
+
+        if (string.IsNullOrWhiteSpace(PendingUploadPath) || !File.Exists(PendingUploadPath))
+        {
+            return SkinUploadResult.Fail("没有选到披风文件。");
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = await Task.Run(() => File.ReadAllBytes(PendingUploadPath), cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return SkinUploadResult.Fail($"读不了这个文件：{ex.Message}");
+        }
+
+        return await _authlibClient.UploadCapeAsync(account, bytes, cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task<SkinUploadResult> DeleteSkinCoreAsync(CancellationToken cancellationToken)
+    {
+        if (Authlib.CanDeleteSkin is false)
+        {
+            return SkinUploadResult.Fail(Authlib.UnavailableText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _authlibClient is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持皮肤站换肤。");
+        }
+
+        return await _authlibClient.DeleteSkinAsync(account, cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task<SkinUploadResult> DeleteCapeCoreAsync(CancellationToken cancellationToken)
+    {
+        if (Authlib.CanDeleteCape is false)
+        {
+            return SkinUploadResult.Fail(Authlib.CapeText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _authlibClient is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持皮肤站换肤。");
+        }
+
+        return await _authlibClient.DeleteCapeAsync(account, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// 所有皮肤站操作的共同外壳：与官方那条同形（防重入、节流、统一翻成反馈条、成功即广播）。
+    ///
+    /// 不复用同一个 <see cref="SkinUploadThrottle"/> 实例：一条通道被限流，
+    /// 不该让另一条也点不动。
+    /// </summary>
+    private async Task RunAuthlibAsync(Func<CancellationToken, Task<SkinUploadResult>> operation, string logName)
+    {
+        if (IsDisposed || IsAuthlibBusy)
+        {
+            return;
+        }
+
+        if (_authlibThrottle.IsBlocked)
+        {
+            AuthlibCooldownText = _authlibThrottle.BlockedText;
+            OnPropertyChanged(nameof(CanRetryAuthlib));
+            return;
+        }
+
+        IsAuthlibBusy = true;
+        AuthlibFeedback = null;
+        _authlibRetry = null;
+
+        var cancellation = new CancellationTokenSource();
+        Replace(ref _authlibCancellation, cancellation);
+
+        try
+        {
+            var result = await operation(cancellation.Token).ConfigureAwait(true);
+            if (cancellation.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
+
+            if (result.Succeeded)
+            {
+                _authlibThrottle.MarkSuccess();
+                AuthlibCooldownText = null;
+                AuthlibFeedback = SkinUploadFeedback.For(result, $"{logName}成功。");
+
+                // AC2：换肤不动 Account 字段，必须显式广播，侧边栏才会重取。
+                _skinChanges?.Notify(logName);
+            }
+            else
+            {
+                if (result.IsRetryable)
+                {
+                    _authlibThrottle.MarkRetryableFailure();
+                    AuthlibCooldownText = _authlibThrottle.BlockedText;
+                    StartAuthlibCooldownRefresh();
+                }
+                else
+                {
+                    AuthlibCooldownText = null;
+                }
+
+                AuthlibFeedback = SkinUploadFeedback.For(result, logName + "成功。");
+                _authlibRetry = result.IsRetryable && !result.IsAuthError ? operation : null;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn($"{logName}失败", ex);
+            AuthlibFeedback = SkinUploadFeedback.LocalError($"{logName}失败：{ex.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_authlibCancellation, cancellation))
+            {
+                IsAuthlibBusy = false;
+            }
+
+            OnPropertyChanged(nameof(CanRetryAuthlib));
+        }
+    }
+
+    private void StartAuthlibCooldownRefresh()
+    {
+        var cancellation = new CancellationTokenSource();
+        Replace(ref _authlibCooldownCancellation, cancellation);
+        _ = RefreshAuthlibCooldownAsync(cancellation);
+    }
+
+    private async Task RefreshAuthlibCooldownAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var remaining = _authlibThrottle.Remaining + TimeSpan.FromMilliseconds(250);
+            if (remaining > TimeSpan.Zero)
+            {
+                await Task.Delay(remaining, cancellation.Token).ConfigureAwait(true);
+            }
+
+            if (cancellation.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
+
+            AuthlibCooldownText = null;
+            OnPropertyChanged(nameof(CanRetryAuthlib));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    /// <summary>View 层选完文件后放这里；空串表示没有任何待上传的文件。</summary>
+    [ObservableProperty]
+    private string? _pendingUploadPath;
+
+    /// <summary>
+    /// 上传前的本地校验：先确认是 PNG，再把宽高交给 <see cref="LocalSkinFormat.Validate"/>。
+    ///
+    /// 两步分开是必要的：<see cref="LocalSkinFormat.Validate"/> 只认宽高，
+    /// 而「这根本不是一张 PNG」要由 <see cref="LocalSkinFormat.TryReadPngSize"/> 判定。
+    /// 不合格就在这里返回中文原因，一个请求都不发（票 #43 AC6）。
+    /// </summary>
+    private static string? CheckSkinBytes(byte[] png, LocalSkinModel model)
+    {
+        if (!LocalSkinFormat.TryReadPngSize(png, out var width, out var height))
+        {
+            return "这不是有效的 PNG 图片。";
+        }
+
+        return LocalSkinFormat.Validate(width, height, model);
+    }
 
     public override async Task OnNavigatedToAsync()
     {
@@ -692,6 +1095,9 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         Cancel(ref _previewCancellation);
         Cancel(ref _officialCancellation);
         Cancel(ref _cooldownCancellation);
+        Cancel(ref _authlibCancellation);
+        Cancel(ref _authlibCooldownCancellation);
+        Cancel(ref _authlibProfileCancellation);
         return Task.CompletedTask;
     }
 
@@ -1423,6 +1829,46 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(IsClassicModel));
         OnPropertyChanged(nameof(IsSlimModel));
         OnPropertyChanged(nameof(OfficialCapeText));
+
+        // 皮肤站区同理。换账户先清空旧能力：上一个角色的 uploadableTextures
+        // 不能拿来给新角色点亮披风按钮（那是越权猜测）。
+        _authlibCapabilities = null;
+        Authlib = AuthlibSkinActions.Of(account);
+        StartAuthlibCapabilityLoad(account);
+    }
+
+    /// <summary>
+    /// 账户变化后重读一次角色能力。在途请求先取消：切账户时上一个账户的响应
+    /// 回来后会把新账户的按钮点亮成它的权限。
+    /// </summary>
+    private void StartAuthlibCapabilityLoad(Account? account)
+    {
+        Cancel(ref _authlibProfileCancellation);
+
+        if (account is not { Type: AccountType.Authlib })
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _authlibProfileCancellation = cancellation;
+        _ = LoadAuthlibCapabilitiesAsyncSafely(account, cancellation);
+    }
+
+    /// <summary>后台任务没有观察者，异常必须就地消化（PITFALLS 2.8）。</summary>
+    private async Task LoadAuthlibCapabilitiesAsyncSafely(Account account, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await LoadAuthlibCapabilitiesAsync(account, cancellation.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("读取皮肤站角色能力失败", ex);
+        }
     }
 
     private static string ShortUuid(string? uuid) =>
@@ -1554,8 +2000,14 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             Cancel(ref _officialCancellation);
             Cancel(ref _cooldownCancellation);
 
+            // 皮肤站通道的四条在途线也要各自收尾，否则关页面后还在发请求。
+            Cancel(ref _authlibCancellation);
+            Cancel(ref _authlibCooldownCancellation);
+            Cancel(ref _authlibProfileCancellation);
+
             _library.Dispose();
             _mojang?.Dispose();
+            _authlibClient?.Dispose();
 
             foreach (var bitmap in _thumbnailCache.Values)
             {
@@ -1576,9 +2028,11 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             _localStore = null;
             _platform = null;
             _mojang = null;
+            _authlibClient = null;
             _skinChanges = null;
             _navigation = null;
             _officialRetry = null;
+            _authlibRetry = null;
         }
 
         base.Dispose(disposing);
