@@ -87,6 +87,29 @@ public interface IAccountService
     /// <summary>必须在启动前调用，确保令牌有效。失败返回 null。</summary>
     Task<Models.Account?> EnsureValidActiveAccountAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// 改某个账户的皮肤体型（<c>classic</c> / <c>slim</c>）并落盘。
+    ///
+    /// **追加而非改签名**（CONVENTIONS §5）：默认实现返回「未实现」，这样既有的
+    /// <see cref="IAccountService"/> 实现方（含测试替身）不需要改动就能编译。
+    ///
+    /// <para>
+    /// 为什么这条能力必须挂在账户服务上、不能由界面直接改 <see cref="Models.Account.SkinModel"/>：
+    /// 账户文件是「令牌加密 + 原子写盘 + 写失败回滚」三件事的唯一入口，绕过去改内存字段，
+    /// 重启之后用户的体型选择就没了，而且不会有任何提示。
+    /// </para>
+    ///
+    /// <para>
+    /// <paramref name="model"/> 只认 <c>classic</c> 与 <c>slim</c>（大小写不敏感，其余值一律按
+    /// <c>classic</c> 处理）。值没变时不写盘、不发 <see cref="AccountsChanged"/>。
+    /// </para>
+    /// </summary>
+    Task<Models.AccountResult> SetSkinModelAsync(
+        string accountId,
+        string model,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(Models.AccountResult.Fail("当前账户服务不支持修改皮肤体型。"));
+
     event EventHandler? AccountsChanged;
 }
 

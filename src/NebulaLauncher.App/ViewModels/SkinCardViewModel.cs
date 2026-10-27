@@ -22,6 +22,8 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
 
     private IAccountService? _accounts;
 
+    private SkinChangeNotifier? _skinChanges;
+
     private IAppLog? _log;
 
     private CancellationTokenSource? _loadCancellation;
@@ -58,6 +60,12 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
         _initialized = true;
         _log = _services.GetService<IAppLog>();
         _accounts = _services.GetService<IAccountService>();
+
+        // 皮肤变更通知：换肤改的是服务端材质，AccountsChanged 不会发（票 #44 AC2）。
+        // 容器里没注册时落到进程级默认实例，保证与发通知的一方是同一个对象。
+        _skinChanges = _services.GetService<SkinChangeNotifier>() ?? SkinChangeBus.Current;
+        _skinChanges.SkinChanged += OnSkinChanged;
+
         if (_accounts is null)
         {
             await ApplyAsync(null).ConfigureAwait(true);
@@ -67,6 +75,24 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
         _accounts.AccountsChanged += OnAccountsChanged;
         _subscribed = true;
         await ApplyAsync(_accounts.ActiveAccount).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// 强制按当前账户重新取一次皮肤（票 #44 AC2）。
+    ///
+    /// 给两个来源用：一是本类的「皮肤已变更」订阅，二是需要确定性刷新的调用方
+    /// （例如票 #43 换完皮肤站材质之后）。返回的任务可以直接 await，失败已就地落日志。
+    /// </summary>
+    public async Task RefreshAsync()
+    {
+        try
+        {
+            await ApplyAsync(_accounts?.ActiveAccount).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log?.Warn("刷新侧边栏皮肤卡失败", ex);
+        }
     }
 
     /// <summary>
@@ -81,9 +107,30 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
             _subscribed = false;
         }
 
+        if (_skinChanges is not null)
+        {
+            _skinChanges.SkinChanged -= OnSkinChanged;
+            _skinChanges = null;
+        }
+
         var cancellation = Interlocked.Exchange(ref _loadCancellation, null);
         cancellation?.Cancel();
         cancellation?.Dispose();
+    }
+
+    /// <summary>
+    /// 换肤成功之后由 <see cref="SkinChangeNotifier"/> 触发。通知的发布方可能在后台线程，
+    /// 所以这里与 <see cref="OnAccountsChanged"/> 一样先切回 UI 线程再动 <see cref="Visual"/>。
+    /// </summary>
+    private void OnSkinChanged(object? sender, SkinChangedEventArgs e)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => ApplyInBackground(_accounts?.ActiveAccount));
+            return;
+        }
+
+        ApplyInBackground(_accounts?.ActiveAccount);
     }
 
     /// <summary>按给定账户刷新卡片。取消上一次还没回来的请求。</summary>

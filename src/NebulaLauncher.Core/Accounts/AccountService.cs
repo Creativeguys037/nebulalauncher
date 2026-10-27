@@ -919,6 +919,64 @@ public sealed class AccountService : IAccountService
         return refreshed.Success ? refreshed.Account : null;
     }
 
+    /// <inheritdoc />
+    public async Task<AccountResult> SetSkinModelAsync(
+        string accountId,
+        string model,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(accountId))
+        {
+            return AccountResult.Fail("账户不存在。");
+        }
+
+        // 只认两个词：别的地方（官方 variant、SkinProfileParser）都按这两个值判，
+        // 脏值放进去只会在更深的地方变成「体型莫名其妙变回 Steve」。
+        var normalized = string.Equals(model?.Trim(), "slim", StringComparison.OrdinalIgnoreCase)
+            ? "slim"
+            : "classic";
+
+        Account updated;
+
+        lock (_sync)
+        {
+            var target = _accounts.FirstOrDefault(a => a.Id == accountId);
+            if (target is null)
+            {
+                return AccountResult.Fail("账户不存在，可能已经被移除。");
+            }
+
+            // 值没变就是空操作：不写盘、不发事件，免得界面白重绘一遍。
+            if (string.Equals(target.SkinModel, normalized, StringComparison.Ordinal))
+            {
+                return AccountResult.Ok(target.Clone());
+            }
+
+            target.SkinModel = normalized;
+            updated = target.Clone();
+        }
+
+        bool saved;
+        try
+        {
+            saved = await PersistAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            RollbackToPersisted();
+            throw;
+        }
+
+        if (!saved)
+        {
+            RollbackToPersisted();
+            return AccountResult.Fail("体型没能保存：账户文件写入磁盘失败，请检查数据目录权限或磁盘空间。");
+        }
+
+        AccountsChanged?.Invoke(this, EventArgs.Empty);
+        return AccountResult.Ok(updated);
+    }
+
     private void ReplaceAll(List<Account> accounts, string? activeId)
     {
         lock (_sync)

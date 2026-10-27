@@ -27,6 +27,30 @@
       <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
       <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
     </Style>
+
+    <!-- 官方换肤的结果条（票 44）：成功走强调色，失败走危险色。用类而不是转换器， -->
+    <!-- 这样颜色始终来自令牌，深色与浅色两套都自动跟着主题走。 -->
+    <Style Selector="Border.feedback">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <Style Selector="Border.feedback.danger">
+      <Setter Property="Background" Value="{DynamicResource Status.Danger.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Status.Danger.Edge}" />
+    </Style>
+
+    <Style Selector="Border.feedback TextBlock.feedbackText">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+
+    <!-- 体型切换的选中态：与页签同一套观感，避免页面里出现第二种「选中的样子」。 -->
+    <Style Selector="Button.pill.model.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,320">
@@ -57,19 +81,128 @@
       </Grid>
     </Border>
 
-    <!-- 账户条：跟随当前账户，只读展示，不提供切换器（切账户在账户页做）。 -->
+    <!-- 账户与官方换肤（票 44）：左边账户信息，右边「应用到当前账户」的三个动作。
+         放在账户条里而不是右列底部：1024×660 下右列只剩 ~460px，预览卡占掉大半，
+         操作区塞在下面就会被裁掉。这里横向有 ~750px，一行放得下三个按钮。 -->
     <Border Grid.Row="1" Grid.ColumnSpan="2"
             Classes="card"
             Padding="16,12"
             Margin="0,0,0,12">
-      <StackPanel Spacing="3">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="{Binding AccountName}" Classes="h3" VerticalAlignment="Center" />
-          <Border Classes="badge" VerticalAlignment="Center">
-            <TextBlock Text="{Binding AccountBadge}" />
-          </Border>
-        </StackPanel>
-        <TextBlock Text="{Binding AccountDetail}" Classes="muted" TextWrapping="Wrap" />
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="*,Auto">
+          <!-- 账户信息：只读展示，不提供切换器（切账户在账户页做） -->
+          <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center" Margin="0,0,12,0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="{Binding AccountName}" Classes="h3" VerticalAlignment="Center" />
+              <Border Classes="badge" VerticalAlignment="Center">
+                <TextBlock Text="{Binding AccountBadge}" />
+              </Border>
+            </StackPanel>
+            <TextBlock Text="{Binding AccountDetail}" Classes="muted" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <!-- 三个动作。可见性全部来自 OfficialSkinCapability：
+               离线账户不出现上传/重置（AC5），披风按钮恒禁用（AC4）。 -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="accent"
+                    Content="应用到官方账户"
+                    IsVisible="{Binding Official.CanUpload}"
+                    IsEnabled="{Binding !IsOfficialBusy}"
+                    ToolTip.Tip="把当前选中的皮肤传到官方账户"
+                    Command="{Binding ApplyToOfficialCommand}" />
+            <Button Classes="pill"
+                    Content="重置为默认皮肤"
+                    IsVisible="{Binding Official.CanReset}"
+                    IsEnabled="{Binding !IsOfficialBusy}"
+                    ToolTip.Tip="把官方档案恢复成默认皮肤"
+                    Command="{Binding ResetOfficialSkinCommand}" />
+            <Button Classes="pill"
+                    Content="上传披风"
+                    IsVisible="{Binding HasAccount}"
+                    IsEnabled="False"
+                    ToolTip.Tip="{Binding OfficialCapeText}" />
+          </StackPanel>
+        </Grid>
+
+        <!-- 两条常驻说明：披风为什么点不了（AC4）与换肤的影响范围（AC8）。
+             用 WrapPanel 而不是两段固定文本：1024 宽下会自动折行，不会被裁。 -->
+        <WrapPanel>
+          <TextBlock Text="{Binding OfficialCapeText}" Classes="caption" Margin="0,0,14,2" />
+          <TextBlock Text="{Binding OfficialHint}" Classes="muted" Margin="0,0,0,2" />
+        </WrapPanel>
+
+        <!-- 离线账户的体型切换（AC5）。官方账户不显示：体型跟着上传时的 variant 走。
+             与说明文字同一行：账户条每多一行就把下面的列表压掉一行卡片。 -->
+        <Grid ColumnDefinitions="Auto,Auto,*" IsVisible="{Binding Official.CanPickModel}">
+          <TextBlock Text="体型" Classes="caption" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+            <Button Classes="pill model"
+                    Classes.active="{Binding IsClassicModel}"
+                    Content="Steve"
+                    IsEnabled="{Binding !IsOfficialBusy}"
+                    Command="{Binding SetClassicModelCommand}" />
+            <Button Classes="pill model"
+                    Classes.active="{Binding IsSlimModel}"
+                    Content="Alex"
+                    IsEnabled="{Binding !IsOfficialBusy}"
+                    Command="{Binding SetSlimModelCommand}" />
+          </StackPanel>
+          <TextBlock Grid.Column="2"
+                     Text="{Binding Official.UnavailableText}"
+                     Classes="caption"
+                     Margin="10,0,0,0"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap" />
+        </Grid>
+
+        <!-- 不可用的原因：第三方 / 缺令牌写在这里，不给一个点了必然失败的按钮。
+             离线账户的原因已在上面的体型行里，这里不重复。 -->
+        <TextBlock Text="{Binding Official.UnavailableText}"
+                   IsVisible="{Binding Official.ShowStandaloneReason}"
+                   Classes="caption"
+                   TextWrapping="Wrap"
+                   LineHeight="18" />
+
+        <ProgressBar IsVisible="{Binding IsOfficialBusy}"
+                     IsIndeterminate="True"
+                     Height="3" />
+
+        <!-- 结果条：成功一句话，失败给原因 + 该走的那条路（重试 / 去账户页） -->
+        <Border Classes="feedback"
+                Classes.danger="{Binding IsOfficialFeedbackError}"
+                IsVisible="{Binding HasOfficialFeedback}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="10,8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding OfficialFeedbackText}"
+                       Classes="feedbackText"
+                       TextWrapping="Wrap"
+                       LineHeight="18"
+                       VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                        VerticalAlignment="Center" Margin="10,0,0,0">
+              <Button Classes="pill"
+                      Content="重试"
+                      IsVisible="{Binding CanRetryOfficial}"
+                      IsEnabled="{Binding !IsOfficialBusy}"
+                      Command="{Binding RetryOfficialCommand}" />
+              <Button Classes="pill"
+                      Content="去账户页"
+                      IsVisible="{Binding GoToAccountPageVisible}"
+                      Command="{Binding GoToAccountPageCommand}" />
+              <Button Classes="ghost"
+                      Content="知道了"
+                      Command="{Binding DismissOfficialFeedbackCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- 冷却中：429 之后不让立刻再点，也不让用户以为是界面卡住了 -->
+        <TextBlock Text="{Binding OfficialCooldownText}"
+                   IsVisible="{Binding HasOfficialCooldown}"
+                   Classes="caption"
+                   TextWrapping="Wrap" />
       </StackPanel>
     </Border>
 

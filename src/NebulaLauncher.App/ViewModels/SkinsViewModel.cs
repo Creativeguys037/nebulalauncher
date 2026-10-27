@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Skinning;
+using NebulaLauncher.Services;
 using NebulaLauncher.Skinning;
 
 namespace NebulaLauncher.ViewModels;
@@ -73,6 +74,27 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>本地列表「至少扫过一次」。没扫过不显示空态，否则进页面会先闪一下「还没有皮肤」。</summary>
     private bool _hasLoadedLocalOnce;
 
+    // ==================== 官方换肤（票 44） ====================
+
+    /// <summary>官方换肤客户端。容器里没注册时自建，跟随 <see cref="SkinsViewModel"/> 的生命周期释放。</summary>
+    private MojangSkinClient? _mojang;
+
+    /// <summary>「皮肤已变更」广播：换肤成功后侧边栏那张 3D 卡靠它刷新（票 44 AC2）。</summary>
+    private SkinChangeNotifier? _skinChanges;
+
+    private INavigationService? _navigation;
+
+    /// <summary>429 / 5xx 的重试冷却。UI 层节流，客户端一次调用只发一次请求。</summary>
+    private readonly SkinUploadThrottle _throttle = new();
+
+    /// <summary>上一次可重试的操作。重试按钮只重放进这一条，不会顺手重跑别的。</summary>
+    private Func<CancellationToken, Task<SkinUploadResult>>? _officialRetry;
+
+    private CancellationTokenSource? _officialCancellation;
+
+    /// <summary>冷却到期的刷新任务。冷却期间「重试」按钮是隐藏的，到期要让它自己冒出来。</summary>
+    private CancellationTokenSource? _cooldownCancellation;
+
     public SkinsViewModel(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -89,6 +111,14 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         _localStore = _paths is null ? null : new LocalSkinStore(_paths, _log);
         _platform = services.GetService(typeof(IPlatformService)) as IPlatformService;
 
+        // 官方换肤：容器里注册了就用注册的（测试可注入假 HttpClient）；
+        // 「皮肤已变更」同理，没注册时落到进程级默认实例，保证与侧边栏订阅的是同一个。
+        _mojang = services.GetService(typeof(MojangSkinClient)) as MojangSkinClient
+                  ?? new MojangSkinClient(log: _log);
+        _skinChanges = services.GetService(typeof(SkinChangeNotifier)) as SkinChangeNotifier
+                       ?? SkinChangeBus.Current;
+        _navigation = services.GetService(typeof(INavigationService)) as INavigationService;
+
         Items.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasItems));
@@ -101,6 +131,40 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         PreviewVisual = SkinVisual.Default;
         ApplyAccount(_accounts?.ActiveAccount);
+        ApplyScreenshotFeedbackDemo();
+    }
+
+    /// <summary>
+    /// 截图模式专用：把一条真实的 <see cref="SkinUploadFeedback"/> 摆进结果区。
+    ///
+    /// 走的是同一套 <c>For(result, …)</c> 映射，所以「重试」与「去账户页」按钮的
+    /// 出现与否仍然由 <see cref="SkinUploadResult"/> 决定，只是这个结果来自构造样本。
+    /// 非截图模式下这个属性恒为 null，这段代码不执行。
+    /// </summary>
+    private void ApplyScreenshotFeedbackDemo()
+    {
+        var demo = ScreenshotMode.SkinUploadFeedbackDemo;
+        if (string.IsNullOrWhiteSpace(demo))
+        {
+            return;
+        }
+
+        var result = demo.ToLowerInvariant() switch
+        {
+            "unauthorized" => SkinUploadResult.Fail("登录已过期，请到账户页刷新令牌。", isAuthError: true),
+            "badrequest" => SkinUploadResult.Fail("皮肤尺寸必须是 64×64 或 64×32，且必须是 PNG 格式。（服务端：Invalid skin file）"),
+            "throttled" => SkinUploadResult.Fail("无网络：官方服务暂时不可用，请稍后重试。", isRetryable: true),
+            _ => SkinUploadResult.Fail("换肤失败，原因未知。"),
+        };
+
+        OfficialFeedback = SkinUploadFeedback.For(result, "官方换肤成功。");
+
+        if (result.IsRetryable)
+        {
+            _throttle.MarkRetryableFailure();
+            OfficialCooldownText = _throttle.BlockedText;
+            StartCooldownRefresh();
+        }
     }
 
     public override string Title => "皮肤";
@@ -222,6 +286,379 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     public string LocalSummary => LocalItems.Count == 0 ? "本地还没有皮肤" : $"本地 {LocalItems.Count} 套皮肤";
 
+    // ==================== 官方换肤的状态与命令（票 44） ====================
+
+    /// <summary>官方换肤区此刻的按钮可用性。随当前账户变化。</summary>
+    [ObservableProperty]
+    private OfficialSkinCapability _official = OfficialSkinActions.Of(null);
+
+    /// <summary>官方换肤的一次操作结果。成功用绿字，失败用红字；null 表示还没操作过。</summary>
+    [ObservableProperty]
+    private SkinUploadFeedback? _officialFeedback;
+
+    /// <summary>有没有结果要显示。</summary>
+    public bool HasOfficialFeedback => OfficialFeedback is not null;
+
+    /// <summary>这条结果是不是错误（决定用危险色还是成功色）。</summary>
+    public bool IsOfficialFeedbackError => OfficialFeedback?.IsError ?? false;
+
+    /// <summary>失败时给「重试」按钮的条件：可重试，且不在冷却中。</summary>
+    public bool CanRetryOfficial => OfficialFeedback?.CanRetry == true && !_throttle.IsBlocked;
+
+    /// <summary>令牌过期时给「去账户页」按钮。</summary>
+    public bool GoToAccountPageVisible => OfficialFeedback?.GoToAccountPage == true;
+
+    public string OfficialFeedbackText => OfficialFeedback?.Text ?? string.Empty;
+
+    /// <summary>冷却中的倒计时文案。冷却之外为 null。</summary>
+    [ObservableProperty]
+    private string? _officialCooldownText;
+
+    public bool HasOfficialCooldown => !string.IsNullOrWhiteSpace(OfficialCooldownText);
+
+    /// <summary>正在上传/重置。按钮在此期间禁用，防连点发出两次相同请求。</summary>
+    [ObservableProperty]
+    private bool _isOfficialBusy;
+
+    /// <summary>AC8 的常驻说明。</summary>
+    public string OfficialHint => OfficialSkinActions.JavaOnlyHint;
+
+    public string OfficialCapeText => Official.CapeText;
+
+    /// <summary>离线账户的体型切换：两个选项，只有 <see cref="OfficialSkinCapability.CanPickModel"/> 时才显示。</summary>
+    public bool IsClassicModel => SkinModelMapping.FromAccountValue(_accounts?.ActiveAccount?.SkinModel) == LocalSkinModel.Classic;
+
+    public bool IsSlimModel => !IsClassicModel;
+
+    /// <summary>
+    /// 「应用到官方账户」（AC1）：把当前选中的那一套（网络行或本地行）传到官方档案。
+    ///
+    /// 取字节的两条路不同：网络行要先把原图下回来，本地行直接读磁盘。
+    /// 无论哪条路，到了上传前都走同一套本地校验与失败呈现（AC9 / AC6）。
+    /// </summary>
+    [RelayCommand]
+    private Task ApplyToOfficialAsync() => RunOfficialAsync(UploadSelectedToOfficialAsync, "官方换肤");
+
+    /// <summary>「重置为默认皮肤」（AC3）。</summary>
+    [RelayCommand]
+    private Task ResetOfficialSkinAsync() => RunOfficialAsync(ResetOfficialCoreAsync, "重置官方皮肤");
+
+    /// <summary>失败态上的「重试」：只重放上一次那条操作，且必须先过冷却。</summary>
+    [RelayCommand]
+    private Task RetryOfficialAsync()
+    {
+        var retry = _officialRetry;
+        return retry is null ? Task.CompletedTask : RunOfficialAsync(retry, "官方换肤重试");
+    }
+
+    /// <summary>取消失败态，把结果区收起来。</summary>
+    [RelayCommand]
+    private void DismissOfficialFeedback()
+    {
+        OfficialFeedback = null;
+        _officialRetry = null;
+    }
+
+    /// <summary>令牌过期时去账户页刷新（AC6：401 引导到账户页，不原地重试）。</summary>
+    [RelayCommand]
+    private void GoToAccountPage()
+    {
+        if (_navigation is null)
+        {
+            OfficialFeedback = SkinUploadFeedback.LocalError("打不开账户页，请从左侧导航手动进入。");
+            return;
+        }
+
+        _navigation.Navigate(NavigationKeys.Accounts);
+    }
+
+    /// <summary>离线账户在 Steve / Alex 之间切换（AC5）。走 <see cref="IAccountService"/> 落盘。</summary>
+    [RelayCommand]
+    private async Task SetClassicModelAsync() => await SwitchModelAsync(LocalSkinModel.Classic).ConfigureAwait(true);
+
+    [RelayCommand]
+    private async Task SetSlimModelAsync() => await SwitchModelAsync(LocalSkinModel.Slim).ConfigureAwait(true);
+
+    private async Task SwitchModelAsync(LocalSkinModel model)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (_accounts?.ActiveAccount is not { } account)
+        {
+            OfficialFeedback = SkinUploadFeedback.LocalError("先添加一个账户，再切换体型。");
+            return;
+        }
+
+        var value = SkinModelMapping.ToAccountValue(model);
+        if (string.Equals(account.SkinModel, value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var result = await _accounts.SetSkinModelAsync(account.Id, value).ConfigureAwait(true);
+        if (!result.Success)
+        {
+            OfficialFeedback = SkinUploadFeedback.LocalError(result.Message ?? "体型没能保存。");
+            return;
+        }
+
+        // 体型落盘之后账户事件会发一次，ApplyAccount 会把两个按钮的选中态切过去。
+        // 这句文案只说「记下来了」：目前唯一读这个字段的是 SkinProfileParser 的兜底体型，
+        // 离线账户没有皮肤档案，所以它暂时不会改变任何渲染结果。说得比实际多就是骗人。
+        OfficialFeedback = new SkinUploadFeedback(
+            model == LocalSkinModel.Slim ? "已记下 Alex 体型，写进账户文件。" : "已记下 Steve 体型，写进账户文件。",
+            IsError: false,
+            CanRetry: false,
+            GoToAccountPage: false);
+    }
+
+    /// <summary>
+    /// 所有官方操作的共同外壳：防重入、节流、统一把结果翻成 <see cref="SkinUploadFeedback"/>。
+    ///
+    /// <paramref name="operation"/> 由调用方传进来，是为了让「重试」只重放它自己那一条：
+    /// 把所有官方操作都塞进同一个入口，会让「重置失败后点重试」变成又上传一次。
+    /// </summary>
+    private async Task RunOfficialAsync(Func<CancellationToken, Task<SkinUploadResult>> operation, string logName)
+    {
+        if (IsDisposed || IsOfficialBusy)
+        {
+            return;
+        }
+
+        // UI 层节流：429 之后立刻再点等于把限流当成网络抖动（AC6）。
+        if (_throttle.IsBlocked)
+        {
+            OfficialCooldownText = _throttle.BlockedText;
+            OnPropertyChanged(nameof(CanRetryOfficial));
+            return;
+        }
+
+        IsOfficialBusy = true;
+        OfficialFeedback = null;
+        _officialRetry = null;
+
+        var cancellation = new CancellationTokenSource();
+        Replace(ref _officialCancellation, cancellation);
+
+        try
+        {
+            var result = await operation(cancellation.Token).ConfigureAwait(true);
+            if (cancellation.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
+
+            if (result.Succeeded)
+            {
+                _throttle.MarkSuccess();
+                OfficialCooldownText = null;
+                OfficialFeedback = SkinUploadFeedback.For(result, $"{logName}成功。{OfficialSkinActions.JavaOnlyHint}");
+
+                // AC2：换肤不动 Account 字段，AccountsChanged 不会发，必须显式广播一次。
+                _skinChanges?.Notify(logName);
+            }
+            else
+            {
+                if (result.IsRetryable)
+                {
+                    _throttle.MarkRetryableFailure();
+                    OfficialCooldownText = _throttle.BlockedText;
+                    StartCooldownRefresh();
+                }
+                else
+                {
+                    OfficialCooldownText = null;
+                }
+
+                OfficialFeedback = SkinUploadFeedback.For(result, logName + "成功。");
+
+                // 只有可重试的失败才留住重试入口；401 的入口是「去账户页」，400 是「换一张图」。
+                _officialRetry = result.IsRetryable && !result.IsAuthError ? operation : null;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 离开页面：结果作废，不覆盖界面。
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn($"{logName}失败", ex);
+            OfficialFeedback = SkinUploadFeedback.LocalError($"{logName}失败：{ex.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_officialCancellation, cancellation))
+            {
+                IsOfficialBusy = false;
+            }
+
+            OnPropertyChanged(nameof(CanRetryOfficial));
+        }
+    }
+
+    /// <summary>
+    /// 冷却到期之后把「重试」按钮放出来。
+    ///
+    /// 只更新可见性、不自动重发请求：自动重试会把一次 429 放大成两次 429，
+    /// 而且用户可能已经去改了别的东西。这里只保证按钮不会因为「没人通知」而永远不出现。
+    /// </summary>
+    private void StartCooldownRefresh()
+    {
+        var cancellation = new CancellationTokenSource();
+        Replace(ref _cooldownCancellation, cancellation);
+        _ = RefreshCooldownAsync(cancellation);
+    }
+
+    /// <summary>后台任务没有观察者，异常必须就地消化（PITFALLS 2.8）。</summary>
+    private async Task RefreshCooldownAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var remaining = _throttle.Remaining + TimeSpan.FromMilliseconds(250);
+            if (remaining > TimeSpan.Zero)
+            {
+                await Task.Delay(remaining, cancellation.Token).ConfigureAwait(true);
+            }
+
+            if (cancellation.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
+
+            OfficialCooldownText = _throttle.BlockedText;
+            OnPropertyChanged(nameof(CanRetryOfficial));
+        }
+        catch (OperationCanceledException)
+        {
+            // 又发了一次请求 / 离开页面：这次刷新作废。
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("刷新官方换肤冷却状态失败", ex);
+        }
+    }
+
+    /// <summary>「应用到官方账户」的实做：取选中那套的 PNG 字节 → 本地校验 → 上传。</summary>
+    private async Task<SkinUploadResult> UploadSelectedToOfficialAsync(CancellationToken cancellationToken)
+    {
+        if (Official.CanUpload is false)
+        {
+            return SkinUploadResult.Fail(Official.UnavailableText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _mojang is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持官方换肤。");
+        }
+
+        if (string.IsNullOrWhiteSpace(account.AccessToken))
+        {
+            return SkinUploadResult.Fail("这个账户缺少 Minecraft 令牌，请到账户页重新登录。", isAuthError: true);
+        }
+
+        var source = await ReadSelectedSkinAsync(cancellationToken).ConfigureAwait(true);
+        if (source is null)
+        {
+            return SkinUploadResult.Fail(IsLocalTab
+                ? "先选中一套本地皮肤再上传。"
+                : "先选中一套网络皮肤再上传。");
+        }
+
+        if (source.ErrorText is { } sourceError)
+        {
+            // 取原图失败多半是网络问题：标成可重试，用户换张图或者等一会儿都行。
+            return SkinUploadResult.Fail(sourceError, isRetryable: true);
+        }
+
+        // AC9：本地先拦一次，不合格就不发请求。官方只认 64×64 与 64×32，
+        // 而 LocalSkinFormat 允许的尺寸更宽，所以这一步必须在客户端之前。
+        if (SkinUploadPreflight.Check(source.Png, source.Model) is { } error)
+        {
+            return SkinUploadResult.Fail(error);
+        }
+
+        return await _mojang
+            .UploadSkinAsync(account.AccessToken, SkinModelMapping.ToKind(source.Model), source.Png!, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>「重置为默认皮肤」的实做。</summary>
+    private async Task<SkinUploadResult> ResetOfficialCoreAsync(CancellationToken cancellationToken)
+    {
+        if (Official.CanReset is false)
+        {
+            return SkinUploadResult.Fail(Official.UnavailableText);
+        }
+
+        if (_accounts?.ActiveAccount is not { } account || _mojang is null)
+        {
+            return SkinUploadResult.Fail("当前账户不支持官方换肤。");
+        }
+
+        if (string.IsNullOrWhiteSpace(account.AccessToken))
+        {
+            return SkinUploadResult.Fail("这个账户缺少 Minecraft 令牌，请到账户页重新登录。", isAuthError: true);
+        }
+
+        return await _mojang.ResetSkinAsync(account.AccessToken, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// 取当前页签选中那一套的原始 PNG 字节与体型。
+    /// 网络行要先下原图（列表里只有缩略图）；本地行直接读磁盘。
+    ///
+    /// 取不到字节不抛异常，而是回一个带 <see cref="SkinSource.ErrorText"/> 的对象：
+    /// 这里失败的原因（读文件失败、详情拿不到、图下载失败）都要原样显示给用户，
+    /// 而不是变成一句笼统的「换肤失败」。
+    /// </summary>
+    private async Task<SkinSource?> ReadSelectedSkinAsync(CancellationToken cancellationToken)
+    {
+        if (IsLocalTab)
+        {
+            if (SelectedLocal is not { } local)
+            {
+                return null;
+            }
+
+            try
+            {
+                var bytes = await Task.Run(() => File.ReadAllBytes(local.FilePath), cancellationToken).ConfigureAwait(true);
+                return new SkinSource(bytes, local.Model, null);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _log?.Warn($"读取本地皮肤失败：{local.FilePath}", ex);
+                return new SkinSource(null, local.Model, $"读不了这个皮肤文件：{ex.Message}");
+            }
+        }
+
+        if (Selected is not { } entry || _library is null)
+        {
+            return null;
+        }
+
+        // 预览缓存里已经有解码后的像素，但上传要的是原始字节：重新下原图更省心，
+        // 且一次点击只多一个请求。
+        var info = await _library.InfoAsync(entry.Tid, cancellationToken).ConfigureAwait(true);
+        if (!info.Succeeded || info.Value is not { } detail)
+        {
+            return new SkinSource(null, SkinModelMapping.ToLocal(entry.Model), info.ErrorText ?? "拿不到这套皮肤的详情。");
+        }
+
+        var png = await _library.DownloadAsync(_library.TextureUrl(detail.Hash), cancellationToken).ConfigureAwait(true);
+        return png is null
+            ? new SkinSource(null, SkinModelMapping.ToLocal(entry.Model), "皮肤图下载失败。")
+            : new SkinSource(png, SkinModelMapping.ToLocal(entry.Model), null);
+    }
+
+    /// <summary>
+    /// 一次上传需要的全部输入：字节 + 体型，<paramref name="ErrorText"/> 非空表示没取到字节。
+    /// </summary>
+    private sealed record SkinSource(byte[]? Png, LocalSkinModel Model, string? ErrorText);
+
     public override async Task OnNavigatedToAsync()
     {
         if (IsDisposed)
@@ -253,6 +690,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         Cancel(ref _pageCancellation);
         Cancel(ref _thumbnailsCancellation);
         Cancel(ref _previewCancellation);
+        Cancel(ref _officialCancellation);
+        Cancel(ref _cooldownCancellation);
         return Task.CompletedTask;
     }
 
@@ -977,6 +1416,13 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         AccountDetail = account is null
             ? "皮肤库不用登录也能逛"
             : AccountTypeDisplay.DetailOf(account, $"UUID {ShortUuid(account.Uuid)}");
+
+        // 换人（或换类型）之后，官方区的按钮可用性与体型单选都必须跟着变，
+        // 否则会出现「切到离线账户了，上传按钮还亮着」。
+        Official = OfficialSkinActions.Of(account);
+        OnPropertyChanged(nameof(IsClassicModel));
+        OnPropertyChanged(nameof(IsSlimModel));
+        OnPropertyChanged(nameof(OfficialCapeText));
     }
 
     private static string ShortUuid(string? uuid) =>
@@ -1071,6 +1517,30 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     partial void OnLocalErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasLocalError));
 
+    partial void OnOfficialChanged(OfficialSkinCapability value)
+    {
+        OnPropertyChanged(nameof(OfficialCapeText));
+        OnPropertyChanged(nameof(IsClassicModel));
+        OnPropertyChanged(nameof(IsSlimModel));
+    }
+
+    partial void OnOfficialFeedbackChanged(SkinUploadFeedback? value)
+    {
+        OnPropertyChanged(nameof(HasOfficialFeedback));
+        OnPropertyChanged(nameof(IsOfficialFeedbackError));
+        OnPropertyChanged(nameof(CanRetryOfficial));
+        OnPropertyChanged(nameof(GoToAccountPageVisible));
+        OnPropertyChanged(nameof(OfficialFeedbackText));
+    }
+
+    partial void OnOfficialCooldownTextChanged(string? value) => OnPropertyChanged(nameof(HasOfficialCooldown));
+
+    partial void OnIsOfficialBusyChanged(bool value)
+    {
+        // 在途时连重试按钮也一起禁掉：否则一次点击会同时发出两条请求。
+        OnPropertyChanged(nameof(CanRetryOfficial));
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -1081,8 +1551,11 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             Cancel(ref _thumbnailsCancellation);
             Cancel(ref _previewCancellation);
             Cancel(ref _localCancellation);
+            Cancel(ref _officialCancellation);
+            Cancel(ref _cooldownCancellation);
 
             _library.Dispose();
+            _mojang?.Dispose();
 
             foreach (var bitmap in _thumbnailCache.Values)
             {
@@ -1102,6 +1575,10 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             _log = null;
             _localStore = null;
             _platform = null;
+            _mojang = null;
+            _skinChanges = null;
+            _navigation = null;
+            _officialRetry = null;
         }
 
         base.Dispose(disposing);
