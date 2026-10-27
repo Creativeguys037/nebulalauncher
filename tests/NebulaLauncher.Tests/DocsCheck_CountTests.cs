@@ -29,13 +29,14 @@ public sealed class DocsCheck_CountTests
     /// 票 #48 给皮肤头像服务加了 7 个 InlineData（皮肤 PNG 两种历史尺寸 2 + 模型归一化 5），净增 7。
     /// 票 #51 给窗口最小尺寸的测量兜底加了 3 个 InlineData（NaN / +∞ / 负数各一行），净增 3。
     /// 票 #44 给官方换肤的失败态映射加了 3 个 InlineData（429 / 500 / 503 各一行），净增 3。
+    /// 票 #43 给皮肤站换肤的 model 取值与失败态映射加了 9 个 InlineData，净增 9。
     ///
     /// 注意：789 这个数包含了票 #48 的 7 条 InlineData，而那批测试当时只落在工作树里、
     /// 没有进任何提交，于是 master HEAD 上扫描结果是 782，这条断言一直是红的。
     /// 集成分支 feat/spec-37-skins 开工时把基线按仓库真实内容校正成 782；
     /// 一旦票 #48 的测试文件（CoreAccounts_SkinAvatarTests.cs）真的提交进来，这里要改回 789。
     /// </summary>
-    private const int BaselineInlineData = 785;
+    private const int BaselineInlineData = 794;
 
     [Fact]
     public void 按Fact与InlineData计数()
