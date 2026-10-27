@@ -242,6 +242,7 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 - [ ] 加载中 / 空 / 错误三种状态都有对应 UI
 - [ ] 长文本 `TextWrapping="Wrap"`，不会把窗口撑破
 - [ ] 窗口缩到 `1024×660` 时布局不重叠、不裁切（抬头副标题也要看）
+- [ ] 窗口最小尺寸没有在 XAML 里写死：它由 `src/NebulaLauncher.App/Views/MainWindow.axaml.cs` 按侧边栏实测的自然尺寸算出（`src/NebulaLauncher.Core/Platforms/AdaptiveWindowSize.cs`），往侧边栏加内容只需要重跑截图确认，不用改尺寸常量（见 PITFALLS 5.11）
 - [ ] 关掉动效（`Motion.Enabled = false`）后功能仍完整
 - [ ] 深色与浅色各截一张（`shot.ps1 -Theme dark|light`），两种主题下文字都可读
 - [ ] 新增令牌在 `Dark` 与 `Light` 两个字典里都存在

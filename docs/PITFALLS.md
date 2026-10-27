@@ -27,9 +27,11 @@
 | §3 | 禁 `.Result` / `.Wait()` / `GetAwaiter().GetResult()` | 2.1、2.2 |
 | §3.1 | JSON 落盘代码的写法（context 登记 / `Of<T>()` / 具名请求体 / 泛型枚举转换器） | 3.16、3.17 |
 | §4 | 编译绑定必须写 `x:DataType` | 4.5 |
-| §8.1 | 提交前门槛 | 1.1、5.6 |
+| §7.5 | 间距与圆角档位（只用令牌） | 4.13 |
+| §7.11 | 提交前的界面自检（窗口最小尺寸不写死） | 5.11 |
+| §8.1 | 提交前门槛 | 1.1、1.10、5.6 |
 | §8.2 | `dotnet test` 不可用、TestRunner 的退出码语义 | 1.1、5.6 |
-| §8.3 | 文档引用 / 行数预算 / 三态校验（`tools/DocsCheck`） | 5.9 |
+| §8.3 | 文档引用 / 行数预算 / 三态校验（`tools/DocsCheck`） | 5.9、5.10 |
 | §8.4 | 应用内渲染截图 | 4.1、5.8 |
 | §8.8 | 并行协作三条 | 1.8 |
 | §8.9 | Debug XAML 缓存损坏 | 1.4 |
@@ -101,6 +103,11 @@ powershell -File build.ps1 -Clean
 - **成因**：子进程按受限令牌写盘，而 ACL 上没有显式 Deny，所以「看权限」看不出问题。工作区根缺少当前用户的 `WRITE_OWNER`（`Get-Acl` 只剩 `TakeOwnership, Synchronize`），沙箱无法为子目录补授权，整棵工作树对 `dotnet`、`bash`、`gh` 全变成只读；同类拒绝也打掉测试宿主启动与 shell-out CLI 的管道（`failed to run git: pipe: Access is denied.`），所以别先怀疑代码。
 - **规避**：用沙箱 ACL 诊断技能修一次（它备份原 DACL 并打印回滚命令）；复核方式是往 `src\NebulaLauncher.App\obj` 建一个探针文件，写不进去就还是权限问题。见 `CONVENTIONS.md` §0。
 
+### 1.10 增量构建把分析器警告咽掉
+- **症状**：`dotnet build src/NebulaLauncher.App/NebulaLauncher.App.csproj -c Debug --nologo` 末尾打印「0 个警告 0 个错误」，据此报「本次改动没引入警告」；同一份代码换 `-t:Rebuild` 才冒出 `warning CA2007: Consider calling ConfigureAwait on the awaited task` 与 `warning CA1305: The behavior of 'string.Format' could vary based on the current user's locale settings` 各一条，位置落在本次新写的文件里。
+- **成因**：增量构建只重编改动过的项目，没被重编的项目不重跑分析器；App 依赖的 Core 没变，Core 侧的新警告要等它下次真正编译时才报。于是「0 警告」只证明编译过、不证明分析器跑过——退出码 0 的语义同样是「编译成功」，不是「检查干净」。
+- **规避**：警告口径以全量重编为准，别信增量输出；提交前单独跑一次 `dotnet build src/NebulaLauncher.App/NebulaLauncher.App.csproj -c Debug -t:Rebuild`。见 `CONVENTIONS.md` §8.1。
+
 ---
 
 ## 2. 异步与线程
@@ -164,6 +171,11 @@ powershell -File build.ps1 -Clean
 - **症状**：手改 `accounts.json` 或换账户后界面账户列表不刷新，重启才生效；读代码时以为「Reload」会自动发生，排查方向跑偏。
 - **成因**：接口上有 `ReloadAsync` 且有实现，但生产代码零调用；`AccountsViewModel` 里同名的 `ReloadAsync()` 是它自己的私有方法，与接口无关。接口留着一个没人调的方法，会让人误判存在刷新路径。
 - **规避**：需要刷新账户状态就显式调一次并补用例锁住，或者直接删掉这个悬空方法，别让接口承诺不存在的自动刷新。位置：`src/NebulaLauncher.Core/Abstractions/AccountServices.cs IAccountService.ReloadAsync（:47）`、`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.ReloadAsync（:108）`。
+
+### 2.13 默认皮肤并发写盘撞成 `Access denied`
+- **症状**：首次进账户页，大卡有皮肤脸、列表行却是首字母占位；日志里一条 `System.UnauthorizedAccessException: Access to the path is denied.`，栈顶在 `src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService.GetDefaultSkinPathAsync` 的 `File.Move(temp, path, overwrite: true)`。
+- **成因**：大卡与列表行同时要头像，两路都先判「默认皮肤不存在」，随后各自写临时文件并替换到同一个 `default-<model>.png`；Windows 上后到的替换会撞上另一路正在占用的目标，异常被 catch 成「没有头像」，于是只有一路显示出皮肤。`File.Exists` 预检不构成互斥。
+- **规避**：物化共享缓存文件时串行化，并在闸门内重查一次存在性——`src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService.GetDefaultSkinPathAsync（:398）` 用 `_defaultSkinGate`（`SemaphoreSlim(1,1)`，:54）包住整段；新增任何「首次访问时写共享缓存文件」的逻辑都按这个模式写。复验这条路径时先删掉数据根下的 `cache/skin` 再截图——缓存命中会让两路「都没找到默认皮肤」的分支根本不被走到，看起来像已经修好。
 
 ---
 
@@ -318,6 +330,11 @@ powershell -File build.ps1 -Clean
 - **成因**：账户类型是三态（离线 / 微软 / 第三方验证），三处界面各写一份文案判定，首页那份写成 `account.Type == AccountType.Microsoft ? "微软账户" : "离线账户"`，`Authlib` 与 `Offline` 一起落进 else。两份字面量并存时，改一处不会带动另一处，也不报错。
 - **规避**：类型文案只允许一处映射——`src/NebulaLauncher.App/ViewModels/AccountTypeDisplay.cs:14 AccountTypeDisplay.BadgeOf`，短标签由它派生 `src/NebulaLauncher.App/ViewModels/AccountTypeDisplay.cs:26 AccountTypeDisplay.ShortBadgeOf`，详情拼装同处的 `AccountTypeDisplay.DetailOf`；三处渲染改调它。用例 `tests/NebulaLauncher.Tests/AppAccounts_TypeDisplayTests.cs`、`tests/NebulaLauncher.Tests/AppHome_AccountBadgeTests.cs`，改回分散判定会变红。见 6.D12。
 
+### 4.13 自绘控件自己裁形状，外层 `CornerRadius` 调不动
+- **症状**：三处账户头像的圆角先给 4、再给 8、最后回 0，渲染出的脸形状完全不变；改 `src/NebulaLauncher.App/Views/AccountsView.axaml` 或 `src/NebulaLauncher.App/Views/HomeView.axaml` 都看不出效果，只有动控件内部的绘制代码才变。
+- **成因**：形状被裁了两次。`src/NebulaLauncher.App/Controls/SkinAvatar.cs:47 SkinAvatar.Render` 内部曾对绘制内容做几何裁剪（`PushGeometryClip` + 椭圆实现圆形头像），外层 `Border` 的 `ClipToBounds` 与 `CornerRadius` 又裁一次；两次取交集，内层先切掉像素，外层把圆角改成多少都会被内层压住。所以「改 XAML 没反应」不是样式没生效，而是真正的裁剪点在另一个文件里。
+- **规避**：自绘控件只画内容、不裁形状，形状与圆角一律交给外层容器——三处渲染分别在 `src/NebulaLauncher.App/Views/AccountsView.axaml:75` 的大卡、`src/NebulaLauncher.App/Views/AccountsView.axaml:196` 的列表行与 `src/NebulaLauncher.App/Views/HomeView.axaml:73` 的首页，容器用 `Border` 的 `CornerRadius` 配 `ClipToBounds="True"`；实测后者会裁自绘内容，控件不必自己裁。圆角档位只用令牌，见 `CONVENTIONS.md` §7.5。
+
 ---
 
 ## 5. 测试与验证
@@ -366,6 +383,16 @@ powershell -File build.ps1 -Clean
 - **症状**：文档写着「某接口声明在 Abstractions」「某方法是 `SaveAsync`」「`docs/CODE.md:49` 那段」——代码一改，路径还打得开，符号却早改名或挪了位置；人工 `grep` 也搜不出来，因为文档里只是一段纯文本。
 - **成因**：Markdown 里的路径、符号与行号没有编译期校验，改名重构时文档不会被带上；行号更是每加一行就失效。
 - **规避**：代码引用统一写成反引号单元「仓库相对路径[:行号] 符号名」，提交前跑 `tools/DocsCheck`——路径与符号都必须真实存在，同时卡住行数预算（单份 400 行 / 总量 1000 行）。见 `CONVENTIONS.md` §8.3。
+
+### 5.10 新增 `[InlineData]` 会撞上 DocsCheck 的计数基线
+- **症状**：跑 `dotnet run --project tools/TestRunner/TestRunner.csproj -v q --nologo -m:1 -p:BuildInParallel=false -- DocsCheck` 报失败，失败点是 `Assert.Equal()` 期望值与实际值不等；刚加的那几个用例自己是通过的，看上去「跟我的改动无关」。
+- **成因**：`tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:31 DocsCheck_CountTests.BaselineInlineData` 把 `[InlineData]` 总数写成了常量（当前 786），断言在 `tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:79 DocsCheck_CountTests`。它是精确值断言，新增任何一条 `[InlineData]` 都要同步改这个常量，不会自动跟随；报错只说数字不等，不说是谁加的。
+- **规避**：改常量，并在原处按既有格式留一行注释记账（写清本次新增几条、为哪个议题加的），然后重跑上面那条命令。见 `CONVENTIONS.md` §8.3。
+
+### 5.11 写死的窗口最小尺寸会骗过 1024×660 验收
+- **症状**：`--size 1024x660` 的截图里侧边栏底部那项被裁成半行，指望滚动条也滚不出来；把 `MinHeight` 调到某个「看着刚好」的数，同一张截图就正常了，可再往侧边栏加一项又在同一个位置裁掉——每次都要手动改常量，而改完那个数没有任何东西在守。
+- **成因**：主窗口是 `src/NebulaLauncher.App/Views/MainWindow.axaml` 的 `Grid RowDefinitions="46,*"`，侧边栏内部又是 `RowDefinitions="*,Auto"`：标题栏与底部工具区是 Auto（不压缩），主内容吃剩下的 `*`。窗口最小尺寸写成常量时，它表达的是「上次调好时的内容高度」，不是「侧边栏现在需要多少」；票 #40 给底部工具区加了「世界 / 启动器设置 / 版本」三项，660 给不出那 44px，Auto 行先占满，`*` 行被压掉。写死的最小尺寸还会让 1024×660 的窄屏验收变成自欺：窗口被撑到 704，截图里当然什么都放得下。
+- **规避**：最小尺寸由代码算——`src/NebulaLauncher.App/Views/MainWindow.axaml.cs` 在首帧后量侧边栏三个竖直分段的实际 DesiredSize，交给 `src/NebulaLauncher.Core/Platforms/AdaptiveWindowSize.cs` 的 `Compute`，XAML 里不再出现 `MinWidth`/`MinHeight`。回归判据是 `tests/NebulaLauncher.Tests/CorePlatforms_AdaptiveWindowSizeTests.cs` 里的 `Compute_FollowsSidebarContentGrowth`：侧边栏涨多少，最小高度就得涨多少。截图模式（`--size`）跳过自适应，否则窗口被撑大，1024×660 的验收就看不见真实裁切。见 `CONVENTIONS.md` §7.11。
 
 ---
 

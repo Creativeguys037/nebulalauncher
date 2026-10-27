@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -9,6 +11,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using NebulaLauncher.Core.Abstractions;
@@ -76,6 +79,7 @@ public partial class MainWindow : Window
 
         RestoreWindowState();
         RegisterShortcuts();
+        AttachAdaptiveMinimumSizeTriggers(shell);
 
         // 截图模式档位：覆盖层只在真实下载 + 点关闭时出现，没有这个入口截不到。
         if (string.Equals(ScreenshotMode.SectionKey, "exit-guard", StringComparison.OrdinalIgnoreCase))
@@ -138,7 +142,119 @@ public partial class MainWindow : Window
 
     /// <summary>首帧后用真实布局尺寸再记一条日志：尺寸是否真的生效，验收时以这条为准。</summary>
     private void OnOpened(object? sender, EventArgs e)
-        => _log?.Info($"启动器窗口已打开：{Bounds.Width:0}x{Bounds.Height:0}，状态={WindowState}");
+    {
+        _log?.Info($"启动器窗口已打开：{Bounds.Width:0}x{Bounds.Height:0}，状态={WindowState}");
+        ScheduleAdaptiveMinimumSize();
+    }
+
+    /// <summary>
+    /// 把「按侧边栏内容算最小尺寸」挂到会改变侧边栏高度的三处：导航项、页脚项、皮肤卡的
+    /// 玩家名与副标题。没有这层订阅，运行时换皮肤把卡里的字撑高，窗口最小高度仍是旧的 —— 票 #51。
+    /// </summary>
+    private void AttachAdaptiveMinimumSizeTriggers(MainWindowViewModel shell)
+    {
+        shell.NavigationItems.CollectionChanged += OnSidebarContentChanged;
+        shell.FooterItems.CollectionChanged += OnSidebarContentChanged;
+        shell.SkinCard.PropertyChanged += OnSkinCardChanged;
+    }
+
+    private void OnSidebarContentChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => ScheduleAdaptiveMinimumSize();
+
+    private void OnSkinCardChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SkinCardViewModel.PlayerName) or nameof(SkinCardViewModel.Detail))
+        {
+            ScheduleAdaptiveMinimumSize();
+        }
+    }
+
+    /// <summary>
+    /// 排到布局轮次之后再量：<see cref="Layoutable.Measure"/> 要等首帧布局跑完才有可信的自然尺寸，
+    /// 在构造函数或 Opened 当下量拿到的是 0，会被当成「测不出」而回落到兜底下限。
+    /// </summary>
+    private void ScheduleAdaptiveMinimumSize()
+        => Dispatcher.UIThread.Post(ApplyAdaptiveMinimumSize, DispatcherPriority.Loaded);
+
+    /// <summary>
+    /// 按侧边栏实测的自然尺寸重算 <see cref="Window.MinWidth"/> / <see cref="Window.MinHeight"/>。
+    ///
+    /// 为什么不是 XAML 里的常量：主窗口是 <c>RowDefinitions="46,*"</c>，侧边栏内容一加长，
+    /// 写死的最小高度就会在窄屏上把导航压掉，而写死的 660 又能骗过 1024×660 的验收 —— 票 #51。
+    ///
+    /// 只在值真的变了才写：设置这两个属性会让 Avalonia 重排一次布局，无条件写会陷进循环。
+    /// </summary>
+    private void ApplyAdaptiveMinimumSize()
+    {
+        var measurements = MeasureSidebar();
+        var size = AdaptiveWindowSize.Compute(measurements);
+
+        // 截图模式必须按 --size 出图。留最小尺寸的话，1024×660 会被撑到「侧边栏放得下」的高度，
+        // 窄屏验收就看不到真实裁切了。但算出来的值仍然记一条：验收时从截图日志就能读到
+        // 「正常启动时窗口最小高度本该是多少」——票 #51。
+        if (ScreenshotMode.IsActive)
+        {
+            _log?.Info(
+                $"自适应最小尺寸（截图模式不应用，窗口按 --size）：{size.Width}x{size.Height}" +
+                $"（侧边栏实测：标题栏 {measurements.TitleBarHeight:0.#}、" +
+                $"导航 {measurements.NavigationHeight:0.#}、" +
+                $"工具区 {measurements.FooterHeight:0.#}、" +
+                $"宽 {measurements.SidebarWidth:0.#}）");
+            return;
+        }
+
+        if (Math.Abs(MinWidth - size.Width) < 0.5 && Math.Abs(MinHeight - size.Height) < 0.5)
+        {
+            return;
+        }
+
+        MinWidth = size.Width;
+        MinHeight = size.Height;
+        _log?.Info(
+            $"自适应最小尺寸：{size.Width}x{size.Height}（侧边栏实测：" +
+            $"标题栏 {measurements.TitleBarHeight:0.#}、" +
+            $"导航 {measurements.NavigationHeight:0.#}、" +
+            $"工具区 {measurements.FooterHeight:0.#}、" +
+            $"宽 {measurements.SidebarWidth:0.#}）");
+    }
+
+    /// <summary>
+    /// 量侧边栏三个竖直分段与列宽。
+    ///
+    /// 宽度取侧边栏的实际列宽而不是无限宽：导航文案在这条宽度下会不会折行是真实结果，
+    /// 给无限宽会量出一个比实际矮的自然高。
+    /// </summary>
+    private SidebarMeasurements MeasureSidebar()
+    {
+        var width = Sidebar.Bounds.Width > 0
+            ? Sidebar.Bounds.Width
+            : AdaptiveWindowSize.SidebarMinWidth;
+
+        // 标题栏在 <c>RowDefinitions="46,*"</c> 的固定行里，占位高由行定义决定，
+        // 内容自然高（一个 20px 的 Logo）不是它对窗口高度的贡献，所以取 Bounds。
+        var titleBarHeight = TitleBar.Bounds.Height > 0
+            ? TitleBar.Bounds.Height
+            : NaturalHeight(TitleBar, width);
+
+        return new SidebarMeasurements(
+            titleBarHeight,
+            NaturalHeight(NavigationList, width),
+            NaturalHeight(SidebarFooter, width),
+            width);
+    }
+
+    /// <summary>
+    /// 固定宽度、无限高度量一次，得到「完整显示要占多高」，含控件自身的上下外边距。
+    /// 量完 <see cref="Layoutable.InvalidateMeasure"/> 把控件还给布局：不还的话它挂着这次的
+    /// DesiredSize，父级下一轮布局可能跳过重算。
+    /// </summary>
+    private static double NaturalHeight(Control control, double width)
+    {
+        control.Measure(new Size(width, double.PositiveInfinity));
+        var height = control.DesiredSize.Height;
+        control.InvalidateMeasure();
+        return height + control.Margin.Top + control.Margin.Bottom;
+    }
 
     /// <summary>
     /// 窗口内快捷键。只挂 <see cref="InputElement.KeyBindings"/>，不注册系统级全局热键：

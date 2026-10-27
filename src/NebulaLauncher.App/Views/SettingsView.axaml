@@ -1334,7 +1334,7 @@
                                 HorizontalAlignment="Left" />
                 </Grid>
 
-                <TextBlock Text="窗口最小 1024×660，最大 8000；最大化时只记标记，还原后仍是上一次的窗口尺寸。"
+                <TextBlock Text="窗口最小尺寸由侧边栏内容自动算出（客户区量纲）：侧边栏加了文字或卡片，最小宽高会跟着变大，不用手工调数字；最大 8000。最大化时只记标记，还原后仍是上一次的窗口尺寸。"
                            Classes="muted"
                            TextWrapping="Wrap" />
               </StackPanel>

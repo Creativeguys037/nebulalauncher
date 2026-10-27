@@ -27,8 +27,9 @@ public sealed class DocsCheck_CountTests
     /// （三态映射表 3 + API 根非法或缺失 4 + 账户列表行 3），净增 10。
     /// 票 #40 给六方向纯色探针加了 6 个 InlineData（正/背/左/右/顶/底各一行），净增 6。
     /// 票 #48 给皮肤头像服务加了 7 个 InlineData（皮肤 PNG 两种历史尺寸 2 + 模型归一化 5），净增 7。
+    /// 票 #51 给窗口最小尺寸的测量兜底加了 3 个 InlineData（NaN / +∞ / 负数各一行），净增 3。
     /// </summary>
-    private const int BaselineInlineData = 786;
+    private const int BaselineInlineData = 789;
 
     [Fact]
     public void 按Fact与InlineData计数()

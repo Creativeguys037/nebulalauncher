@@ -1,5 +1,9 @@
 <!-- 默认尺寸 1240×800 只是兜底：运行时由 MainWindow.axaml.cs 的 RestoreWindowState 按
-     「截图参数 > settings.json 的 launcherWindow* > 这里的默认值」决定，设计器预览也用它。 -->
+     「截图参数 > settings.json 的 launcherWindow* > 这里的默认值」决定，设计器预览也用它。
+
+     这里故意不写 MinWidth/MinHeight：最小尺寸由 MainWindow.axaml.cs 在首帧后按侧边栏实测的
+     自然尺寸算出来（见 Core 的 AdaptiveWindowSize）。写死常量会让「往侧边栏加内容」的改动
+     在窄屏上裁掉内容而不是把窗口撑高 —— 票 #51。 -->
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NebulaLauncher.ViewModels"
@@ -8,7 +12,6 @@
         x:DataType="vm:MainWindowViewModel"
         Title="Nebula Launcher"
         Width="1240" Height="800"
-        MinWidth="1024" MinHeight="660"
         Background="{DynamicResource Surface.Base}"
         FontFamily="{DynamicResource Font.UI}"
         WindowStartupLocation="CenterScreen"
@@ -155,12 +158,13 @@
 
         <!-- 侧边栏 -->
         <Border Grid.Column="0"
+                Name="Sidebar"
                 Background="{DynamicResource Surface.Sidebar}"
                 BorderBrush="{DynamicResource Stroke.Subtle}"
                 BorderThickness="0,1,1,0">
           <Grid RowDefinitions="*,Auto">
             <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding NavigationItems}" Margin="0,10,0,0">
+              <ItemsControl Name="NavigationList" ItemsSource="{Binding NavigationItems}" Margin="0,10,0,0">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:NavigationItem">
                     <Button Classes="nav"
@@ -183,10 +187,13 @@
               </ItemsControl>
             </ScrollViewer>
 
-            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+            <StackPanel Name="SidebarFooter" Grid.Row="1" Margin="0,0,0,12">
               <!--
                 常驻的 3D 皮肤卡，放在主导航与页脚项之间的空白处。
                 拖动卡片里的模型可以改视角；它不在滚动区里，滚动导航不会带着它走。
+
+                这一块（含下面的 FooterItems）是窗口最小高度的实测对象之一：它每多一行，
+                MainWindow.axaml.cs 就把窗口最小高度再加一行 —— 票 #51。
               -->
               <Border Margin="12,8,12,8"
                       CornerRadius="{DynamicResource Radius.Md}"
