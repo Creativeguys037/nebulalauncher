@@ -275,6 +275,30 @@ public class AppSkin_OfficialUploadUiTests
         Assert.Equal(TimeSpan.FromSeconds(15), new SkinUploadThrottle().Cooldown);
     }
 
+    [Fact]
+    public void 皮肤站通道的冷却说皮肤站而不是官方服务()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var throttle = new SkinUploadThrottle(
+            TimeSpan.FromSeconds(15), () => now, SkinUploadThrottle.AuthlibChannelName);
+
+        throttle.MarkRetryableFailure();
+
+        Assert.Equal("皮肤站刚拒绝了一次请求，再等 15 秒就能重试。", throttle.BlockedText);
+        Assert.DoesNotContain("官方服务", throttle.BlockedText!);
+    }
+
+    [Fact]
+    public void 缺省通道名时冷却文案与改动前逐字一致()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var throttle = new SkinUploadThrottle(TimeSpan.FromSeconds(15), () => now);
+
+        throttle.MarkRetryableFailure();
+
+        Assert.Equal("官方服务刚拒绝了一次请求，再等 15 秒就能重试。", throttle.BlockedText);
+    }
+
     // ==================== 失败呈现（AC6 / AC7 / AC8） ====================
 
     [Fact]

@@ -669,7 +669,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     private AuthlibSkinClient? _authlibClient;
 
     /// <summary>皮肤站通道自己的冷却。与官方通道分开：一条通道被 429 不该连累另一条。</summary>
-    private readonly SkinUploadThrottle _authlibThrottle = new();
+    private readonly SkinUploadThrottle _authlibThrottle =
+        new(channelName: SkinUploadThrottle.AuthlibChannelName);
 
     private Func<CancellationToken, Task<SkinUploadResult>>? _authlibRetry;
 
