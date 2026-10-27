@@ -53,7 +53,7 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,320">
+  <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*,320">
 
     <!-- 错误条：断网时出现，可关闭、可重试。已有内容不清空，所以重试成功即恢复。 -->
     <Border Grid.Row="0" Grid.ColumnSpan="2"
@@ -116,18 +116,25 @@
                     IsEnabled="{Binding !IsOfficialBusy}"
                     ToolTip.Tip="把官方档案恢复成默认皮肤"
                     Command="{Binding ResetOfficialSkinCommand}" />
+            <!-- 披风按钮只在微软账户下出现：官方没有披风上传接口，按钮的存在本身
+                 就是「告诉你这里不能传」。第三方账户看见它只会被误导成「官方区我为什么有披风按钮」。
+                 可见性用 Official.CanUpload（微软且有令牌）而不是 HasAccount。 -->
             <Button Classes="pill"
                     Content="上传披风"
-                    IsVisible="{Binding HasAccount}"
+                    IsVisible="{Binding Official.CanUpload}"
                     IsEnabled="False"
                     ToolTip.Tip="{Binding OfficialCapeText}" />
           </StackPanel>
         </Grid>
 
         <!-- 两条常驻说明：披风为什么点不了（AC4）与换肤的影响范围（AC8）。
-             用 WrapPanel 而不是两段固定文本：1024 宽下会自动折行，不会被裁。 -->
+             用 WrapPanel 而不是两段固定文本：1024 宽下会自动折行，不会被裁。
+             披风那句只在官方区真的可用时才提，否则第三方/离线账户会看到一句与己无关的限制。 -->
         <WrapPanel>
-          <TextBlock Text="{Binding OfficialCapeText}" Classes="caption" Margin="0,0,14,2" />
+          <TextBlock Text="{Binding OfficialCapeText}"
+                     IsVisible="{Binding Official.CanUpload}"
+                     Classes="caption"
+                     Margin="0,0,14,2" />
           <TextBlock Text="{Binding OfficialHint}" Classes="muted" Margin="0,0,0,2" />
         </WrapPanel>
 
@@ -206,8 +213,99 @@
       </StackPanel>
     </Border>
 
+    <!-- 皮肤站换肤区（票 43）。与上面官方那块并列而不是塞进同一个工具条：
+         两条通道的可用条件不同（账户类型 + 服务端 uploadableTextures），
+         挤在一起会让「这个按钮为什么灰着」变得看不出来。 -->
+    <Border Grid.Row="2" Grid.ColumnSpan="2"
+            Classes="card"
+            Padding="16,12"
+            Margin="0,0,0,12"
+            IsVisible="{Binding Authlib.IsAvailable}">
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0"
+                     Text="皮肤站材质"
+                     Classes="h3"
+                     VerticalAlignment="Center" />
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="accent"
+                    Content="应用到皮肤站账户"
+                    IsEnabled="{Binding !IsAuthlibBusy}"
+                    ToolTip.Tip="把当前选中的皮肤传到你的皮肤站账户"
+                    Command="{Binding ApplyToAuthlibCommand}" />
+            <Button Classes="pill"
+                    Content="上传本地皮肤"
+                    IsEnabled="{Binding !IsAuthlibBusy}"
+                    Click="OnUploadLocalSkinClick" />
+            <Button Classes="pill"
+                    Content="上传披风"
+                    IsEnabled="{Binding Authlib.CanUploadCape}"
+                    ToolTip.Tip="{Binding Authlib.CapeText}"
+                    Click="OnUploadCapeClick" />
+            <Button Classes="danger"
+                    Content="删除皮肤"
+                    IsEnabled="{Binding Authlib.CanDeleteSkin}"
+                    Command="{Binding DeleteAuthlibSkinCommand}" />
+            <Button Classes="danger"
+                    Content="删除披风"
+                    IsEnabled="{Binding Authlib.CanDeleteCape}"
+                    Command="{Binding DeleteAuthlibCapeCommand}" />
+          </StackPanel>
+        </Grid>
+
+        <!-- 披风能不能传由服务端 uploadableTextures 决定，这句话必须常驻：
+             按钮灰着而不解释，用户只会以为界面坏了。 -->
+        <WrapPanel>
+          <TextBlock Text="{Binding Authlib.CapeText}" Classes="caption" Margin="0,0,14,2" />
+          <TextBlock Text="应用 = 下载纹理后上传，不做二次确认；失败可直接重试。" Classes="muted" />
+        </WrapPanel>
+
+        <ProgressBar IsVisible="{Binding IsAuthlibBusy}"
+                     IsIndeterminate="True"
+                     Height="3" />
+
+        <!-- 结果条：与官方那条同一套样式类，但绑定到皮肤站自己的状态，
+             一条通道的结果不会盖掉另一条的。 -->
+        <Border Classes="feedback"
+                Classes.danger="{Binding IsAuthlibFeedbackError}"
+                IsVisible="{Binding HasAuthlibFeedback}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="10,8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding AuthlibFeedbackText}"
+                       Classes="feedbackText"
+                       TextWrapping="Wrap"
+                       LineHeight="18"
+                       VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                        VerticalAlignment="Center" Margin="10,0,0,0">
+              <Button Classes="pill"
+                      Content="重试"
+                      IsVisible="{Binding CanRetryAuthlib}"
+                      IsEnabled="{Binding !IsAuthlibBusy}"
+                      Command="{Binding RetryAuthlibCommand}" />
+              <Button Classes="pill"
+                      Content="去账户页"
+                      IsVisible="{Binding GoToAccountPageFromAuthlibVisible}"
+                      Command="{Binding GoToAccountPageFromAuthlibCommand}" />
+              <Button Classes="ghost"
+                      Content="知道了"
+                      Command="{Binding DismissAuthlibFeedbackCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <TextBlock Text="{Binding AuthlibCooldownText}"
+                   IsVisible="{Binding HasAuthlibCooldown}"
+                   Classes="caption"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
     <!-- 左列：页签 + 搜索 + 列表 + 页码 -->
-    <Grid Grid.Row="2" Grid.Column="0"
+    <Grid Grid.Row="3" Grid.Column="0"
           RowDefinitions="Auto,*,Auto"
           Margin="0,0,12,0">
 
@@ -545,7 +643,7 @@
     </Grid>
 
     <!-- 右列：中等尺寸 3D 预览卡。可自转、可拖动。 -->
-    <Border Grid.Row="2" Grid.Column="1"
+    <Border Grid.Row="3" Grid.Column="1"
             Classes="card"
             Padding="0"
             VerticalAlignment="Top"
