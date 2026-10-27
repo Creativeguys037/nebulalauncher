@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -76,7 +77,7 @@ public class AppSkin_AuthlibSkinClientTests
         using var client = new AuthlibSkinClient(new HttpClient(handler));
         var account = Account();
 
-        var result = await client.UploadSkinAsync(account, SkinModelKind.Alex, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(account, SkinModelKind.Alex, Png(64, 64), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         var request = Assert.Single(handler.Requests);
@@ -98,7 +99,7 @@ public class AppSkin_AuthlibSkinClientTests
         var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Alex, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Alex, Png(64, 64), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         var model = PartValue(Assert.Single(handler.Requests).Body, "model");
@@ -112,7 +113,7 @@ public class AppSkin_AuthlibSkinClientTests
         var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(64, 64), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         var model = PartValue(Assert.Single(handler.Requests).Body, "model");
@@ -127,7 +128,7 @@ public class AppSkin_AuthlibSkinClientTests
         var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadCapeAsync(Account(), Png(), CancellationToken.None);
+        var result = await client.UploadCapeAsync(Account(), Png(64, 64), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         var request = Assert.Single(handler.Requests);
@@ -167,7 +168,7 @@ public class AppSkin_AuthlibSkinClientTests
             """{"error":"ForbiddenOperationException","errorMessage":"Invalid token."}"""));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(64, 64), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.True(result.IsAuthError);
@@ -185,7 +186,7 @@ public class AppSkin_AuthlibSkinClientTests
             """{"error":"IllegalArgumentException","errorMessage":"bad image"}"""));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Alex, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Alex, Png(64, 64), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.False(result.IsAuthError);
@@ -204,7 +205,7 @@ public class AppSkin_AuthlibSkinClientTests
         var handler = new CapturingHandler(_ => new HttpResponseMessage((HttpStatusCode)status));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(64, 64), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.False(result.IsAuthError);
@@ -223,7 +224,7 @@ public class AppSkin_AuthlibSkinClientTests
             """{"error":"ForbiddenOperationException","errorMessage":"Access denied."}"""));
         using var client = new AuthlibSkinClient(new HttpClient(handler));
 
-        var result = await client.UploadCapeAsync(Account(), Png(), CancellationToken.None);
+        var result = await client.UploadCapeAsync(Account(), Png(64, 64), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.False(result.IsAuthError);
@@ -236,7 +237,7 @@ public class AppSkin_AuthlibSkinClientTests
     {
         using var client = new AuthlibSkinClient(new HttpClient(new ThrowingHandler(new HttpRequestException("boom"))));
 
-        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(64, 64), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.False(result.IsAuthError);
@@ -276,7 +277,7 @@ public class AppSkin_AuthlibSkinClientTests
         using var client = new AuthlibSkinClient(new HttpClient(handler));
         var account = new Account { Type = AccountType.Offline, Uuid = Uuid };
 
-        var result = await client.UploadSkinAsync(account, SkinModelKind.Steve, Png(), CancellationToken.None);
+        var result = await client.UploadSkinAsync(account, SkinModelKind.Steve, Png(64, 64), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.Contains("皮肤站账户", result.ErrorText!);
@@ -368,8 +369,59 @@ public class AppSkin_AuthlibSkinClientTests
         Assert.False(SkinProfileParser.ParseCapabilities("{\"properties\":\"不是数组\"}").CanUploadSkin);
     }
 
-    /// <summary>客户端不校验 PNG 尺寸（那是 Core 校验器与 UI 前置拦截的职责），给一小段字节即可。</summary>
-    private static byte[] Png() => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    [Fact]
+    public async Task 尺寸不合规的皮肤在本地就被拦下且不发请求()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        using var client = new AuthlibSkinClient(new HttpClient(handler));
+
+        // Alex 必须恰好 64×64，给一张 64×32 的。
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Alex, Png(64, 32), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsAuthError);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("64×64", result.ErrorText!);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task 不是PNG的内容在本地就被拦下且不发请求()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        using var client = new AuthlibSkinClient(new HttpClient(handler));
+
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, [1, 2, 3, 4], CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("PNG", result.ErrorText!);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task 像素尺寸合规的皮肤正常发出请求()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        using var client = new AuthlibSkinClient(new HttpClient(handler));
+
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(64, 32), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>造一张只有文件头 + IHDR 的 PNG：宽高真实，像素数据为空。校验只看 IHDR。</summary>
+    private static byte[] Png(int width, int height)
+    {
+        var bytes = new byte[33];
+        byte[] signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        signature.CopyTo(bytes, 0);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(8, 4), 13);   // IHDR 数据长度
+        "IHDR"u8.CopyTo(bytes.AsSpan(12, 4));
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(16, 4), width);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(20, 4), height);
+        return bytes;
+    }
 
     private static string PayloadJson() =>
         "{\"timestamp\":0,\"profileId\":\"0123\",\"profileName\":\"Steve\",\"textures\":"

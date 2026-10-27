@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 
 namespace NebulaLauncher.Skinning;
 
@@ -87,6 +88,14 @@ public sealed class AuthlibSkinClient : IDisposable
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(png);
 
+        // 服务端也会校验，但它回的是笼统的 400；本地先拦一道，
+        // 用户拿到的就是「必须恰好 64×64」这种能照着改的话，还省一次往返。
+        var localModel = model == SkinModelKind.Alex ? LocalSkinModel.Slim : LocalSkinModel.Classic;
+        if (ValidatePng(png, localModel) is { } error)
+        {
+            return Task.FromResult(SkinUploadResult.Fail(error));
+        }
+
         return UploadAsync(account, "skin", ModelFieldOf(model), png, "上传皮肤", cancellationToken);
     }
 
@@ -101,7 +110,25 @@ public sealed class AuthlibSkinClient : IDisposable
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(png);
 
+        // 披风的尺寸规则与皮肤不同（64×32 或 22×17 的整数倍），LocalSkinFormat 只覆盖皮肤，
+        // 所以这里只做「是 PNG」这一道，尺寸交给服务端。
+        if (!LocalSkinFormat.TryReadPngSize(png, out _, out _))
+        {
+            return Task.FromResult(SkinUploadResult.Fail("披风必须是 PNG 图片。"));
+        }
+
         return UploadAsync(account, "cape", model: null, png, "上传披风", cancellationToken);
+    }
+
+    /// <summary>本地前置校验：文件头能读出宽高，且尺寸符合所选体型。返回 null 表示通过。</summary>
+    private static string? ValidatePng(byte[] png, LocalSkinModel model)
+    {
+        if (!LocalSkinFormat.TryReadPngSize(png, out var width, out var height))
+        {
+            return "这张图不是有效的 PNG，没法当皮肤用。";
+        }
+
+        return LocalSkinFormat.Validate(width, height, model);
     }
 
     /// <summary>清除皮肤，服务端会把它恢复成默认皮肤。成功返回 <c>204</c>。</summary>
