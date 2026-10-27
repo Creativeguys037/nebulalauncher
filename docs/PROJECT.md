@@ -16,7 +16,7 @@ Nebula Launcher 是一个以 Windows 为首发验证平台、按单 TFM 跨平�
 - **需要离线账户或第三方验证的玩家。** 账户类型只有三种：离线、微软设备码、authlib-injector 第三方验证（`src/NebulaLauncher.Core/Models/Accounts.cs AccountType（:6）`）；微软登录内置 public client id，不需要用户自建应用（`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth（:45）`）。
 - **中文用户。** 界面文案为中文；下载源提供官方与 BMCLAPI 镜像的自动降级；模组卡片用内置的 MC 百科译名表显示中文名（`src/NebulaLauncher.Core/Mods/ModNameTable.cs ModNameTable（:21）`）。
 
-不面向的场景见文末「明确不做的事」：皮肤管理、联机穿透、OptiFine 自动安装、启动器包导出等。
+不面向的场景见文末「明确不做的事」：联机穿透、OptiFine 自动安装、启动器包导出等；皮肤相关的改判与边界见第 2 条。
 
 ## 技术选型
 
@@ -95,9 +95,9 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 - **安装器临时文件**：`cache/loader-install`，加载器安装器解包与下载的残留。
 - **回收站**：`<data>/trash`，实例与内容回收站；清掉后已删除内容不可恢复。
 
-清理范围之外还有一道硬保护：`settings.json`、`accounts.json`、`servers.json`、`favorites.json`、`java-excluded.json`、`java-cache.json` 永不进入删除列表；`instances/`、`versions/`、`libraries/`、`assets/`、`backups/`、`saves/`、`minecraft/` 这些顶层目录也被挡住（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:49）`）。清理前还会校验目标必须在数据根内，防止类别定义写错时越界删到用户数据（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:474）`）。
+清理范围之外还有一道硬保护：`settings.json`、`accounts.json`、`servers.json`、`favorites.json`、`java-excluded.json`、`java-cache.json` 永不进入删除列表；`instances/`、`versions/`、`libraries/`、`assets/`、`backups/`、`saves/`、`minecraft/`、`skins/` 这些顶层目录也被挡住（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService.ProtectedTopLevelNames`）。清理前还会校验目标必须在数据根内，防止类别定义写错时越界删到用户数据（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:474）`）。
 
-结论：清「下载缓存」只动 `<data>/cache` 里可重建的内容，不碰四个顶层配置文件、不碰版本与游戏目录、不碰备份与存档。日志按 7 天窗口清，安装器残留与回收站是另外两个独立类别。
+结论：清「下载缓存」只动 `<data>/cache` 里可重建的内容，不碰四个顶层配置文件、不碰版本与游戏目录、不碰备份与存档、不碰用户自己的皮肤库 `<data>/skins/`。日志按 7 天窗口清，安装器残留与回收站是另外两个独立类别。
 
 ## 当前状态
 
@@ -150,7 +150,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 来源是已删的最终范围清单（FINAL-SCOPE）§2 的 12 条「明确不做」。2026-10-24 逐条对照 `src/` 复核，结论分三类：仍成立、改判、删除。
 
-复核结果：8 条仍成立（第 2、3、4、5、7、9、10、12 条），4 条改判（第 1、6、8、11 条），没有需要删除的条目。其中第 8 与第 12 条在原文里自相矛盾，本文给出统一结论。
+复核结果：7 条仍成立（第 3、4、5、7、9、10、12 条），5 条改判（第 1、2、6、8、11 条），没有需要删除的条目。其中第 8 与第 12 条在原文里自相矛盾，本文给出统一结论。
 
 ### 1. macOS 平台支持 —— 改判
 
@@ -162,9 +162,17 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 准确表述：Windows 是首发与验收平台；macOS 的架构与路径分支已就绪，系统适配与实机验收未完成。
 
-### 2. 皮肤 / 披风管理、上传、缓存 —— 不做
+### 2. 皮肤 / 披风管理、上传、缓存 —— 改判
 
-代码里只有 `Account.SkinModel` 一个 `classic` / `slim` 字段，注释明确写「仅影响本地预览」；没有皮肤或披风服务、上传链路、缓存（`src/NebulaLauncher.Core/Models/Accounts.cs Account.SkinModel（:41）`）。
+原声明「不做」已不成立：本地皮肤库、皮肤站换肤、官方账户换肤三条链路都已落地。下面写清实际能力边界。
+
+**已做的三件事。** ① 本地皮肤库：`<data>/skins/` 下的 PNG 可导入、删除、应用到预览，尺寸按游戏规则校验（宽必须是 64 的倍数、高 32 的倍数，`slim` 只能恰好 64×64，`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinFormat.Validate`）；② 皮肤站换肤：浏览 littleskin 皮肤库、上传皮肤与披风、删除材质（`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadCapeAsync`）；③ 官方账户换肤：微软账户上传皮肤与重置默认皮肤（`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.ResetSkinAsync`）。入口是皮肤页（`src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView`）与侧边栏 3D 皮肤卡。
+
+**缓存。** 只有进程内缓存：缩略图、预览纹理与本地缩略图三个字典，页面释放即清空，不落盘、没有跨进程复用，也不参与存储清理的任何可清理类别。
+
+**明确不做。** 衣柜（closet）式多皮肤收藏与轮换、皮肤站注册/登录、多皮肤站自由增删、3D 动作动画都没有做。**官方账户不能换披风**：官方没有披风上传接口，界面上那句「官方账户不支持更换披风」是常量而非状态（`src/NebulaLauncher.App/Skinning/OfficialSkinActions.cs OfficialSkinActions.CapeText`）。能否上传材质由服务端返回的 `uploadableTextures` 决定，不由本地判断（`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseUploadableTextures`）。
+
+**一个字段的旧注释。** `Account.SkinModel`（`src/NebulaLauncher.Core/Models/Accounts.cs Account.SkinModel`）仍只有 `classic` / `slim` 两个值，源码注释也还写着「仅影响本地预览」，但这句话已经过时：它现在经 `IAccountService.SetSkinModelAsync` 持久化，既决定 3D 预览用哪种体型，也是上传时 `model` / `variant` 字段的取值来源。改这个字段前先读 `CONVENTIONS.md` §5（`Abstractions` 是冻结契约）。
 
 ### 3. Nide 专用登录流程 —— 不做
 

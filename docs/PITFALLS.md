@@ -8,35 +8,25 @@
 
 ## 0. 使用约定
 
-### 0.1 每条坑的结构
+每条坑严格三段、顺序固定：**症状**（你看到什么：报错原文、退出码、截图表现）→ **成因**（机制上为什么这样；为什么直觉修法无效）→ **规避**（现在的正确做法，或一条可复现命令）。代码位置写成 `路径:行号 类型.成员`（一个引用一个反引号单元）；命令写成完整可复制的命令行，不省略参数；提到测试时给出用例名，改坏了应当变红。
 
-严格三段、顺序固定：**症状**（你看到什么：报错原文、退出码、截图表现）→ **成因**（机制上为什么这样；为什么直觉修法无效）→ **规避**（现在的正确做法，或一条可复现命令）。
+硬性规范的权威定义在 `CONVENTIONS.md`，本文**不复述**它的正文，只写违反后会发生什么，并标注条款；对应条款内的回指条目在同一处维护。
 
-### 0.2 引用写法
-
-- 代码位置写成 `路径:行号 类型.成员`（一个引用一个反引号单元）；命令写成完整可复制的命令行，不省略参数；提到测试时给出用例名，改坏了应当变红。
-
-### 0.3 与 CONVENTIONS.md 的关系
-
-硬性规范的权威定义在 `CONVENTIONS.md`，本文**不复述**它的正文，只写违反后会发生什么，并标注条款。
-
-| CONVENTIONS.md | 主题 | 对应本文条目 |
+| 条款 | 主题 | 对应本文条目 |
 | --- | --- | --- |
-| §0 | 环境、SDK 路径、`env.ps1` | 1.2、1.3、1.9、3.1 |
-| §1 | 单一 TFM、依赖版本 | 6.D1、1.4 |
-| §3 | 禁 `.Result` / `.Wait()` / `GetAwaiter().GetResult()` | 2.1、2.2 |
+| §0 | 环境、SDK 路径、`env.ps1` | 1.2、1.3、1.8、3.1 |
+| §1 | 单一 TFM、依赖版本 | 6.D1、1.3 |
+| §3 | 禁 `.Result` / `.Wait()` / `GetAwaiter().GetResult()` | 2.1 |
 | §3.1 | JSON 落盘代码的写法（context 登记 / `Of<T>()` / 具名请求体 / 泛型枚举转换器） | 3.16、3.17 |
-| §4 | 编译绑定必须写 `x:DataType` | 4.5 |
-| §7.5 | 间距与圆角档位（只用令牌） | 4.13 |
+| §4 | 编译绑定必须写 `x:DataType` | 4.1 |
+| §7.5 | 间距与圆角档位（只用令牌） | 4.12 |
 | §7.11 | 提交前的界面自检（窗口最小尺寸不写死） | 5.11 |
-| §8.1 | 提交前门槛 | 1.1、1.10、5.6 |
-| §8.2 | `dotnet test` 不可用、TestRunner 的退出码语义 | 1.1、5.6 |
-| §8.3 | 文档引用 / 行数预算 / 三态校验（`tools/DocsCheck`） | 5.9、5.10 |
+| §8.1、§8.2 | 提交前门槛 / `dotnet test` 不可用与 TestRunner 退出码 | 1.1、1.10、5.6 |
+| §8.3 | 文档引用 / 行数预算 / 三态校验（`tools/DocsCheck`） | 5.9 |
 | §8.4 | 应用内渲染截图 | 4.1、5.8 |
-| §8.8 | 并行协作三条 | 1.8 |
-| §8.9 | Debug XAML 缓存损坏 | 1.4 |
+| §8.8、§8.9 | 并行协作三条 / Debug XAML 缓存损坏 | 1.8、1.3 |
 
-`CONVENTIONS.md` 对应条款内的回指条目在同一处维护。
+**编号是历史编号，不是条目数**：同主题的两条合并后，标题里写「（含 X.Y）」，被并入的那一号不再单独出现，引用它的人按标题找即可。
 
 ---
 
@@ -47,51 +37,33 @@
 - **成因**：测试宿主是独立子进程，被宿主沙箱拒绝；这不是代码问题，重复重试、换 `--no-build` 都不会好。同一类权限事件会同时打掉 MSBuild 的多节点通信与 Avalonia 的遥测写入，所以「一条命令突然全挂」往往是环境层。
 - **规避**：改用 `tools/TestRunner/Program.cs`（`tools/TestRunner/Program.cs`）在同进程里跑 xunit 用例；它支持按类名过滤，退出码语义见 5.6。见 `CONVENTIONS.md` §8.2。
 
-### 1.2 多节点构建「error 数 0 但生成失败」
-- **症状**：`dotnet build` 末尾打印「生成失败」，同一份输出里错误数是 0；有时伴随命名管道相关字样。
-- **成因**：MSBuild 多进程构建用命名管道通信，管道被拒后子节点静默失联，主进程只看到「失败」这个结论。
-- **规避**：串行构建。
+### 1.2 构建失败但「error 数 0」（含 1.3）
+- **症状**：`dotnet build` 末尾打印「生成失败」，同一份输出里错误数是 0；或者报 `MSB4018`，任务名是 `AvaloniaStatsTask`，看起来像 XAML 编译错但代码没动；有时伴随命名管道相关字样。
+- **成因**：两种成因同属「子进程被拒，主进程只看到结论」——MSBuild 多进程构建用命名管道通信，管道被拒后子节点静默失联；Avalonia 构建任务在编译期写遥测缓存，写入被拒时任务整体失败。
+- **规避**：串行构建，并关掉遥测。
 
 ```powershell
+$env:AVALONIA_TELEMETRY_OPTOUT = '1'
 dotnet build -m:1 -p:BuildInParallel=false
 ```
 
 需要频繁重建时用独立配置目录（见 1.8），不要为了省事退回并行。串行复跑还能把被并行掩盖的真实错误顶出来：同一仓库并行报 0 error，加 `-m:1` 后立刻暴露 1.9 的 `MSB3061`。
 
-### 1.3 `MSB4018` + `AvaloniaStatsTask`
-- **症状**：构建在 XAML 编译任务上报 `MSB4018`，任务名是 `AvaloniaStatsTask`。
-- **成因**：Avalonia 的构建任务在编译期尝试写遥测缓存，写入被拒时任务整体失败，表现为「XAML 编译失败」，看起来像代码错但代码没动。
-- **规避**：构建前关掉遥测。
-
-```powershell
-$env:AVALONIA_TELEMETRY_OPTOUT = '1'
-```
-
-### 1.4 `No precompiled XAML found for NebulaLauncher.App`
-- **症状**：Debug 构建通过，运行时报 `No precompiled XAML found for NebulaLauncher.App`；改了 XAML 之后现象依旧，好像改动没进去。
-- **成因**：XAML IL 的增量编译缓存与源码不一致（改了 `.axaml` 但产物里还是旧的、或者反过来）。缓存与源码不同步时不会报编译错，只在运行时炸。
-- **规避**：删掉两棵缓存树后重建——`obj/Debug` 与 `bin/Debug` 一并删，只删其一会留着半套产物。见 `CONVENTIONS.md` §8.9；发布路径有同样的坑，见 1.5。
-
-### 1.5 发布出来的 exe 双击没反应
-- **症状**：`publish` 退出码 0，产物目录齐全，双击 exe 没有任何窗口；但同一份 exe 加 `--probe-dir` 却能正常打印。
-- **成因**：发布复用了 `obj` 里过期的 XAML 产物，exe 能加载但界面起不来；`--probe-dir` 走的是控制台分支，不碰界面，所以「看起来正常」反而掩盖了问题。退出码 0 只说明 MSBuild 成功，不说明产物可用。
-- **规避**：发布必须清干净再产。
+### 1.3 XAML 缓存过期：Debug 能构建、运行时报 `No precompiled XAML found`（含 1.5）
+- **症状**：Debug 构建通过，运行时报 `No precompiled XAML found for NebulaLauncher.App`；改了 XAML 之后现象依旧。发布路径上是另一种表现：`publish` 退出码 0、产物齐全，双击 exe 没有任何窗口，但同一份 exe 加 `--probe-dir` 却能正常打印。
+- **成因**：XAML IL 的增量编译缓存与源码不同步（改了 `.axaml` 但产物里还是旧的、或反过来），只报运行时错。发布时复用 `obj` 里过期的 XAML 产物同理；`--probe-dir` 走控制台分支、不碰界面，所以「看起来正常」反而掩盖问题。退出码 0 只说明 MSBuild 成功，不说明产物可用。
+- **规避**：删掉两棵缓存树后重建——`obj/Debug` 与 `bin/Debug` 一并删，只删其一会留着半套产物；发布必须清干净再产，见 `CONVENTIONS.md` §8.9 与 §8。
 
 ```powershell
 powershell -File build.ps1 -Clean
 ```
 
-发布脚本内置三道闸，缺一不可，手工发布时按同一标准自查：XAML 过期检测；`--probe-dir` 30 秒内断言输出 `writable=YES`；`--screenshot` 20 秒内断言生成的 PNG 大于 10240 字节。细节见发布检查清单（已并入 `CONVENTIONS.md` §8）。
+发布脚本内置三道闸，缺一不可，手工发布时按同一标准自查：XAML 过期检测；`--probe-dir` 30 秒内断言输出 `writable=YES`；`--screenshot` 20 秒内断言生成的 PNG 大于 10240 字节。
 
-### 1.6 `-OutDir` 把整个目录删了
-- **症状**：给发布脚本传了一个外层的 `-OutDir`，跑完之后目标目录连同里面原有的东西一起没了。
-- **成因**：发布流程会先清空目标目录再写入，它对「目标目录」的全部内容负责；指到外层就等于授权它删掉那一层的全部内容。
-- **规避**：`-OutDir` 只指到最内层产物目录；删改前先确认解析出的绝对路径。整条链路见 `docs/research/release-checklist.md`。
-
-### 1.7 产物 exe 报 `UnauthorizedAccessException`
-- **症状**：发布产物在验证机上启动即抛 `UnauthorizedAccessException`，看起来像产物坏了。
-- **成因**：exe 启动时往 `%TEMP%` 写探测文件被拒。真实原因是这台机器不让这个进程写系统临时目录，不是 exe 的逻辑错误；换机器复现不出来。
-- **规避**：验证文件一律落产物自身目录（`AppContext.BaseDirectory`），别落系统临时目录。实现见 `src/NebulaLauncher.App/Program.cs Program.TryRelaunchElevated（:142）` 的 probe-dir 分支。
+### 1.6 `-OutDir` 把整个目录删了（含 1.7）
+- **症状**：给发布脚本传了一个外层的 `-OutDir`，跑完之后目标目录连同里面原有的东西一起没了；或者产物在验证机上启动即抛 `UnauthorizedAccessException`，看起来像产物坏了。
+- **成因**：发布流程会先清空目标目录再写入，它对「目标目录」的全部内容负责，指到外层就等于授权它删掉那一层；后者的真实原因是 exe 启动时往 `%TEMP%` 写探测文件被拒——这台机器不让该进程写系统临时目录，不是 exe 的逻辑错误，换机器复现不出来。
+- **规避**：`-OutDir` 只指到最内层产物目录，删改前先确认解析出的绝对路径（整条链路见 `docs/research/release-checklist.md`）；验证文件一律落产物自身目录（`AppContext.BaseDirectory`），别落系统临时目录。实现见 `src/NebulaLauncher.App/Program.cs Program.TryRelaunchElevated（:142）` 的 probe-dir 分支。
 
 ### 1.8 并行开发互相踩
 - **症状**：两个人同时构建/运行，一方突然出现对方的窗口、数据目录被改、或者自己的进程被别人 kill；提交之后 `git show --stat` 里冒出别人的未跟踪文件。
@@ -152,30 +124,20 @@ powershell -File build.ps1 -Clean
 - **成因**：`_ = SomeAsync()` 丢弃任务引用后，异常无人观察；`async void` 的异常直接打到未处理异常通道，进程崩或静默。两种写法的共同点是「调用方拿到控制权时已经失去了错误信号」。
 - **规避**：内部触发的后台流程要么在方法内部 catch 并落到日志，要么返回可观察的任务；进入 `_ =` 丢弃之前确认它自己兜住了所有异常，并有终态复位（加载态不能只在成功路径里清）。位置：`src/NebulaLauncher.App/Views/WorldsView.axaml.cs WorldsView.OnImportModpackClick（:19）`（`async void` 事件处理器，异常只能靠方法内 try/catch 兜住）、`src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow.FlushAndCloseAsync（:310）`（同为 `async void`，:307 注释写明整段必须 try/catch）；同文件 `:337` 的 `_ = FlushSettingsAsync(reason)` 是丢弃任务实例。
 
-### 2.9 `InvalidatePageCache()` 丢弃当前页，但不走离开生命周期
-- **症状**：在设置页改完数据后需要重载当前页，重载后离开钩子没跑：该停的定时器还在跑、该退的订阅还在。同一份代码在正常切页时表现正常，只有走「失效重载」这条路才漏。
-- **成因**：`MainWindowViewModel.InvalidatePageCache` 先清空页面缓存，再把 `CurrentPage` 置 null 并重新导航；此时「上一页」已经不存在，`OnNavigatedFromAsync` 永远不被调用。释放与离开被当成一件事，但只有后者会走生命周期钩子。
-- **规避**：需要重载当前页时，先显式 await 一次 `OnNavigatedFromAsync` 再清缓存；页面里的订阅与计时器不能只挂在这一条路径上，`Dispose(bool)` 必须再兜一层。位置：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.InvalidatePageCache（:327）`。
-
-### 2.10 页面生命周期 fire-and-forget，连点导航就交错
-- **症状**：快速连点导航时上一页的离开钩子与下一页的进入钩子交错执行，偶发「页面已销毁仍在更新」、加载态卡住、日志出现重复初始化。
-- **成因**：导航路径把生命周期流程当丢弃任务启动，调用方不 await，两次导航的钩子并发跑；既没有串行队列，也没有取消令牌。
-- **规避**：导航入口串行化（同一时刻只允许一个生命周期流程在跑，新导航取消旧的），或者在钩子内部自行节流；不要假设丢弃任务之后钩子按顺序完成。位置：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RunPageLifecycleAsync（:649）`。
-
-### 2.11 页面订阅只在 `Dispose(bool)` 退订，而缓存回收不调 `Dispose`
-- **症状**：账户切换或登录后，已经离开的账户页仍在响应账户变化事件：重复刷新、日志重复、缓存被回收后偶发对象已释放类异常。
-- **成因**：`AccountsViewModel` 在构造函数里订阅 `AccountsChanged`，退订只写在 `Dispose(bool)` 里；而主窗口清空页面缓存时只丢引用、不调页面的 `Dispose`，订阅便永久留在服务上。
-- **规避**：激活期建立的订阅，离开路径也要拆（见 2.7）；或者让缓存回收显式 `Dispose` 页面。位置：`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel.Dispose（:265）`、`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.InvalidatePageCache（:327）`。
+### 2.9 页面的「离开」与「释放」被当成一件事（含 2.10、2.11）
+- **症状**：三种表现同一根源——① 在设置页改完数据触发页面失效重载后，该停的定时器还在跑、该退的订阅还在；② 快速连点导航时上一页的离开钩子与下一页的进入钩子交错执行，偶发「页面已销毁仍在更新」、加载态卡住、日志重复初始化；③ 账户切换后，已经离开的账户页仍在响应账户变化事件，重复刷新、缓存回收后偶发对象已释放异常。
+- **成因**：三条都是「生命周期只有一条路径在管」。`MainWindowViewModel.InvalidatePageCache` 先清空页面缓存再把 `CurrentPage` 置 null 重新导航，此时「上一页」已不存在，`OnNavigatedFromAsync` 永远不被调用；导航路径又把生命周期流程当丢弃任务启动，两次导航的钩子并发跑，既无串行队列也无取消令牌；而缓存回收只丢引用、不调页面的 `Dispose`，构造函数里建立的订阅便永久留在服务上。
+- **规避**：① 需要重载当前页时，先显式 await 一次 `OnNavigatedFromAsync` 再清缓存；② 导航入口串行化（同一时刻只允许一个生命周期流程，新导航取消旧的），不要假设丢弃任务之后钩子按顺序完成；③ 激活期建立的订阅，离开路径与 `Dispose(bool)` 两处都要拆。位置：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.InvalidatePageCache（:327）`、`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RunPageLifecycleAsync（:649）`、`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel.Dispose（:265）`。
 
 ### 2.12 `IAccountService.ReloadAsync` 没有生产调用方
 - **症状**：手改 `accounts.json` 或换账户后界面账户列表不刷新，重启才生效；读代码时以为「Reload」会自动发生，排查方向跑偏。
 - **成因**：接口上有 `ReloadAsync` 且有实现，但生产代码零调用；`AccountsViewModel` 里同名的 `ReloadAsync()` 是它自己的私有方法，与接口无关。接口留着一个没人调的方法，会让人误判存在刷新路径。
 - **规避**：需要刷新账户状态就显式调一次并补用例锁住，或者直接删掉这个悬空方法，别让接口承诺不存在的自动刷新。位置：`src/NebulaLauncher.Core/Abstractions/AccountServices.cs IAccountService.ReloadAsync（:47）`、`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.ReloadAsync（:108）`。
 
-### 2.13 默认皮肤并发写盘撞成 `Access denied`
-- **症状**：首次进账户页，大卡有皮肤脸、列表行却是首字母占位；日志里一条 `System.UnauthorizedAccessException: Access to the path is denied.`，栈顶在 `src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService.GetDefaultSkinPathAsync` 的 `File.Move(temp, path, overwrite: true)`。
-- **成因**：大卡与列表行同时要头像，两路都先判「默认皮肤不存在」，随后各自写临时文件并替换到同一个 `default-<model>.png`；Windows 上后到的替换会撞上另一路正在占用的目标，异常被 catch 成「没有头像」，于是只有一路显示出皮肤。`File.Exists` 预检不构成互斥。
-- **规避**：物化共享缓存文件时串行化，并在闸门内重查一次存在性——`src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService.GetDefaultSkinPathAsync（:398）` 用 `_defaultSkinGate`（`SemaphoreSlim(1,1)`，:54）包住整段；新增任何「首次访问时写共享缓存文件」的逻辑都按这个模式写。复验这条路径时先删掉数据根下的 `cache/skin` 再截图——缓存命中会让两路「都没找到默认皮肤」的分支根本不被走到，看起来像已经修好。
+### 2.13 共享缓存文件「先查后写」，并发时撞成 `Access denied`
+- **症状**：两处界面同时要同一份物化缓存（头像、缩略图这类「首次访问时生成一次」的文件），只有一处显示出来；日志里一条 `System.UnauthorizedAccessException: Access to the path is denied.`，栈顶在 `File.Move(temp, path, overwrite: true)`。冷缓存时必现，热缓存时一次都不出。
+- **成因**：两路都先判「文件不存在」，随后各自写临时文件并替换到同一个目标路径；Windows 上后到的替换会撞上另一路正在占用的目标，异常被 catch 降级成「没有内容」，于是只有一路成功。`File.Exists` 预检不构成互斥——检查与替换之间没有原子占位。
+- **规避**：物化共享缓存文件时串行化，并在闸门内重查一次存在性。仓内现成的写法是 `src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService` 的 `_saveGate`（`SemaphoreSlim(1,1)`）包住整段写盘。新增任何「首次访问时写共享缓存文件」的逻辑都按这个模式写。复验时先删掉对应缓存目录再截图——缓存命中会让「文件不存在」的分支根本不被走到，看起来像已经修好。**未落实的一处**：`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore` 的索引是「读 → 改 → 写回」，全程没有闸门，两路并发导入时后写者会覆盖前者的索引项（皮肤文件本身不会丢，只是该行的模型/进库时间退化成默认值）；要修就在 `SaveCore` 与 `DeleteAsync` 外面套同一个 `SemaphoreSlim`。
 
 ---
 
@@ -199,17 +161,17 @@ powershell -File build.ps1 -Clean
 ### 3.4 清理把不该删的删了
 - **症状**：清理缓存后实例或存档消失；或者反过来，符号链接目标被连带删除。
 - **成因**：拼出来的路径没规范化就做「以数据根开头」判断，`..` 与大小写差异都能绕过；`ReparsePoint` 走的是链接目标，删的是链接之外的东西。
-- **规避**：先 `Path.GetFullPath` 规范化，再要求结果严格位于数据根之下（Windows 上用 `OrdinalIgnoreCase` 比较），跳过 `ReparsePoint`；日志按最后写入时间保留 7 天，缓存类别排除 `loader-install`（安装器临时目录，删了会打断在跑的安装）。实现 `src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:26）`，回归用例 `tests/NebulaLauncher.Tests/CoreMaintenance_StorageTests.cs CoreMaintenance_StorageTests（:14）`。
+- **规避**：见 3.6 的后半段（规范化 + 数据根内判定 + 跳过 `ReparsePoint`）；受保护的顶层目录名单在 `src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService.ProtectedTopLevelNames（:60）`，皮肤库 `<data>/skins` 也在其中。
 
 ### 3.5 文件名判定踩 Windows 的三个坑
 - **症状**：用户建了一个叫 `CON` 的实例，之后目录操作全失败；或者判断「是不是 8.3 短名」时把 `MyMod~12.jar` 判错。
 - **成因**：三件事同时成立——`$` 是合法文件名字符（不能按正则元字符思路排除）；保留名必须**整名**比较（`CON.txt` 也非法）；8.3 短名的序号可以多位（`~\d+` 而不是 `~\d`）。
 - **规避**：统一走 `src/NebulaLauncher.Core/Paths/PathSafety.cs PathSafety.ShortNamePattern（:61）` 这类集中判定，别在业务代码里手写正则。
 
-### 3.6 实例目录：存相对名、不缓存绝对路径
-- **症状**：换了数据根之后旧实例全部指向不存在的位置；或者扫描实例时凭空多出一堆空目录。
-- **成因**：绝对路径被写进数据文件后，数据根一变全部失效；扫描过程顺手建目录会把「不存在的实例」变成「空实例」。
-- **规避**：实例目录只存相对名，绝对路径每次现算（`src/NebulaLauncher.Core/Instances/InstanceFolders.cs InstanceFolders（:19）`）；扫描是只读操作，不建目录；内容页一律经实例上下文取目录（`src/NebulaLauncher.Core/Instances/InstanceContext.cs InstanceContext（:18）`，见 6.D3）。
+### 3.6 实例目录：存相对名、不缓存绝对路径（含 3.4 的一半）
+- **症状**：换了数据根之后旧实例全部指向不存在的位置；或者扫描实例时凭空多出一堆空目录；或者清理缓存后实例与存档跟着消失、符号链接的目标被连带删除。
+- **成因**：绝对路径被写进数据文件后，数据根一变全部失效；扫描过程顺手建目录会把「不存在的实例」变成「空实例」；清理端则是拼出来的路径没规范化就做「以数据根开头」判断（`..` 与大小写差异都能绕过），且 `ReparsePoint` 走的是链接目标、删的是链接之外的东西。
+- **规避**：实例目录只存相对名，绝对路径每次现算（`src/NebulaLauncher.Core/Instances/InstanceFolders.cs InstanceFolders（:19）`）；扫描是只读操作，不建目录；内容页一律经实例上下文取目录（`src/NebulaLauncher.Core/Instances/InstanceContext.cs InstanceContext（:18）`，见 6.D3）。清理端先 `Path.GetFullPath` 规范化，再要求结果严格位于数据根之下（Windows 上用 `OrdinalIgnoreCase` 比较），跳过 `ReparsePoint`；日志按最后写入时间保留 7 天，缓存类别排除 `loader-install`（安装器临时目录，删了会打断在跑的安装）。实现 `src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:26）`，回归用例 `tests/NebulaLauncher.Tests/CoreMaintenance_StorageTests.cs CoreMaintenance_StorageTests（:14）`。
 
 ### 3.7 启动参数里的反斜杠被吃掉
 - **症状**：Windows 路径参数在传给游戏时反斜杠消失或成对解释错，游戏读不到资源。
@@ -270,15 +232,15 @@ powershell -File build.ps1 -Clean
 
 ## 4. UI 与渲染
 
-### 4.1 横向 StackPanel 放进 `*` 列，兄弟元素消失
-- **症状**：标题正常，副标题在某个宽度区间里完全看不到；改窗口大小又出现。
-- **成因**：横向 `StackPanel` 的可用宽度不传递给子元素——它按「要多少给多少」测量，放进 `*` 列后列宽分配与内容互相压制，最终把后面的元素压成 0 宽。在宽屏下所有内容都不缺空间，所以肉眼测不出来。
-- **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`；改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）。截图流程见 `CONVENTIONS.md` §8.4。
+### 4.1 横向 `StackPanel` 放进 `*` 列，兄弟元素消失（含 4.5）
+- **症状**：两类「编译过、运行错」的绑定/布局问题——① 标题正常、副标题在某个宽度区间里完全看不到，改窗口大小又出现；② `ListBox` 设 `SelectionMode=Multiple` 后把选中项绑到视图模型，绑定不生效也不报错，截图里点击行没有任何视觉变化。
+- **成因**：横向 `StackPanel` 的可用宽度不传递给子元素——它按「要多少给多少」测量，放进 `*` 列后列宽分配与内容互相压制，最终把后面的元素压成 0 宽（宽屏下不缺空间，肉眼测不出来）；`SelectedItems` 则不是可绑定的依赖属性，写上去编译通过、运行期什么也不发生。
+- **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`，改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）；多选改用 `ItemsControl` + 每行一个复选框，选中状态做成行视图模型上的可绑定属性。同一类「漏写 `x:DataType` 也是编译过、运行错」见 `CONVENTIONS.md` §4。截图流程见 `CONVENTIONS.md` §8.4。
 
 ### 4.2 样式 setter 打不过构造函数里的本地值
 - **症状**：给控件写了主题样式，运行后部分控件完全不变；把样式搬到更具体的选择器上仍然无效。
 - **成因**：Avalonia 的优先级里本地值高于样式 setter，构造函数里赋的值就是本地值。样式系统没错，是它在正确地输给一个看不见的赋值。
-- **规避**：控件里不要在构造函数写死视觉参数，或改用可控的属性/绑定。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）`、`src/NebulaLauncher.App/Controls/RingProgress.cs RingProgress（:13）`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
+- **规避**：控件里不要在构造函数写死视觉参数（含 `ClipToBounds`、`CornerRadius`、指针光标这类），或改用可控的属性/绑定；`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` 的构造函数注释就写明「裁剪与指针光标交给 XAML 设」。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）`、`src/NebulaLauncher.App/Controls/RingProgress.cs RingProgress（:13）`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
 
 ### 4.3 `ColumnDefinition.Width` 绑不上 ViewModel
 - **症状**：想把两段进度条按比例分配宽度，绑定 `ColumnDefinition.Width` 后毫无反应，也没有绑定错误提示。
@@ -290,50 +252,55 @@ powershell -File build.ps1 -Clean
 - **成因**：每段的比例都做过 clamp（超过 100% 会压回 100%），把压过的比例相加比较，超额部分已经被丢掉。
 - **规避**：比字节，不比比例——`游戏堆 + 已用 > 总量` 这类判据直接用字节量。实现 `src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.IsOverCommit（:1314）`。
 
-### 4.5 `ListBox` 多选的 `SelectedItems` 绑定静默失效
-- **症状**：`SelectionMode=Multiple` 下把选中项绑到视图模型，绑定不生效也不报错；截图里点击行没有任何视觉变化。
-- **成因**：`SelectedItems` 不是可绑定的依赖属性，写上去编译通过、运行期什么也不发生。
-- **规避**：用 `ItemsControl` + 每行一个复选框，选中状态做成行视图模型上的可绑定属性。同类问题在 `CONVENTIONS.md` §4 的编译绑定条目下另有说明（漏写 `x:DataType` 也是编译过、运行错）。
-
-### 4.6 关窗口关出无响应进程
+### 4.5 关窗口关出无响应进程
 - **症状**：点关闭后窗口消失、进程还在；或者相反，本该退出却还在托盘里。
 - **成因**：关闭有三条出口（关到托盘 / 真正退出 / 系统关机），三条的判定条件不同，散落在各处时必然漏掉一条。
 - **规避**：判定收敛到一个纯函数：`src/NebulaLauncher.Core/Platforms/CloseBehavior.cs CloseBehavior.ShouldExitOnClose（:26）`。三个参数缺一不可——托盘没建起来时必须退回「退出」而不是「关到托盘」（否则无出口）；截图模式不建托盘也不拦关闭；系统关机一律放行。
 
-### 4.7 窗口尺寸记错、越记越小
+### 4.6 窗口尺寸记错、越记越小
 - **症状**：设了 `1024×660`，下次启动变成 `1039×697`；或者最小化状态下关闭，下次以最小化尺寸打开。
 - **成因**：两个独立原因——尺寸参数在有的场景下是客户区下限而不是外框，多出边框与标题栏；在 `WindowState != Normal` 时保存会把最小化尺寸写进配置。
 - **规避**：首帧前读设置（截图参数 `--size` 优先），只在 `WindowState == Normal` 时更新；关闭记忆时两端都不写。判定 `src/NebulaLauncher.Core/Platforms/WindowMemory.cs WindowMemory.ShouldPersist（:21）`。
 
-### 4.8 刷新键名撞车
-- **症状**：按 F5 调用了某个页面的刷新，但调到了私有方法，或者七个页面行为不一致。
-- **成因**：多个页面各自有同名私有刷新方法，命令绑定指向谁取决于写在哪里，编译期不报错。
-- **规避**：基类统一入口 `src/NebulaLauncher.App/ViewModels/PageViewModelBase.cs PageViewModelBase.ReloadCurrentAsync（:38）`，不要再新增名为 `RefreshAsync` 的成员。
+### 4.7 换肤改了服务端材质，侧边栏却还是旧皮肤
+- **症状**：在皮肤页把某套皮肤应用到当前账户，服务端确实换了（重进游戏能看到），但左侧那张 3D 卡片继续显示旧皮肤，要等切一次账户或重启启动器才更新。
+- **成因**：侧边栏卡的刷新挂在 `IAccountService.AccountsChanged` 上，而换肤改的是**服务端材质**，`Account` 的字段一个都没动，那条事件根本不会发。让 `IAccountService` 假装账户变了是错的方向——账户没变，谎报一次会让账户页、首页、启动链全都白刷一遍。
+- **规避**：换肤成功的一方广播一条独立事件，展示皮肤的一方订阅并自己重取。落点是 `src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs SkinChangeNotifier`（进程内默认实例在 `SkinChangeBus`，容器里注册了就优先用注册的那个）：换肤侧 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` 在成功后调 `Notify`，展示侧 `src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync` 订阅 `SkinChanged` 并切回 UI 线程再改 `Visual`，退订同样要走离开与释放两条路。回归用例 `tests/NebulaLauncher.Tests/AppSkin_ChangeNotifierTests.cs AppSkin_ChangeNotifierTests`。
 
-### 4.9 Esc 把用户正在输入的内容吞掉
-- **症状**：在搜索框里按 Esc，本意是清空/退出输入，结果把整个页面关掉或回退。
-- **成因**：Esc 处理挂在窗口级，输入控件拿到焦点时没有标志位让位。
-- **规避**：Escape 的实现集中在一处并先判断焦点是否在输入控件：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.Escape（:510）`。
+### 4.8 页面级的「唯一入口」被写成两份（含 4.9）
+- **症状**：① 按 F5 调用了某个页面的刷新，但调到了私有方法，或者七个页面行为不一致；② 在搜索框里按 Esc，本意是清空输入，结果把整个页面关掉或回退。
+- **成因**：都是同一类——入口没有收敛。多个页面各自有同名私有刷新方法，命令绑定指向谁取决于写在哪里，编译期不报错；Esc 处理挂在窗口级时，输入控件拿到焦点也没有标志位让位。
+- **规避**：刷新走基类统一入口 `src/NebulaLauncher.App/ViewModels/PageViewModelBase.cs PageViewModelBase.ReloadCurrentAsync（:38）`，不要再新增名为 `RefreshAsync` 的成员；Escape 的实现集中在一处并先判断焦点是否在输入控件：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.Escape（:510）`。
 
-### 4.10 图标解码失败导致整行空白
+### 4.9 图标解码失败导致整行空白
 - **症状**：某些模组/整合包的图标位置是空白，不是首字母占位。
 - **成因**：图标链是两段（下载 → 解码 → 显示），解码器遇到不支持的格式时抛异常或返回坏值，把占位层也一起顶掉。实际数据里 Modrinth 的图标是 webp、CurseForge 有 jpg，扩展名不可靠。
 - **规避**：解码失败返回空值，让首字母占位透出，绝不抛到界面层：`src/NebulaLauncher.App/Views/ModsView.axaml.cs PathToImageConverter（:22）`。
 
-### 4.11 「跟随账户」提示换了账户仍是旧文案
+### 4.10 「跟随账户」提示换了账户仍是旧文案
 - **症状**：切换活动账户后，重新打开同一个实例的版本编辑面板，「跟随账户」那一行提示还是上一个账户的说法；改动一下相关输入框才变成新的。
 - **成因**：提示文本每次取值都实时读当前活动账户，但变更通知只在「跟随账户」开关或认证地址字段被 setter 改动时才重发；装载面板时把开关写成它已有的值（通常是 true），属性值没变就不触发通知，提示便不会重算。页面也没有订阅账户变化事件。
 - **规避**：账户切换本身要触发提示重算（订阅账户变化，或让相关 setter 强制通知），不要把刷新押在「开关值变化」这一条路径上。位置：`src/NebulaLauncher.App/ViewModels/VersionsViewModel.cs VersionsViewModel.EditorAuthServerHint（:1953）`。
 
-### 4.12 账户类型文案三处各写一份，首页那份把三态压成二元
+### 4.11 账户类型文案三处各写一份，首页那份把三态压成二元
 - **症状**：第三方验证账户在账户页显示「第三方验证」，切到首页同一账户的徽标却显示「离线账户」；微软与离线账户两页一致，只有第三方验证分叉。
 - **成因**：账户类型是三态（离线 / 微软 / 第三方验证），三处界面各写一份文案判定，首页那份写成 `account.Type == AccountType.Microsoft ? "微软账户" : "离线账户"`，`Authlib` 与 `Offline` 一起落进 else。两份字面量并存时，改一处不会带动另一处，也不报错。
 - **规避**：类型文案只允许一处映射——`src/NebulaLauncher.App/ViewModels/AccountTypeDisplay.cs:14 AccountTypeDisplay.BadgeOf`，短标签由它派生 `src/NebulaLauncher.App/ViewModels/AccountTypeDisplay.cs:26 AccountTypeDisplay.ShortBadgeOf`，详情拼装同处的 `AccountTypeDisplay.DetailOf`；三处渲染改调它。用例 `tests/NebulaLauncher.Tests/AppAccounts_TypeDisplayTests.cs`、`tests/NebulaLauncher.Tests/AppHome_AccountBadgeTests.cs`，改回分散判定会变红。见 6.D12。
 
-### 4.13 自绘控件自己裁形状，外层 `CornerRadius` 调不动
-- **症状**：三处账户头像的圆角先给 4、再给 8、最后回 0，渲染出的脸形状完全不变；改 `src/NebulaLauncher.App/Views/AccountsView.axaml` 或 `src/NebulaLauncher.App/Views/HomeView.axaml` 都看不出效果，只有动控件内部的绘制代码才变。
-- **成因**：形状被裁了两次。`src/NebulaLauncher.App/Controls/SkinAvatar.cs:47 SkinAvatar.Render` 内部曾对绘制内容做几何裁剪（`PushGeometryClip` + 椭圆实现圆形头像），外层 `Border` 的 `ClipToBounds` 与 `CornerRadius` 又裁一次；两次取交集，内层先切掉像素，外层把圆角改成多少都会被内层压住。所以「改 XAML 没反应」不是样式没生效，而是真正的裁剪点在另一个文件里。
-- **规避**：自绘控件只画内容、不裁形状，形状与圆角一律交给外层容器——三处渲染分别在 `src/NebulaLauncher.App/Views/AccountsView.axaml:75` 的大卡、`src/NebulaLauncher.App/Views/AccountsView.axaml:196` 的列表行与 `src/NebulaLauncher.App/Views/HomeView.axaml:73` 的首页，容器用 `Border` 的 `CornerRadius` 配 `ClipToBounds="True"`；实测后者会裁自绘内容，控件不必自己裁。圆角档位只用令牌，见 `CONVENTIONS.md` §7.5。
+### 4.12 自绘控件自己裁形状，外层 `CornerRadius` 调不动
+- **症状**：账户头像的圆角先给 4、再给 8、最后回 0，渲染出的形状完全不变；改 `src/NebulaLauncher.App/Views/AccountsView.axaml` 或 `src/NebulaLauncher.App/Views/HomeView.axaml` 都看不出效果，只有动控件内部的绘制代码才变。
+- **成因**：形状被裁了两次。控件内部若对绘制内容做几何裁剪（`PushGeometryClip` + 椭圆），外层 `Border` 的 `ClipToBounds` 与 `CornerRadius` 会再裁一次；两次取交集，内层先切掉像素，外层把圆角改成多少都会被内层压住。所以「改 XAML 没反应」不是样式没生效，而是真正的裁剪点在另一个文件里。
+- **规避**：自绘控件只画内容、不裁形状，形状与圆角一律交给外层容器——大卡与列表行的容器分别在 `src/NebulaLauncher.App/Views/AccountsView.axaml` 的 `Border`（`CornerRadius` 配 `ClipToBounds="True"`），首页在 `src/NebulaLauncher.App/Views/HomeView.axaml`；自绘控件 `src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` 的构造函数注释明确写了「裁剪与指针光标交给 XAML 设」。圆角档位只用令牌，见 `CONVENTIONS.md` §7.5。
+
+### 4.13 3D 皮肤的矩阵顺序、UV 左右与深度排序：静默画错
+- **症状**：卡片和皮肤页里的模型「看着有个东西」，但脸是反的、皮肤左右镜像、背面盖住了正面、或者整只模型里外翻。不报错、不崩、没有异常，只有盯图像才能发现。
+- **成因**：整条渲染链有三处符号/顺序错误都不会抛异常——① 矩阵乘法顺序写成 `model * view * projection`（正确是 `projection * view * model`），模型被压扁或整块消失；② 角色左侧肢体直接复用右侧 UV 而不做水平镜像（老 64×32 版式的左臂左腿只有右侧纹理，必须镜像；观察者的右手边是角色的左手，`+X` 侧与 `-X` 侧的纹理方向相反）；③ 画家算法按深度排序的方向反了，远的先画、近的被盖住。
+- **规避**：三处都写成可断言的纯函数并加几何用例。顺序在 `src/NebulaLauncher.App/Skinning/SkinProjector.cs SkinProjector.Project`（注释「这个顺序同时决定了屏幕绕向判定与纹理方向，改它等于把整张皮肤左右/上下翻转」），镜像在 `src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs SkinMeshBuilder.MirrorUv`（交换每面 U 区间端点），UV 展开在 `src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs SkinMeshBuilder.BuildUv`。像素级判据在 `tests/NebulaLauncher.Tests/AppSkin_GeometryTests.cs AppSkin_GeometryTests` 与 `tests/NebulaLauncher.Tests/AppSkin_RendererTests.cs AppSkin_RendererTests`：改顺序、改镜像、改排序都会让这两组红。
+
+### 4.14 皮肤站的 `model` 取值与官方不是一套（`/skinlib` 也没有 `total`/`last_page`）
+- **症状**：同一张皮肤，接皮肤站（authlib）能传上去、接官方账户就被 400 打回；或者反过来，照抄官方的 `classic` 发给皮肤站，站点把它当未知值。分页则表现为「末页判定永远为假」，一直有下一页可翻，翻到最后一页时才拿回空列表。
+- **成因**：两套接口的枚举词不一样——官方的 `variant` 只认 `classic` / `slim`，皮肤站只认 `slim` 与**空串**（空串＝Steve），`classic` 在那边是未知值；双方的「经典体型」不是同一个字面量。分页方面 `/skinlib/list` 是 Laravel 分页对象但**没有** `total` 与 `last_page` 字段，末页只能看 `next_page_url == null`，把缺失字段当必填会直接抛异常；顺带 `sort` 只认 `time`/`likes`/`tid`，别的值站点 500。
+- **规避**：取值映射各留一处、不跨接口复用——`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.VariantOf` 与 `src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.ModelFieldOf` 各管一套，别写成一个通用映射。末页判定在 `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient.ParseList`，白名单在 `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient.SortKeys`（非法值在本地就 `Fail`，一个请求都不发）；`per_page` 无效（站点硬编码 20 条/页），不要传。请求形状与解析各有用例：`tests/NebulaLauncher.Tests/AppSkin_AuthlibSkinClientTests.cs`、`tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs`、`tests/NebulaLauncher.Tests/AppSkin_LibraryClientTests.cs`。
 
 ---
 
@@ -357,17 +324,17 @@ powershell -File build.ps1 -Clean
 ### 5.4 分页终止判据依赖 pageSize
 - **症状**：某个接口一改默认每页条数，抓取就提前结束或死循环；换成另一个服务端又正常。
 - **成因**：用「请求的 pageSize」推进行号，而服务端实际可能少给（限额、过滤、末页不满）；一旦实际返回少，行号推进过多直接跳过内容，推进过少则原地打转。
-- **规避**：用服务端实际返回条数推进（`index += 实际条数`，直到 `index >= totalCount`）；再叠按 Id 去重、双上限防死循环、`totalCount <= 0` 退回单页。合并路径见 `src/NebulaLauncher.Core/Mods/CrossSourceSearch.cs CrossSourceSearch.Merge（:357）`，用例在 `tests/NebulaLauncher.Tests/CoreMods_CurseForgePagingTests.cs`。
+- **规避**：用服务端实际返回条数推进（`index += 实际条数`，直到 `index >= totalCount`）；再叠按 Id 去重、双上限防死循环、`totalCount <= 0` 退回单页。合并路径见 `src/NebulaLauncher.Core/Mods/CrossSourceSearch.cs CrossSourceSearch.Merge（:357）`，用例在 `tests/NebulaLauncher.Tests/CoreMods_CurseForgePagingTests.cs`。**反过来，皮肤站 `/skinlib/list` 连 `total` 与 `last_page` 都没有**，末页只能看 `next_page_url == null`（见 4.14）。
 
 ### 5.5 `Select-String` 的 `**` 只等价一层目录
 - **症状**：全仓搜索某个符号，结论是「只有一处」，实际有三处；据此改出来的结论是错的。
 - **成因**：`-Path 'src\**\*.cs'` 里 `**` 不是一个任意深度的通配，只等价一层目录。漏掉更深的文件不会有任何提示。
 - **规避**：涉及「全仓有几处」的核实，用递归枚举显式喂给 `Select-String`（`Get-ChildItem -Recurse -Include *.cs src | Select-String -Pattern 'new LaunchOptions'`），或直接用 grep 工具；凡由搜索结果支撑的结论（尤其是「只有一处」「不存在」），换一种搜索方式复核一次。
 
-### 5.6 测试运行器的 SKIP 不是通过
-- **症状**：用例明明没跑，报告里也没有失败，于是当成通过；或者带 `null` 参数的用例直接报 `TargetParameterCountException: Parameter count mismatch.`。
-- **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；`[InlineData(null)]` 被当成「没有参数」而不是「一个 null 参数」；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。
-- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；带 `null` 的场景写成独立 `[Fact]` 或换哨兵值，别用 `[InlineData(null)]`；日常按类名过滤跑单类。见 `CONVENTIONS.md` §8.2。
+### 5.6 测试运行器：SKIP 不是通过，`[InlineData(null)]` 直接抛异常，计数基线是精确值（含 5.10）
+- **症状**：三种「看着没问题其实没验到」——① 用例明明没跑，报告里也没有失败，于是当成通过；② 带 `null` 参数的用例直接报 `TargetParameterCountException: Parameter count mismatch.`；③ 跑 `-- DocsCheck` 时报 `Assert.Equal()` 期望值与实际值不等，而刚加的那几个用例自己是通过的。
+- **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；`[InlineData(null)]` 被当成「没有参数」而不是「一个 null 参数」；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。③ 则是 `tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:31 DocsCheck_CountTests.BaselineInlineData` 把 `[InlineData]` 总数写成了常量，断言在同文件 `:79 DocsCheck_CountTests`——精确值断言，新增任何一条都要同步改，报错只说数字不等、不说是谁加的。
+- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；带 `null` 的场景写成独立 `[Fact]` 或换哨兵值；改常量时在原处按既有格式留一行注释记账（写清本次新增几条、为哪个议题加的），然后重跑。见 `CONVENTIONS.md` §8.2 与 §8.3。
 
 ### 5.7 白名单键集必须写死在测试里
 - **症状**：导出的配置包多带了一个键，直到别人机器上被覆盖才发现。
@@ -383,11 +350,6 @@ powershell -File build.ps1 -Clean
 - **症状**：文档写着「某接口声明在 Abstractions」「某方法是 `SaveAsync`」「`docs/CODE.md:49` 那段」——代码一改，路径还打得开，符号却早改名或挪了位置；人工 `grep` 也搜不出来，因为文档里只是一段纯文本。
 - **成因**：Markdown 里的路径、符号与行号没有编译期校验，改名重构时文档不会被带上；行号更是每加一行就失效。
 - **规避**：代码引用统一写成反引号单元「仓库相对路径[:行号] 符号名」，提交前跑 `tools/DocsCheck`——路径与符号都必须真实存在，同时卡住行数预算（单份 400 行 / 总量 1000 行）。见 `CONVENTIONS.md` §8.3。
-
-### 5.10 新增 `[InlineData]` 会撞上 DocsCheck 的计数基线
-- **症状**：跑 `dotnet run --project tools/TestRunner/TestRunner.csproj -v q --nologo -m:1 -p:BuildInParallel=false -- DocsCheck` 报失败，失败点是 `Assert.Equal()` 期望值与实际值不等；刚加的那几个用例自己是通过的，看上去「跟我的改动无关」。
-- **成因**：`tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:31 DocsCheck_CountTests.BaselineInlineData` 把 `[InlineData]` 总数写成了常量（当前 786），断言在 `tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:79 DocsCheck_CountTests`。它是精确值断言，新增任何一条 `[InlineData]` 都要同步改这个常量，不会自动跟随；报错只说数字不等，不说是谁加的。
-- **规避**：改常量，并在原处按既有格式留一行注释记账（写清本次新增几条、为哪个议题加的），然后重跑上面那条命令。见 `CONVENTIONS.md` §8.3。
 
 ### 5.11 写死的窗口最小尺寸会骗过 1024×660 验收
 - **症状**：`--size 1024x660` 的截图里侧边栏底部那项被裁成半行，指望滚动条也滚不出来；把 `MinHeight` 调到某个「看着刚好」的数，同一张截图就正常了，可再往侧边栏加一项又在同一个位置裁掉——每次都要手动改常量，而改完那个数没有任何东西在守。
@@ -413,7 +375,7 @@ powershell -File build.ps1 -Clean
 | D9 | 下载源 Auto 降级状态只在内存；手动档只提示、不换源 | 「今天镜像慢」不该变成永久配置；用户手动选定的源要免疫自动降级 | 落盘就等于把一次性网络抖动写成长期设置；去掉自动降级则弱网环境完全不可用。手动档的失败计数同样是内存态：它只用来在状态行提醒「镜像看起来坏了、可在设置里改用自动或官方源」，当前使用的源一个字节都不换 |
 | D10 | 内置 CurseForge API key，不再让用户填 | 反查与搜索对普通用户必须开箱可用 | key 随产物分发，必须换 key 得重新发布；同时要保证无 key 时不崩（错误往「不崩」方向漏） |
 | D11 | Java 上限只在大版本级阻断，补丁号级仅提示 | 用具体补丁号做硬门槛，会在相邻补丁上误杀（8u320 硬挡会拦掉 8u322） | 改成精确版本比对就会重现误杀，且误杀发生在启动前，用户没有自救路径 |
-| D12 | 账户类型文案只有一处映射 `AccountTypeDisplay`，短标签由长标签派生 | 三处各写一份判定时首页那份塌缩成二元，把「第三方验证」显示成「离线账户」（见 4.12）；两份字面量并存就还能各自漂移 | 拆回分散判定要改 `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs` 的 `AccountBadge`、`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs` 的 `ActiveTypeLabel` 与 `TypeLabel` 三处，并失去「一处改名处处跟随」的保证；没有守护拦得住重新分叉 |
+| D12 | 账户类型文案只有一处映射 `AccountTypeDisplay`，短标签由长标签派生 | 三处各写一份判定时首页那份塌缩成二元，把「第三方验证」显示成「离线账户」（见 4.11）；两份字面量并存就还能各自漂移 | 拆回分散判定要改 `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs` 的 `AccountBadge`、`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs` 的 `ActiveTypeLabel` 与 `TypeLabel` 三处，并失去「一处改名处处跟随」的保证；没有守护拦得住重新分叉 |
 
 ### 6.1 裁决与坑的联动
 

@@ -169,7 +169,7 @@ public sealed class DocsCheck_FeatureDocTests
     {
         var blocks = LoadRepoBlocks();
 
-        Assert.Equal(8, blocks.Count);
+        Assert.Equal(9, blocks.Count);
         Assert.All(blocks, block =>
         {
             Assert.False(string.IsNullOrWhiteSpace(block.Title));

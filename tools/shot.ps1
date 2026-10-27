@@ -38,7 +38,7 @@ param(
 # 用法：
 #   .\tools\shot.ps1 -Page home -NoBuild -Configuration ui1 -DataDir D:\agent_workspace\.probe\data-ui1
 #
-# 页面键：home / versions / download / mods / accounts / servers / worlds / settings
+# 页面键：home / versions / download / mods / library / accounts / servers / worlds / logs / help / settings / skins
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot

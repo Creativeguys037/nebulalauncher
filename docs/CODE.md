@@ -6,7 +6,7 @@
 
 ## 1. 目录表
 
-### 1.1 src/NebulaLauncher.Core（23 个目录）
+### 1.1 src/NebulaLauncher.Core（24 个目录）
 
 | 目录 | 职责（一句话） | 关键类型 |
 | --- | --- | --- |
@@ -31,6 +31,7 @@
 | Serialization | 共享的 JSON 序列化辅助：从 `JsonSerializerOptions` 取 `JsonTypeInfo<T>`、`JsonNode` 写出 | `src/NebulaLauncher.Core/Serialization/JsonMeta.cs JsonMeta.Of（:30）`、`src/NebulaLauncher.Core/Serialization/JsonNodeWrite.cs JsonNodeWrite（:18）` |
 | Servers | 服务器列表落盘、`servers.dat` 导入、状态查询 | `src/NebulaLauncher.Core/Servers/ServerService.cs ServerService（:15）`、`src/NebulaLauncher.Core/Servers/ServerQueryService.cs ServerQueryService（:30）`、`src/NebulaLauncher.Core/Servers/ServerListDatReader.cs ServerListDatReader（:22）` |
 | Settings | 设置读写（`settings.json`），变更事件 | `src/NebulaLauncher.Core/Settings/SettingsService.cs SettingsService（:18）` |
+| Skinning | 本地皮肤库：`<data>/skins/` 落盘、PNG 尺寸校验、索引读写 | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore（:158）`、`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinFormat.Validate（:67）` |
 | Transfer | 配置包导入导出（跨机器迁移） | `src/NebulaLauncher.Core/Transfer/ProfileBundleService.cs ProfileBundleService（:212）` |
 | Versions | 版本清单、安装记录、收藏与隐藏、服务端下载 | `src/NebulaLauncher.Core/Versions/VersionService.cs VersionService（:25）`、`src/NebulaLauncher.Core/Versions/VersionFavorites.cs VersionFavorites（:83）`、`src/NebulaLauncher.Core/Versions/ServerDownloadService.cs ServerDownloadService（:32）` |
 
@@ -41,7 +42,8 @@
 | ViewModels | 页面状态与命令；`MainWindowViewModel` 是导航与页面工厂的根 | `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RegisterPages（:670）`、`src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel.LaunchAsync（:912）` |
 | Views | Avalonia 视图，与 ViewModels 一一对应 | `src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow（:21）` |
 | Services | App 层服务：导航/窗口动作代理、启动参数合成、外壳进度 | `src/NebulaLauncher.App/Services/LaunchOptionsFactory.cs LaunchOptionsFactory.Build（:41）`、`src/NebulaLauncher.App/Services/NavigationServiceProxy.cs NavigationServiceProxy（:13）` |
-| Controls | 自定义控件（页面宿主、极光背景、折叠容器、环形进度） | `src/NebulaLauncher.App/Controls/PageHost.cs PageHost（:19）`、`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）` |
+| Controls | 自定义控件（页面宿主、极光背景、折叠容器、环形进度、3D 皮肤模型） | `src/NebulaLauncher.App/Controls/PageHost.cs PageHost（:19）`、`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）`、`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` |
+| Skinning | 皮肤客户端与渲染管线：皮肤站浏览、皮肤站换肤、官方换肤、profile 解析、软光栅 | `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient`、`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient` |
 
 其余子目录（Converters / Themes / Assets / Properties）只放转换器、样式令牌与静态资源，不含业务逻辑。
 
@@ -177,6 +179,17 @@
 
 **与原票实现的偏离**：票面写的是「几何算出屏幕多边形 → `PushTransform` + clip 贴三角形」，实际改成**纯 CPU 软光栅到 `WriteableBitmap`**。理由：① 测试禁止触碰 Avalonia 类型（CONVENTIONS §8.2），像素级断言（六方向主色占比）只有纯 C# 光栅器能喂；② 同一份光栅代码给产品用，测试才真的证明了产品正确；③ 单帧 220×280 实测中位 6.2ms，60fps 预算 16.7ms 有余量，且避开了 68 个 geometry 的 tessellation 性能未知与相邻三角形接缝。
 
+### 4.5 换肤（皮肤页 → 磁盘与远端材质）
+
+1. 页面状态：`src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` 管网络/本地两个页签、三条上传通道与行内反馈；可选依赖全部走 `GetService(...) as X ?? new X(...)`，没注册也能独立可用。
+2. 本地库落盘：`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.ImportAsync`（磁盘 PNG）与 `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.SaveAsync`（内存字节，网络皮肤「下载到本地」走这里）→ 校验 → 写文件 → 写索引；`LocalSkinFormat.Validate` 只管「能不能当皮肤用」（宽 64 的倍数、高 32 的倍数、`slim` 必须 64×64）。
+3. 送官方前的本地拦截：`src/NebulaLauncher.App/Skinning/SkinUploadPreflight.cs SkinUploadPreflight.Check` 在本地库规则之上再叠官方规则（只收 64×64 与 64×32），这样用户看到的是「你这张是 128×64」而不是云端 400。
+4. 皮肤站换肤：`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadSkinAsync` / `UploadCapeAsync` / `DeleteSkinAsync`，multipart 的 `model` 由 `AuthlibSkinClient.ModelFieldOf` 产出（只认 `slim` 与空串）；界面侧的「应用 / 上传披风 / 删除皮肤」三条命令在 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel`，统一经 `RunAuthlibAsync` 收敛反馈与冷却。
+5. 官方换肤：`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync` / `ResetSkinAsync`，`variant` 由 `MojangSkinClient.VariantOf` 产出（只认 `classic` / `slim`）。401 是令牌过期，引导去账户页刷新，**不自动重试**。
+6. 能力判定：官方侧 `src/NebulaLauncher.App/Skinning/OfficialSkinActions.cs OfficialSkinActions.Of` 决定当前账户能不能用官方换肤（披风那句是常量）；皮肤站侧 `src/NebulaLauncher.App/Skinning/AuthlibSkinActions.cs AuthlibSkinActions.Of` 结合 `SkinCapabilities` 决定能否上传皮肤/披风，离线与官方账户各有一句固定拒绝文案。`uploadableTextures` 的解析在 `src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseUploadableTextures`，没读到之前不要假设能传。
+7. 反馈与冷却：`src/NebulaLauncher.App/Skinning/SkinUploadFeedback.cs SkinUploadFeedback.For` 把 `SkinUploadResult` 折成一句话 + 有无重试 / 有无「去账户页」；`src/NebulaLauncher.App/Skinning/SkinUploadThrottle.cs SkinUploadThrottle` 拦同一渠道的连点（默认 15 秒）。
+8. 广播与回写：成功后调 `src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs SkinChangeNotifier.Notify`，侧边栏卡见 4.4；体型经 `src/NebulaLauncher.App/Skinning/SkinModelMapping.cs SkinModelMapping.ToAccountValue` 写进 `Account.SkinModel`。
+
 ## 5. 依赖注入
 
 | 问题 | 答案 |
@@ -210,6 +223,7 @@
 | `java-excluded.json` / `java-manual.json` | Java | `src/NebulaLauncher.Core/Java/JavaService.cs JavaService（:16）` | 同上 |
 | `mods/` `resourcepacks/` `shaderpacks/` `datapacks/` | Mods | 目录名由 `src/NebulaLauncher.Core/Mods/ContentService.cs ContentService.DirectoryNameFor（:50）` 决定 | 游戏本体 |
 | `logs/` `cache/` `backups/` | Logging / Maintenance / Backups | 路径来自 `src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.LogsDirectory（:139）`、`:143 LauncherPaths.BackupsDirectory` | 日志页、存储清理页、备份页 |
+| `<data>/skins/` 与 `skins/index.json` | Skinning（本地皮肤库） | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.ImportAsync`（PNG 本体）、`LocalSkinStore.SaveAsync`（内存字节）；索引在 `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.IndexPath` | 皮肤页本地页签；索引坏掉时按文件 mtime 退化重建。该目录在清理保护名单内（`ProtectedTopLevelNames`） |
 | `modrinth.index.json` | Backups（导出整合包） | `src/NebulaLauncher.Core/Backups/ModpackExporter.cs ModpackExporter.IndexFileName（:27）` | Modrinth 客户端 / 再次导入 |
 
 `instances/`（`src/NebulaLauncher.Core/Paths/LauncherPaths.cs LauncherPaths.InstancesDirectory（:137）`）是旧布局，实例目录已改为 `<游戏目录>/versions/<名>/`，不要再往这里写。

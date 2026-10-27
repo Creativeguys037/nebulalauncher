@@ -22,6 +22,7 @@ public sealed class DocsCheck_FeatureStateTests
         "连得上",
         "看得见",
         "改得动",
+        "换得动",
     ];
 
     [Fact]

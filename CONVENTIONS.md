@@ -327,8 +327,8 @@ release notes 进这份清单是为了让它的代码位置指针也被校验：
     -DataDir D:\agent_workspace\.probe\data-<你的标识> -Out D:\agent_workspace\.probe\v.png
 ```
 
-页面键：`home` `versions` `download` `mods` `library` `accounts` `servers` `worlds` `logs` `help` `settings`。
-主题 `-Theme dark|light|system`（默认 `dark`），**深色与浅色各截一张**；设置页的非默认分区用 `-Section <key>`，长页面首屏之外用 `--scroll <px>`。等价手工命令：
+页面键：`home` `versions` `download` `mods` `library` `accounts` `servers` `worlds` `logs` `help` `settings` `skins`。
+主题 `-Theme dark|light|system`（默认 `dark`），**深色与浅色各截一张**；设置页的非默认分区用 `-Section <key>`，长页面首屏之外用 `--scroll <px>`。皮肤页的换肤失败态（401 / 尺寸不合格 / 429 三种长得完全不同）要真发一次请求才触发，截图模式改用 `--skin-upload-feedback unauthorized|badrequest|throttled` 摆出确定的那条，文案由 `src/NebulaLauncher.App/Skinning/SkinUploadFeedback.cs SkinUploadFeedback.For` 同一份映射生成。等价手工命令：
 
 ```powershell
 dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --data-dir <dir>
