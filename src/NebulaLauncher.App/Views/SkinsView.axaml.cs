@@ -1,5 +1,8 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using NebulaLauncher.ViewModels;
 
 namespace NebulaLauncher.Views;
@@ -23,6 +26,51 @@ public partial class SkinsView : UserControl
         {
             viewModel.SearchCommand.Execute(null);
             e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// 从文件导入本地皮肤（票 42）。文件对话框必须留在视图层：视图模型不碰 Avalonia 的
+    /// <c>StorageProvider</c>，这样它在无头测试里也能构造。选完只把本地路径交给视图模型。
+    /// </summary>
+    private async void OnImportLocalSkinClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SkinsViewModel viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.StorageProvider is null)
+            {
+                viewModel.LocalErrorText = "当前窗口无法打开文件选择器，请稍后重试。";
+                return;
+            }
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择皮肤 PNG",
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("皮肤图片") { Patterns = ["*.png"] },
+                ],
+            });
+
+            var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            await viewModel.ImportLocalSkinAsync(path);
+        }
+        catch (Exception ex)
+        {
+            // 事件处理器里的异常没人接，就地兜住并说清失败在哪一步。
+            viewModel.LocalErrorText = $"导入本地皮肤失败：{ex.Message}";
         }
     }
 }

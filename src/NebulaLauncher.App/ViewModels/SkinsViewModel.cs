@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 using NebulaLauncher.Skinning;
 
 namespace NebulaLauncher.ViewModels;
@@ -30,6 +31,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     private const int MaxConcurrentThumbnails = 4;
 
     private readonly SkinLibraryClient _library;
+
+    private readonly ILauncherPaths? _paths;
 
     private IAccountService? _accounts;
 
@@ -54,6 +57,22 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     private string? _subtitle;
 
+    // ==================== 本地皮肤（票 42） ====================
+
+    /// <summary>本地皮肤库。数据目录没注册时是 null，页面显示「库不可用」而不是白屏。</summary>
+    private LocalSkinStore? _localStore;
+
+    private IPlatformService? _platform;
+
+    /// <summary>本地目录的「打开目录 / 扫描」在途标记。与网络那三条取消线分开，互不打断。</summary>
+    private CancellationTokenSource? _localCancellation;
+
+    /// <summary>本地行的平面小图，按文件名缓存。文件被删后同名新图会命中旧缓存，但只要改名规则带序号就能避开。</summary>
+    private readonly Dictionary<string, Bitmap> _localThumbnailCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>本地列表「至少扫过一次」。没扫过不显示空态，否则进页面会先闪一下「还没有皮肤」。</summary>
+    private bool _hasLoadedLocalOnce;
+
     public SkinsViewModel(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -65,6 +84,11 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         _library = services.GetService(typeof(SkinLibraryClient)) as SkinLibraryClient
                    ?? new SkinLibraryClient(baseAddress: ResolveBaseAddress(), log: _log);
 
+        // 本地皮肤库跟着数据目录走；容器里没注册路径时退化成「不可用」，不抛异常。
+        _paths = services.GetService(typeof(ILauncherPaths)) as ILauncherPaths;
+        _localStore = _paths is null ? null : new LocalSkinStore(_paths, _log);
+        _platform = services.GetService(typeof(IPlatformService)) as IPlatformService;
+
         Items.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasItems));
@@ -72,6 +96,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             OnPropertyChanged(nameof(PageSummary));
             OnPropertyChanged(nameof(ShowLoadingPlaceholder));
         };
+
+        LocalItems.CollectionChanged += (_, _) => NotifyLocalState();
 
         PreviewVisual = SkinVisual.Default;
         ApplyAccount(_accounts?.ActiveAccount);
@@ -165,6 +191,37 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     [ObservableProperty]
     private string _previewDetail = "点左侧任意一行，这里立刻换成它";
 
+    // ==================== 本地页签的状态与列表（票 42） ====================
+
+    /// <summary>本地皮肤行。跟 <see cref="Items"/> 是两条独立的列表：一边是站点的，一边是磁盘的。</summary>
+    public ObservableCollection<LocalSkinEntryViewModel> LocalItems { get; } = [];
+
+    /// <summary>本地皮肤目录的绝对路径，页面上直接显示给用户看。</summary>
+    public string LocalDirectory => _localStore?.DirectoryPath ?? "数据目录未配置";
+
+    [ObservableProperty]
+    private LocalSkinEntryViewModel? _selectedLocal;
+
+    [ObservableProperty]
+    private bool _isLocalLoading;
+
+    /// <summary>本地页签自己的错误文案。跟页面顶部的网络错误条分开，免得「打不开文件夹」被说成「皮肤站异常」。</summary>
+    [ObservableProperty]
+    private string? _localErrorText;
+
+    public bool HasLocalError => !string.IsNullOrWhiteSpace(LocalErrorText);
+
+    public bool HasLocalItems => LocalItems.Count > 0;
+
+    /// <summary>扫过一次、扫完了、结果为空——三个条件齐了才显示空态，避免进页面先闪一下。</summary>
+    public bool IsLocalEmpty => _hasLoadedLocalOnce && !IsLocalLoading && LocalItems.Count == 0;
+
+    public bool ShowLocalLoadingPlaceholder => IsLocalLoading && LocalItems.Count == 0;
+
+    public bool IsLocalDirectoryAvailable => _localStore is not null;
+
+    public string LocalSummary => LocalItems.Count == 0 ? "本地还没有皮肤" : $"本地 {LocalItems.Count} 套皮肤";
+
     public override async Task OnNavigatedToAsync()
     {
         if (IsDisposed)
@@ -174,6 +231,10 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         AttachAccounts();
         ApplyAccount(_accounts?.ActiveAccount);
+
+        // 每次进页面都重扫本地目录：用户可能刚把图丢进文件夹（票 42 的 AC4）。
+        // 只读文件头，代价是几十毫秒，比「必须手动刷新」符合直觉。
+        await LoadLocalAsync().ConfigureAwait(true);
 
         if (!_hasLoadedOnce)
         {
@@ -216,6 +277,363 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     {
         IsNetworkTab = false;
         CloseError();
+
+        // 切到本地页签顺手重扫：手上没有「刷新」按钮的旧用户也能看到新丢进来的图。
+        _ = LoadLocalAsync();
+    }
+
+    // ==================== 本地皮肤的命令（票 42） ====================
+
+    [RelayCommand]
+    private Task RefreshLocalAsync() => LoadLocalAsync();
+
+    /// <summary>「打开目录」：目录不存在就先建出来，别让资源管理器报错。</summary>
+    [RelayCommand]
+    private async Task OpenLocalDirectoryAsync()
+    {
+        if (_localStore is null)
+        {
+            LocalErrorText = "本地皮肤库没有初始化，打不开目录。";
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_localStore.DirectoryPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _log?.Warn($"创建本地皮肤目录失败：{_localStore.DirectoryPath}", ex);
+            LocalErrorText = $"建不了本地皮肤目录：{ex.Message}";
+            return;
+        }
+
+        if (_platform is null)
+        {
+            LocalErrorText = "当前环境没有可用的桌面集成，打不开目录。";
+            return;
+        }
+
+        try
+        {
+            await _platform.OpenFolderAsync(_localStore.DirectoryPath).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn($"打开本地皮肤目录失败：{_localStore.DirectoryPath}", ex);
+            LocalErrorText = "打开本地皮肤目录失败。";
+        }
+    }
+
+    /// <summary>删除一行本地皮肤。文件删不掉时保留这一行，并把原因写在页签里。</summary>
+    [RelayCommand]
+    private async Task DeleteLocalAsync(LocalSkinEntryViewModel? entry)
+    {
+        if (entry is null || _localStore is null || IsDisposed)
+        {
+            return;
+        }
+
+        var result = await _localStore.DeleteAsync(entry.FileName).ConfigureAwait(true);
+        if (!result.IsSuccess)
+        {
+            LocalErrorText = result.ErrorText;
+            return;
+        }
+
+        LocalErrorText = null;
+        _localThumbnailCache.Remove(entry.FileName);
+
+        var index = LocalItems.IndexOf(entry);
+        if (ReferenceEquals(SelectedLocal, entry))
+        {
+            SelectedLocal = null;
+        }
+
+        LocalItems.Remove(entry);
+
+        // 删完顺手把选中挪到下一行，用户连删时不用每次重新点。
+        if (index >= 0 && LocalItems.Count > 0)
+        {
+            SelectedLocal = LocalItems[Math.Min(index, LocalItems.Count - 1)];
+        }
+    }
+
+    /// <summary>网络页签那一行的「下载到本地」：拉原图、存进本地目录、刷新本地列表。</summary>
+    [RelayCommand]
+    private async Task DownloadToLocalAsync(SkinEntryViewModel? entry)
+    {
+        if (entry is null || _localStore is null || IsDisposed || entry.IsSavingToLocal)
+        {
+            if (entry is not null && _localStore is null)
+            {
+                entry.LocalState = "本地皮肤库不可用";
+            }
+
+            return;
+        }
+
+        entry.IsSavingToLocal = true;
+        entry.LocalState = "正在保存…";
+        var token = _pageCancellation?.Token ?? CancellationToken.None;
+
+        try
+        {
+            var info = await _library.InfoAsync(entry.Tid, token).ConfigureAwait(true);
+            if (!info.Succeeded || info.Value is not { } detail)
+            {
+                entry.LocalState = info.ErrorText ?? "拿不到这套皮肤的详情";
+                return;
+            }
+
+            var png = await _library.DownloadAsync(_library.TextureUrl(detail.Hash), token).ConfigureAwait(true);
+            if (png is null)
+            {
+                entry.LocalState = "皮肤图下载失败";
+                return;
+            }
+
+            var fileName = string.IsNullOrWhiteSpace(entry.Name) ? "skin" : entry.Name;
+            var model = entry.Model == SkinModelKind.Alex ? LocalSkinModel.Slim : LocalSkinModel.Classic;
+            var result = await _localStore.SaveAsync(fileName, png, model).ConfigureAwait(true);
+
+            // 站点把细手臂皮肤标成 Alex，但图可能不是 64×64：退成经典模型仍然能显示，别让用户点了个寂寞。
+            if (!result.IsSuccess && model == LocalSkinModel.Slim)
+            {
+                result = await _localStore.SaveAsync(fileName, png, LocalSkinModel.Classic).ConfigureAwait(true);
+            }
+
+            if (!result.IsSuccess)
+            {
+                entry.LocalState = result.ErrorText;
+                return;
+            }
+
+            entry.LocalState = "已存到本地";
+            await LoadLocalAsync().ConfigureAwait(true);
+            if (result.Entry is { } saved)
+            {
+                SelectedLocal = LocalItems.FirstOrDefault(
+                    item => string.Equals(item.FileName, saved.FileName, StringComparison.OrdinalIgnoreCase)) ?? SelectedLocal;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn($"下载皮肤到本地失败：{entry.Name}", ex);
+            entry.LocalState = "保存失败";
+        }
+        finally
+        {
+            entry.IsSavingToLocal = false;
+        }
+    }
+
+    /// <summary>视图选完文件后调这里。路径由视图层从文件选择器拿到（VM 不碰 Avalonia 的对话框）。</summary>
+    public async Task ImportLocalSkinAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || IsDisposed)
+        {
+            return;
+        }
+
+        if (_localStore is null)
+        {
+            LocalErrorText = "本地皮肤库没有初始化，看看数据目录配置。";
+            return;
+        }
+
+        var result = await _localStore.ImportAsync(path).ConfigureAwait(true);
+        if (!result.IsSuccess)
+        {
+            LocalErrorText = result.ErrorText;
+            return;
+        }
+
+        LocalErrorText = null;
+        await LoadLocalAsync().ConfigureAwait(true);
+
+        if (result.Entry is { } imported)
+        {
+            SelectedLocal = LocalItems.FirstOrDefault(
+                item => string.Equals(item.FileName, imported.FileName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private async Task LoadLocalAsync()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (_localStore is null)
+        {
+            _hasLoadedLocalOnce = true;
+            LocalErrorText = "本地皮肤库没有初始化，看看数据目录配置。";
+            NotifyLocalState();
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        Replace(ref _localCancellation, cancellation);
+        IsLocalLoading = true;
+
+        try
+        {
+            var result = await _localStore.ScanAsync(cancellation.Token).ConfigureAwait(true);
+            if (cancellation.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
+
+            _hasLoadedLocalOnce = true;
+            if (result.HasError)
+            {
+                LocalErrorText = result.ErrorText;
+                NotifyLocalState();
+                return;
+            }
+
+            LocalErrorText = null;
+            ReplaceLocalItems(result.Entries);
+            NotifyLocalState();
+            StartLocalThumbnailLoading();
+        }
+        catch (OperationCanceledException)
+        {
+            // 切页或关页面：结果作废，不覆盖当前列表。
+        }
+        finally
+        {
+            if (ReferenceEquals(_localCancellation, cancellation))
+            {
+                IsLocalLoading = false;
+            }
+        }
+    }
+
+    private void ReplaceLocalItems(IReadOnlyList<LocalSkinEntry> entries)
+    {
+        // 重扫会换一批视图模型，选中项按文件名接回去：同名同图，用户不该感觉「选中没了」。
+        var selectedName = SelectedLocal?.FileName;
+
+        LocalItems.Clear();
+        foreach (var entry in entries)
+        {
+            LocalItems.Add(new LocalSkinEntryViewModel(entry));
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedName))
+        {
+            SelectedLocal = LocalItems.FirstOrDefault(
+                item => string.Equals(item.FileName, selectedName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 只有停在本地页签时才替用户选第一套：从网络页签进页面时本地列表也在后台扫完，
+        // 这时候抢预览会把用户正在看的网络皮肤顶掉。
+        if (IsLocalTab && SelectedLocal is null)
+        {
+            SelectedLocal = LocalItems.FirstOrDefault();
+        }
+    }
+
+    private void StartLocalThumbnailLoading()
+    {
+        foreach (var item in LocalItems.ToList())
+        {
+            _ = LoadLocalThumbnailAsync(item);
+        }
+    }
+
+    private async Task LoadLocalThumbnailAsync(LocalSkinEntryViewModel item)
+    {
+        if (_localThumbnailCache.TryGetValue(item.FileName, out var cached))
+        {
+            item.Thumbnail = cached;
+            return;
+        }
+
+        try
+        {
+            var bytes = await Task.Run(() => File.ReadAllBytes(item.FilePath)).ConfigureAwait(true);
+            if (IsDisposed || !LocalItems.Contains(item))
+            {
+                return;
+            }
+
+            var bitmap = DecodeBitmap(bytes);
+            if (bitmap is null)
+            {
+                return;
+            }
+
+            _localThumbnailCache[item.FileName] = bitmap;
+            item.Thumbnail = bitmap;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 单张图读不了不影响列表：那一行继续显示占位块。
+            _log?.Warn($"读取本地皮肤缩略图失败：{item.FileName}", ex);
+        }
+    }
+
+    /// <summary>选中本地一行：右侧 3D 卡直接读磁盘上的原图，不走网络。</summary>
+    private async Task PreviewLocalAsync(LocalSkinEntryViewModel? item)
+    {
+        if (item is null || IsDisposed)
+        {
+            return;
+        }
+
+        // 与网络预览共用同一条取消线：最后点的那一行赢。
+        var cancellation = new CancellationTokenSource();
+        Replace(ref _previewCancellation, cancellation);
+
+        PreviewName = item.Name;
+        PreviewDetail = item.DetailLabel;
+        IsPreviewLoading = true;
+
+        try
+        {
+            var bytes = await Task.Run(() => File.ReadAllBytes(item.FilePath), cancellation.Token).ConfigureAwait(true);
+            if (cancellation.IsCancellationRequested || IsDisposed)
+            {
+                return;
+            }
+
+            var texture = SkinTextureLoader.DecodePng(bytes, _log);
+            if (texture is null)
+            {
+                PreviewDetail = "皮肤图无法解码";
+                return;
+            }
+
+            PreviewVisual = SkinTextureLoader.CreateVisual(texture, item.Model == LocalSkinModel.Slim);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            PreviewDetail = "读不了这个皮肤文件";
+            _log?.Warn($"读取本地皮肤失败：{item.FilePath}", ex);
+        }
+        finally
+        {
+            if (ReferenceEquals(_previewCancellation, cancellation))
+            {
+                IsPreviewLoading = false;
+            }
+        }
+    }
+
+    private void NotifyLocalState()
+    {
+        OnPropertyChanged(nameof(HasLocalItems));
+        OnPropertyChanged(nameof(IsLocalEmpty));
+        OnPropertyChanged(nameof(ShowLocalLoadingPlaceholder));
+        OnPropertyChanged(nameof(LocalSummary));
     }
 
     [RelayCommand]
@@ -589,7 +1007,20 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         previous?.Dispose();
     }
 
-    partial void OnIsNetworkTabChanged(bool value) => OnPropertyChanged(nameof(IsLocalTab));
+    partial void OnIsNetworkTabChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsLocalTab));
+
+        // 从本地切回网络：把预览卡还给网络列表当前选中的那套，别让右侧停在本地皮肤上。
+        if (value)
+        {
+            _ = PreviewAsync(Selected);
+        }
+        else
+        {
+            _ = PreviewLocalAsync(SelectedLocal);
+        }
+    }
 
     partial void OnIsLoadingChanged(bool value)
     {
@@ -613,7 +1044,32 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(EmptyHint));
     }
 
-    partial void OnSelectedChanged(SkinEntryViewModel? value) => _ = PreviewAsync(value);
+    partial void OnSelectedChanged(SkinEntryViewModel? value)
+    {
+        // 预览卡只有一张，而两个页签的列表都会在后台加载完并设选中项。
+        // 用当前页签决定谁有资格写它，否则成了「谁后到谁赢」——
+        // 进页面时先扫本地、后拉网络，右侧就会停在网络皮肤上。
+        if (IsNetworkTab)
+        {
+            _ = PreviewAsync(value);
+        }
+    }
+
+    partial void OnSelectedLocalChanged(LocalSkinEntryViewModel? value)
+    {
+        if (IsLocalTab)
+        {
+            _ = PreviewLocalAsync(value);
+        }
+    }
+
+    partial void OnIsLocalLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsLocalEmpty));
+        OnPropertyChanged(nameof(ShowLocalLoadingPlaceholder));
+    }
+
+    partial void OnLocalErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasLocalError));
 
     protected override void Dispose(bool disposing)
     {
@@ -624,6 +1080,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             Cancel(ref _pageCancellation);
             Cancel(ref _thumbnailsCancellation);
             Cancel(ref _previewCancellation);
+            Cancel(ref _localCancellation);
 
             _library.Dispose();
 
@@ -632,11 +1089,19 @@ public sealed partial class SkinsViewModel : PageViewModelBase
                 bitmap.Dispose();
             }
 
+            foreach (var bitmap in _localThumbnailCache.Values)
+            {
+                bitmap.Dispose();
+            }
+
             _thumbnailCache.Clear();
             _previewCache.Clear();
+            _localThumbnailCache.Clear();
 
             _accounts = null;
             _log = null;
+            _localStore = null;
+            _platform = null;
         }
 
         base.Dispose(disposing);
