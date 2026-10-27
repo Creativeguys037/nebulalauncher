@@ -668,12 +668,6 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>皮肤站材质客户端。容器里没注册时自建，跟随本页生命周期释放。</summary>
     private AuthlibSkinClient? _authlibClient;
 
-    /// <summary>
-    /// 当前角色的服务端能力（<c>uploadableTextures</c>）。null 表示还没读到或读失败——
-    /// 此时披风按钮不点亮（见 <see cref="AuthlibSkinActions.Of"/>），不替用户猜。
-    /// </summary>
-    private SkinCapabilities? _authlibCapabilities;
-
     /// <summary>皮肤站通道自己的冷却。与官方通道分开：一条通道被 429 不该连累另一条。</summary>
     private readonly SkinUploadThrottle _authlibThrottle = new();
 
@@ -789,7 +783,6 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             return;
         }
 
-        _authlibCapabilities = capabilities;
         Authlib = AuthlibSkinActions.Of(account, capabilities);
     }
 
@@ -1830,9 +1823,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(IsSlimModel));
         OnPropertyChanged(nameof(OfficialCapeText));
 
-        // 皮肤站区同理。换账户先清空旧能力：上一个角色的 uploadableTextures
+        // 皮肤站区同理。换账户先回到「能力未知」：上一个角色的 uploadableTextures
         // 不能拿来给新角色点亮披风按钮（那是越权猜测）。
-        _authlibCapabilities = null;
         Authlib = AuthlibSkinActions.Of(account);
         StartAuthlibCapabilityLoad(account);
     }
