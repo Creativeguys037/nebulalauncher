@@ -8,6 +8,28 @@ namespace NebulaLauncher.Skinning;
 public sealed record SkinTextures(string SkinUrl, string? CapeUrl, string Model);
 
 /// <summary>
+/// 角色能上传哪些材质，取自角色属性 <c>uploadableTextures</c>（逗号分隔 <c>skin</c>/<c>cape</c>）。
+///
+/// <para>
+/// 语义按 authlib-injector 规范：属性<b>缺失或为空</b>＝完全不可上传；
+/// 只有明确列出 <c>skin</c>/<c>cape</c> 才允许上传对应材质。
+/// Mojang 官方角色不返回该属性，所以官方账户读出来永远是两项皆 false
+/// ——这正是「官方只能换肤、不能传披风」在数据上的体现。
+/// </para>
+///
+/// <para>
+/// 单独成一个记录而不是往 <see cref="SkinTextures"/> 里塞字段：
+/// 后者是按位置构造的既有类型，加参数会牵动全部既有调用点；
+/// 而且「能上传什么」与「当前材质是什么」是两件不同的事，混在一起会让调用点读不出意图。
+/// </para>
+/// </summary>
+public sealed record SkinCapabilities(bool CanUploadSkin, bool CanUploadCape)
+{
+    /// <summary>属性缺失或为空时的取值：什么都不允许。</summary>
+    public static SkinCapabilities None { get; } = new(false, false);
+}
+
+/// <summary>
 /// 从会话服务器拿皮肤的纯逻辑部分：拼地址、解 base64 包裹的 textures 载荷。
 ///
 /// 网络与 PNG 解码不在这里（那部分要碰 Avalonia 与 HttpClient），
@@ -145,6 +167,84 @@ public static class SkinProfileParser
     /// <summary>把 profile 里的 <c>default</c>/<c>slim</c> 收敛成账户模型用的 <c>classic</c>/<c>slim</c>。</summary>
     public static string NormalizeModel(string? model) =>
         string.Equals(model, "slim", StringComparison.OrdinalIgnoreCase) ? "slim" : "classic";
+
+    /// <summary>
+    /// 解析角色能上传哪些材质：读 <c>properties[]</c> 里 <c>name=uploadableTextures</c> 的 value。
+    ///
+    /// <para>
+    /// 属性缺失、为空、或整份响应根本不是合法 profile，一律返回
+    /// <see cref="SkinCapabilities.None"/>（UI 据此把上传按钮藏起来），不抛异常。
+    /// 值里出现未知类型（如 <c>elytra</c>）时忽略它，不因此判定整条属性无效。
+    /// </para>
+    /// </summary>
+    public static SkinCapabilities ParseCapabilities(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return SkinCapabilities.None;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty("properties", out var properties)
+                || properties.ValueKind != JsonValueKind.Array)
+            {
+                return SkinCapabilities.None;
+            }
+
+            foreach (var property in properties.EnumerateArray())
+            {
+                if (property.ValueKind != JsonValueKind.Object
+                    || !property.TryGetProperty("name", out var name)
+                    || name.ValueKind != JsonValueKind.String
+                    || !string.Equals(name.GetString(), "uploadableTextures", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!property.TryGetProperty("value", out var value)
+                    || value.ValueKind != JsonValueKind.String)
+                {
+                    return SkinCapabilities.None;
+                }
+
+                return ParseUploadableTextures(value.GetString());
+            }
+
+            return SkinCapabilities.None;
+        }
+        catch (JsonException)
+        {
+            return SkinCapabilities.None;
+        }
+    }
+
+    /// <summary>把 <c>uploadableTextures</c> 的逗号分隔值折成两项布尔。空白项与未知类型都跳过。</summary>
+    public static SkinCapabilities ParseUploadableTextures(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return SkinCapabilities.None;
+        }
+
+        var skin = false;
+        var cape = false;
+        foreach (var item in value.Split(','))
+        {
+            var trimmed = item.Trim();
+            if (string.Equals(trimmed, "skin", StringComparison.OrdinalIgnoreCase))
+            {
+                skin = true;
+            }
+            else if (string.Equals(trimmed, "cape", StringComparison.OrdinalIgnoreCase))
+            {
+                cape = true;
+            }
+        }
+
+        return new SkinCapabilities(skin, cape);
+    }
 
     private static byte[]? DecodeBase64(string payload)
     {
