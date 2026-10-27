@@ -297,10 +297,15 @@ powershell -File build.ps1 -Clean
 - **成因**：整条渲染链有三处符号/顺序错误都不会抛异常——① 矩阵乘法顺序写成 `model * view * projection`（正确是 `projection * view * model`），模型被压扁或整块消失；② 角色左侧肢体直接复用右侧 UV 而不做水平镜像（老 64×32 版式的左臂左腿只有右侧纹理，必须镜像；观察者的右手边是角色的左手，`+X` 侧与 `-X` 侧的纹理方向相反）；③ 画家算法按深度排序的方向反了，远的先画、近的被盖住。
 - **规避**：三处都写成可断言的纯函数并加几何用例。顺序在 `src/NebulaLauncher.App/Skinning/SkinProjector.cs SkinProjector.Project`（注释「这个顺序同时决定了屏幕绕向判定与纹理方向，改它等于把整张皮肤左右/上下翻转」），镜像在 `src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs SkinMeshBuilder.MirrorUv`（交换每面 U 区间端点），UV 展开在 `src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs SkinMeshBuilder.BuildUv`。像素级判据在 `tests/NebulaLauncher.Tests/AppSkin_GeometryTests.cs AppSkin_GeometryTests` 与 `tests/NebulaLauncher.Tests/AppSkin_RendererTests.cs AppSkin_RendererTests`：改顺序、改镜像、改排序都会让这两组红。
 
-### 4.14 皮肤站的 `model` 取值与官方不是一套（`/skinlib` 也没有 `total`/`last_page`）
-- **症状**：同一张皮肤，接皮肤站（authlib）能传上去、接官方账户就被 400 打回；或者反过来，照抄官方的 `classic` 发给皮肤站，站点把它当未知值。分页则表现为「末页判定永远为假」，一直有下一页可翻，翻到最后一页时才拿回空列表。
-- **成因**：两套接口的枚举词不一样——官方的 `variant` 只认 `classic` / `slim`，皮肤站只认 `slim` 与**空串**（空串＝Steve），`classic` 在那边是未知值；双方的「经典体型」不是同一个字面量。分页方面 `/skinlib/list` 是 Laravel 分页对象但**没有** `total` 与 `last_page` 字段，末页只能看 `next_page_url == null`，把缺失字段当必填会直接抛异常；顺带 `sort` 只认 `time`/`likes`/`tid`，别的值站点 500。
-- **规避**：取值映射各留一处、不跨接口复用——`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.VariantOf` 与 `src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.ModelFieldOf` 各管一套，别写成一个通用映射。末页判定在 `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient.ParseList`，白名单在 `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient.SortKeys`（非法值在本地就 `Fail`，一个请求都不发）；`per_page` 无效（站点硬编码 20 条/页），不要传。请求形状与解析各有用例：`tests/NebulaLauncher.Tests/AppSkin_AuthlibSkinClientTests.cs`、`tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs`、`tests/NebulaLauncher.Tests/AppSkin_LibraryClientTests.cs`。
+### 4.14 皮肤站与官方不是一套：路径前缀、`model` 取值、`/skinlib` 分页字段
+- **症状**：三种错法都不报「接口不对」——① 照抄票面里的 `PUT /api/user/profile/{uuid}/{textureType}` 当站点绝对路径拼，拿回一段 **HTML 的 404**（不是 JSON），换个站点又好了；② 同一张皮肤接皮肤站能传上去、接官方就被 400 打回，或者反过来，照抄官方的 `classic` 发给皮肤站，站点把它当未知值；③ 分页表现为「末页判定永远为假」，一直有下一页可翻，翻到最后一页才拿回空列表。
+- **成因**：两套接口的路径拼法、取值枚举、分页字段各不相同——① 皮肤站的路径是**相对 API 根**拼的，与同一份规范里的 `POST /api/profiles/minecraft`、`GET /sessionserver/…` 同一套拼法；2026-10-27 对 littleskin.cn 实测 `POST {apiRoot}/api/profiles/minecraft` 返回 200，而站点根下的同类路径只返回 HTML 404。② 官方的 `variant` 只认 `classic` / `slim`，皮肤站只认 `slim` 与**空串**（空串＝Steve），`classic` 在那边是未知值；双方的「经典体型」不是同一个字面量。另外赋值位置也不同：皮肤站把 `model` 塞进 `{uuid}/{textureType}` 形式的路径，官方塞进 multipart 的 `variant` 字段；删除材质皮肤站是同路径的 `DELETE`，官方是 `DELETE .../skins/active` 且没有请求体。③ `/skinlib/list` 是 Laravel 分页对象但**没有** `total` 与 `last_page` 字段，末页只能看 `next_page_url == null`，把缺失字段当必填会直接抛异常；顺带 `sort` 只认 `time`/`likes`/`tid`，别的值站点 500。
+- **规避**：路径前缀、取值映射、删除方式各留一处、不跨接口复用——皮肤站那段路径常量在 `src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs`（`AuthlibSkinClient.TexturePath`，拼 `{apiRoot}/api/…`，注释记了实测依据），官方在 `src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync`；取值映射是 `src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.VariantOf` 与 `src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.ModelFieldOf` 各管一套，别写成一个通用映射。末页判定在 `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient.ParseList`，白名单在 `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient.SortKeys`（非法值在本地就 `Fail`，一个请求都不发）；`per_page` 无效（站点硬编码 20 条/页），不要传。请求形状与解析各有用例：`tests/NebulaLauncher.Tests/AppSkin_AuthlibSkinClientTests.cs`、`tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs`、`tests/NebulaLauncher.Tests/AppSkin_LibraryClientTests.cs`。
+
+### 4.15 角色材质能力按账户返回，缓存不能跨账户复用
+- **症状**：从 A 账户切到 B 账户（B 的角色没有披风权限），披风按钮**仍然亮着**；点下去才被服务端拒。反向也成立：切到有权限的账户，按钮反而灰着，得等下一次重进页面才亮。
+- **成因**：`uploadableTextures` 是**按角色**返回的字段，不是站点固定能力。把它当「站点能力」缓存一次，换账户后就失真；更隐蔽的是切账户时上一个账户在途的能力请求回来后，会把新账户的按钮点亮成**它的**权限。
+- **规避**：换账户时先把能力重置成「未知」再重新拉取，并在途请求先取消——落点 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs:1807 SkinsViewModel.ApplyAccount` 与 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs:1836 SkinsViewModel.StartAuthlibCapabilityLoad`（两处注释写明了「越权猜测」这个后果）。能力解析在 `src/NebulaLauncher.App/Skinning/SkinProfileParser.cs:180 SkinProfileParser.ParseCapabilities`（字段形态见 `src/NebulaLauncher.App/Skinning/SkinProfileParser.cs:224 SkinProfileParser.ParseUploadableTextures`），按钮可用性在 `src/NebulaLauncher.App/Skinning/AuthlibSkinActions.cs:86 AuthlibSkinActions.Of`。注意「能力未知」不是「不可用」：披风必须显式列出 `cape` 才点亮，皮肤按可传处理（理由见该方法注释）。
 
 ---
 
@@ -333,8 +338,8 @@ powershell -File build.ps1 -Clean
 
 ### 5.6 测试运行器：SKIP 不是通过，`[InlineData(null)]` 直接抛异常，计数基线是精确值（含 5.10）
 - **症状**：三种「看着没问题其实没验到」——① 用例明明没跑，报告里也没有失败，于是当成通过；② 带 `null` 参数的用例直接报 `TargetParameterCountException: Parameter count mismatch.`；③ 跑 `-- DocsCheck` 时报 `Assert.Equal()` 期望值与实际值不等，而刚加的那几个用例自己是通过的。
-- **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；`[InlineData(null)]` 被当成「没有参数」而不是「一个 null 参数」；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。③ 则是 `tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:31 DocsCheck_CountTests.BaselineInlineData` 把 `[InlineData]` 总数写成了常量，断言在同文件 `:79 DocsCheck_CountTests`——精确值断言，新增任何一条都要同步改，报错只说数字不等、不说是谁加的。
-- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；带 `null` 的场景写成独立 `[Fact]` 或换哨兵值；改常量时在原处按既有格式留一行注释记账（写清本次新增几条、为哪个议题加的），然后重跑。见 `CONVENTIONS.md` §8.2 与 §8.3。
+- **成因**：`MemberData` / `ClassData` / `IClassFixture` 这类用例在简化运行器里可能打印 SKIP；`[InlineData(null)]` 被当成「没有参数」而不是「一个 null 参数」；退出码语义与常见预期不同（有失败为 1），且默认不做输出详细化。③ 则是 `tests/NebulaLauncher.Tests/DocsCheck_CountTests.cs:31 DocsCheck_CountTests.BaselineInlineData` 把 `[InlineData]` 总数写成了常量，断言在同文件 `:79 DocsCheck_CountTests`——精确值断言，新增任何一条都要同步改，报错只说数字不等、不说是谁加的。③ 还多一层：它数的是**当前工作树**里的 `[InlineData]`，工作区里躺着未提交的测试时，你算出来的「正确值」会把它们一起算进去，提交后反而对不上；两条并行分支各自新增用例时，双方算出的「正确值」也互不相同——所以这个基线只能由一个人串行收口。
+- **规避**：以 `tools/TestRunner/Program.cs` 的输出语义为准：SKIP 要人工确认原因，别把「没跑到」当「过了」；带 `null` 的场景写成独立 `[Fact]` 或换哨兵值；改常量时先按**当前提交内容**重算（`git stash -u` 后再数，别照抄工作区数字），然后在原处按既有格式留一行注释记账（写清本次新增几条、为哪个议题加的），最后重跑。见 `CONVENTIONS.md` §8.2 与 §8.3。
 
 ### 5.7 白名单键集必须写死在测试里
 - **症状**：导出的配置包多带了一个键，直到别人机器上被覆盖才发现。
@@ -347,9 +352,9 @@ powershell -File build.ps1 -Clean
 - **规避**：重构前后同一参数截图逐像素对比，通过标准是「差异像素数为 0」或「最大通道差不超过 4」。截图见 `CONVENTIONS.md` §8.4，视觉基线同在该节。批量操作的正确性同理——断言磁盘状态而不是返回值（`tests/NebulaLauncher.Tests/AppMods_BatchTests.cs AppMods_BatchTests（:14）` 里的 `批量禁用_被占用的文件计入失败且其余项继续`）。
 
 ### 5.9 文档里的代码引用会静默漂移
-- **症状**：文档写着「某接口声明在 Abstractions」「某方法是 `SaveAsync`」「`docs/CODE.md:49` 那段」——代码一改，路径还打得开，符号却早改名或挪了位置；人工 `grep` 也搜不出来，因为文档里只是一段纯文本。
-- **成因**：Markdown 里的路径、符号与行号没有编译期校验，改名重构时文档不会被带上；行号更是每加一行就失效。
-- **规避**：代码引用统一写成反引号单元「仓库相对路径[:行号] 符号名」，提交前跑 `tools/DocsCheck`——路径与符号都必须真实存在，同时卡住行数预算（单份 400 行 / 总量 1000 行）。见 `CONVENTIONS.md` §8.3。
+- **症状**：① 文档写着「某接口声明在 Abstractions」「某方法是 `SaveAsync`」「`docs/CODE.md:49` 那段」——代码一改，路径还打得开，符号却早改名或挪了位置；人工 `grep` 也搜不出来，因为文档里只是一段纯文本。② 更隐蔽的一种：引用指向的文件**在你的工作区里存在**，但它从来没有被提交过（未跟踪文件的产物、只在本地生成的中间物），`DocsCheck` 此时是绿的，等这份工作区被清理、或换到干净检出，同一份文档立刻报路径缺失、退出码 3。
+- **成因**：Markdown 里的路径、符号与行号没有编译期校验，改名重构时文档不会被带上；行号更是每加一行就失效。② 则是 `DocsCheck` 校验的是**当前工作树的文件系统**，不是已提交内容——工作区里的未跟踪产物能让一条引用「暂时为真」。
+- **规避**：代码引用统一写成反引号单元「仓库相对路径[:行号] 符号名」，提交前跑 `tools/DocsCheck`——路径与符号都必须真实存在，同时卡住行数预算（单份 400 行 / 总量 1000 行）。被引用的文件必须先提交、再让引用指向它；写完文档引用后在干净检出（`git stash -u` 或另开一个工作树）复核一次。见 `CONVENTIONS.md` §8.3。
 
 ### 5.11 写死的窗口最小尺寸会骗过 1024×660 验收
 - **症状**：`--size 1024x660` 的截图里侧边栏底部那项被裁成半行，指望滚动条也滚不出来；把 `MinHeight` 调到某个「看着刚好」的数，同一张截图就正常了，可再往侧边栏加一项又在同一个位置裁掉——每次都要手动改常量，而改完那个数没有任何东西在守。
@@ -376,6 +381,8 @@ powershell -File build.ps1 -Clean
 | D10 | 内置 CurseForge API key，不再让用户填 | 反查与搜索对普通用户必须开箱可用 | key 随产物分发，必须换 key 得重新发布；同时要保证无 key 时不崩（错误往「不崩」方向漏） |
 | D11 | Java 上限只在大版本级阻断，补丁号级仅提示 | 用具体补丁号做硬门槛，会在相邻补丁上误杀（8u320 硬挡会拦掉 8u322） | 改成精确版本比对就会重现误杀，且误杀发生在启动前，用户没有自救路径 |
 | D12 | 账户类型文案只有一处映射 `AccountTypeDisplay`，短标签由长标签派生 | 三处各写一份判定时首页那份塌缩成二元，把「第三方验证」显示成「离线账户」（见 4.11）；两份字面量并存就还能各自漂移 | 拆回分散判定要改 `src/NebulaLauncher.App/ViewModels/HomeViewModel.cs` 的 `AccountBadge`、`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs` 的 `ActiveTypeLabel` 与 `TypeLabel` 三处，并失去「一处改名处处跟随」的保证；没有守护拦得住重新分叉 |
+| D13 | 离线账户的 Steve/Alex 切换只写账户档案，3D 预览不据此重绘 | 离线账户没有材质档案可读，预览的纹理只有一个来源（皮肤库选中项或默认皮肤）；把体型接进预览要凭空合成一张 Steve/Alex 默认皮肤。反过来微软账户不给体型选择权（`OfficialSkinActions.Of` 对 `Microsoft` 返回 `CanPickModel: false`，体型随上传的图走），体型选择权只属于「没有服务端材质」的那种账户 | 要给 `SkinVisual` 加「无皮肤时的合成来源」：`src/NebulaLauncher.App/Skinning/SkinVisual.cs SkinVisual.Default`、`src/NebulaLauncher.App/Skinning/DefaultSkin.cs DefaultSkin.Create` 与 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs` 里 `PreviewVisual` 的五个赋值点（`:136`、`:1449`、`:1598`、`:1726`、`:1767`）一起动，还要新增「账户体型怎么投影到默认皮肤」这条规则 |
+| D14 | 换肤通道按账户类型互斥：`Microsoft` 走官方、`Authlib` 走皮肤站、`Offline` 两条都不走，不做「一个按钮自动选通道」 | 两套接口的路径前缀、取值枚举、删除方式都不同（见 4.14）；自动选通道会把差异藏进一层分支，界面也就无法诚实说明「为什么这个按钮不可用」——不可用文案本来就是按账户类型分三种的（见 `src/NebulaLauncher.App/Skinning/AuthlibSkinActions.cs:86 AuthlibSkinActions.Of`） | 要合成一条自动通道，`MojangSkinClient.VariantOf` 与 `AuthlibSkinClient.ModelFieldOf` 两层映射要重写成一处，两个 Actions 类的不可用文案表要合并，`SkinsViewModel` 里两条上传链（各自的节流、重试、冷却与取消）要重构为一套 |
 
 ### 6.1 裁决与坑的联动
 
@@ -385,3 +392,5 @@ powershell -File build.ps1 -Clean
 - D7 的反面就是 2.4：闸门语义下的暂停不是终态。
 - D8 的反面就是 3.3：锁的三个组成缺一不可。
 - D12 的反面就是 4.12：类型文案只有一个映射，短标签由长标签派生。
+- D13 的反面就是 4.15：按账户返回的东西（体型、材质能力）换账户时必须先回到未知，不能拿上一个账户的值接着用。
+- D14 的反面就是 4.14：两套接口的差异各有落点，别合并成一层「自动选通道」。
