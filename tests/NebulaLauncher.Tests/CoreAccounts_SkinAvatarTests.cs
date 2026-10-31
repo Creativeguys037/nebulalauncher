@@ -1,6 +1,7 @@
 using System.Text;
 using NebulaLauncher.Core.Accounts;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 
 namespace NebulaLauncher.Tests;
 
@@ -27,7 +28,9 @@ public class CoreAccounts_SkinAvatarTests
             Uuid = Uuid.ToUpperInvariant(),
         };
 
-        Assert.Equal(SkinAvatarService.MojangProfileRoot + Uuid, SkinAvatarService.BuildProfileUrl(account));
+        Assert.Equal(
+            SkinProfileUrls.MojangProfileRoot + Uuid + "?unsigned=false",
+            SkinAvatarService.BuildProfileUrl(account));
     }
 
     [Fact]
@@ -40,8 +43,9 @@ public class CoreAccounts_SkinAvatarTests
             AuthServerUrl = "https://littleskin.cn/api/yggdrasil/",
         };
 
+        // API 根自带的 /yggdrasil 是 profile 端点的一部分，不是站点根：剥掉它会 404。
         Assert.Equal(
-            "https://littleskin.cn/api/yggdrasil/sessionserver/session/minecraft/profile/" + Uuid,
+            "https://littleskin.cn/api/yggdrasil/sessionserver/session/minecraft/profile/" + Uuid + "?unsigned=false",
             SkinAvatarService.BuildProfileUrl(account));
     }
 

@@ -22,12 +22,6 @@ namespace NebulaLauncher.Core.Accounts;
 /// </summary>
 public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
 {
-    /// <summary>Mojang 会话服务的纹理查询地址。</summary>
-    internal const string MojangProfileRoot = "https://sessionserver.mojang.com/session/minecraft/profile/";
-
-    /// <summary>authlib-injector 约定的纹理查询路径，接在第三方验证的 API 根后面。</summary>
-    internal const string AuthlibProfilePath = "/sessionserver/session/minecraft/profile/";
-
     /// <summary>皮肤 PNG 上限。64×64 的皮肤只有几 KB，64KB 已经远超正常值。</summary>
     internal const int MaxSkinBytes = 64 * 1024;
 
@@ -118,25 +112,10 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
     }
 
     /// <summary>
-    /// 纹理查询地址。返回 null 表示这个账户没有远端皮肤：离线账户，或第三方账户没填 API 根。
-    /// 与 PCL 的 <c>McSkinGetAddress</c> 同规则——微软账户固定打 Mojang，第三方账户打自己的 API 根。
+    /// 纹理查询地址。规则只在 <see cref="SkinProfileUrls.BuildProfileUrl"/> 写一份：
+    /// 头像与 3D 预览必须算出同一个地址，否则就会出现「头像正常、预览恒回退默认皮肤」。
     /// </summary>
-    internal static string? BuildProfileUrl(Account account)
-    {
-        if (account is null || string.IsNullOrWhiteSpace(account.Uuid))
-        {
-            return null;
-        }
-
-        var uuid = account.Uuid.Trim().ToLowerInvariant();
-        return account.Type switch
-        {
-            AccountType.Microsoft => MojangProfileRoot + uuid,
-            AccountType.Authlib when !string.IsNullOrWhiteSpace(account.AuthServerUrl) =>
-                account.AuthServerUrl.TrimEnd('/') + AuthlibProfilePath + uuid,
-            _ => null,
-        };
-    }
+    internal static string? BuildProfileUrl(Account account) => SkinProfileUrls.BuildProfileUrl(account);
 
     /// <summary>
     /// 从 profile JSON 里取纹理地址与皮肤模型。拿不到 <c>textures</c> 属性或解不出 <c>SKIN</c> 时返回 null。

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using NebulaLauncher.Core.Accounts;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Skinning;
 
@@ -33,8 +34,10 @@ public class AppSkin_ProfileParserTests
     }
 
     [Fact]
-    public void 第三方账户的会话服务挂在yggdrasil的兄弟路径()
+    public void 第三方账户的会话服务拼在yggdrasil根之下()
     {
+        // 皮肤站的 profile 端点就在 API 根内部（littleskin 实测 200），不是它的兄弟路径：
+        // 剥掉 /yggdrasil 会拼出 /api/sessionserver/...，实测 404，皮肤预览恒回退默认。
         var account = new Account
         {
             Type = AccountType.Authlib,
@@ -42,8 +45,29 @@ public class AppSkin_ProfileParserTests
             AuthServerUrl = "https://littleskin.cn/api/yggdrasil",
         };
         Assert.Equal(
-            "https://littleskin.cn/api/sessionserver/session/minecraft/profile/0123456789abcdef0123456789abcdef?unsigned=false",
+            "https://littleskin.cn/api/yggdrasil/sessionserver/session/minecraft/profile/0123456789abcdef0123456789abcdef?unsigned=false",
             SkinProfileParser.BuildProfileUrl(account));
+    }
+
+    [Fact]
+    public void 预览与头像问的是同一个profile地址()
+    {
+        // 两处各拼一份时，一份对一份错就会「头像正常、预览恒回退默认皮肤」。
+        // 这条把两个入口钉在一起：改规则只许改一处，另一处必须跟着动。
+        var account = new Account
+        {
+            Type = AccountType.Authlib,
+            Uuid = "0123456789ABCDEF0123456789ABCDEF",
+            AuthServerUrl = "https://littleskin.cn/api/yggdrasil/",
+        };
+
+        var preview = SkinProfileParser.BuildProfileUrl(account);
+        var avatar = SkinAvatarService.BuildProfileUrl(account);
+
+        Assert.Equal(avatar, preview);
+        Assert.Equal(
+            "https://littleskin.cn/api/yggdrasil/sessionserver/session/minecraft/profile/0123456789abcdef0123456789abcdef?unsigned=false",
+            preview);
     }
 
     [Fact]

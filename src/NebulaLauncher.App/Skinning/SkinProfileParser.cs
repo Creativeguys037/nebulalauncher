@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 
 namespace NebulaLauncher.Skinning;
 
@@ -38,34 +39,12 @@ public sealed record SkinCapabilities(bool CanUploadSkin, bool CanUploadCape)
 /// </summary>
 public static class SkinProfileParser
 {
-    private const string MojangSessionServer = "https://sessionserver.mojang.com";
-
-    private const string YggdrasilSuffix = "/yggdrasil";
-
     /// <summary>
     /// 会话服务器 profile 地址。离线账户没有皮肤，返回 <c>null</c>。
-    /// 第三方验证账户的 API 根常以 <c>/yggdrasil</c> 结尾，会话服务挂在它的兄弟路径 <c>/sessionserver</c> 上。
+    /// 规则只在 <see cref="SkinProfileUrls.BuildProfileUrl"/> 维护一份：这里和账户头像各自拼过一份时，
+    /// 一份剥掉 API 根的 <c>/yggdrasil</c> 后缀，就出现「头像正常、预览恒回退默认皮肤」。
     /// </summary>
-    public static string? BuildProfileUrl(Account? account)
-    {
-        if (account is null || account.Type == AccountType.Offline || string.IsNullOrWhiteSpace(account.Uuid))
-        {
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(account.AuthServerUrl))
-        {
-            return $"{MojangSessionServer}/session/minecraft/profile/{account.Uuid}?unsigned=false";
-        }
-
-        var root = account.AuthServerUrl.Trim().TrimEnd('/');
-        if (root.EndsWith(YggdrasilSuffix, StringComparison.OrdinalIgnoreCase))
-        {
-            root = root[..^YggdrasilSuffix.Length];
-        }
-
-        return $"{root}/sessionserver/session/minecraft/profile/{account.Uuid}?unsigned=false";
-    }
+    public static string? BuildProfileUrl(Account? account) => SkinProfileUrls.BuildProfileUrl(account);
 
     /// <summary>
     /// 解析会话服务器的 profile 响应：<c>properties[]</c> 里 <c>name=textures</c> 的 value 是 base64 包裹的 JSON。
