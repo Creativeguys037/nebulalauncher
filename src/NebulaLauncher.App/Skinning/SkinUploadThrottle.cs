@@ -38,6 +38,7 @@ public sealed class SkinUploadThrottle
     {
         Cooldown = cooldown ?? DefaultCooldown;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelName);
         _channelName = channelName;
     }
 

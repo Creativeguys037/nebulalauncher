@@ -299,6 +299,31 @@ public class AppSkin_OfficialUploadUiTests
         Assert.Equal("官方服务刚拒绝了一次请求，再等 15 秒就能重试。", throttle.BlockedText);
     }
 
+    [Fact]
+    public void 通道名不能为空()
+    {
+        Assert.Throws<ArgumentNullException>(() => new SkinUploadThrottle(channelName: null!));
+    }
+
+    [Fact]
+    public void 通道名不能是空白()
+    {
+        Assert.Throws<ArgumentException>(() => new SkinUploadThrottle(channelName: " "));
+    }
+
+    [Fact]
+    public void 冷却只剩一秒时仍带通道称呼()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var throttle = new SkinUploadThrottle(
+            TimeSpan.FromSeconds(15), () => now, SkinUploadThrottle.AuthlibChannelName);
+
+        throttle.MarkRetryableFailure();
+        now = now.AddSeconds(14);
+
+        Assert.Equal("皮肤站刚拒绝了一次请求，再等 1 秒就能重试。", throttle.BlockedText);
+    }
+
     // ==================== 失败呈现（AC6 / AC7 / AC8） ====================
 
     [Fact]
