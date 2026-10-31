@@ -58,7 +58,7 @@
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
 | `src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView` | `src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel` | `src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth` | `src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`（`accounts.json`）、`src/NebulaLauncher.Core/Servers/ServerService.cs ServerService`（`servers.json`） | 已实现 |
-| `src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView`、`src/NebulaLauncher.App/Views/HomeView.axaml HomeView`（头像） | `src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel` / `HomeViewModel`；`src/NebulaLauncher.App/Services/SkinAvatarLoader.cs SkinAvatarLoader` 解位图 | `src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService`（取纹理 + 缓存），`src/NebulaLauncher.App/Controls/SkinAvatar.cs SkinAvatar` 从纹理裁 8×8 脸 | `cache/skin/`（`<纹理地址哈希>.png`、`<accountId>.meta.json`、`default-steve.png` / `default-alex.png`） | 已实现 |
+| `src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView`、`src/NebulaLauncher.App/Views/HomeView.axaml HomeView`（头像） | `src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel` / `HomeViewModel`；`src/NebulaLauncher.App/Services/SkinAvatarLoader.cs SkinAvatarLoader` 解位图 | `src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService`（取纹理 + 缓存），`src/NebulaLauncher.App/Controls/SkinAvatar.cs SkinAvatar` 从纹理裁 8×8 脸 | `cache/skins/`（`<uuid>/<hash>.png` 配 `current.json`、`<站点主机名>/<hash>.png` 配 `<tid>.json`、根上 `default-steve.png` / `default-alex.png`，见 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore`） | 已实现 |
 
 ## 7. 看得见（日志与崩溃）
 
@@ -82,4 +82,4 @@
 
 | 入口页面 | ViewModel | Core 服务 | 落盘文件 | 三态 |
 | --- | --- | --- | --- | --- |
-| `src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView` | `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore` | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`） | 已实现 |
+| `src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView` | `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore` | `src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`）；纹理缓存 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.Root`（`cache/skins/`） | 已实现 |

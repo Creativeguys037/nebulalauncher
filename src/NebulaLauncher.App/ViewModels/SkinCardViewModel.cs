@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 using NebulaLauncher.Skinning;
 
 namespace NebulaLauncher.ViewModels;
@@ -25,6 +26,9 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
     private SkinChangeNotifier? _skinChanges;
 
     private IAppLog? _log;
+
+    /// <summary>纹理落盘缓存。容器里没有 ILauncherPaths 时为 null，皮肤照旧只走网络。</summary>
+    private SkinTextureStore? _store;
 
     private CancellationTokenSource? _loadCancellation;
 
@@ -60,6 +64,10 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
         _initialized = true;
         _log = _services.GetService<IAppLog>();
         _accounts = _services.GetService<IAccountService>();
+
+        // 有路径服务才有地方落盘：容器没注册时退化成「只走网络」，不影响显示。
+        var paths = _services.GetService<ILauncherPaths>();
+        _store = paths is null ? null : new SkinTextureStore(paths, _log);
 
         // 皮肤变更通知：换肤改的是服务端材质，AccountsChanged 不会发（票 #44 AC2）。
         // 容器里没注册时落到进程级默认实例，保证与发通知的一方是同一个对象。
@@ -147,7 +155,7 @@ public sealed partial class SkinCardViewModel : ObservableObject, IDisposable
         SkinVisual visual;
         try
         {
-            visual = await SkinTextureLoader.LoadAsync(account, _log, cancellation.Token).ConfigureAwait(true);
+            visual = await SkinTextureLoader.LoadAsync(account, _log, _store, cancellation.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

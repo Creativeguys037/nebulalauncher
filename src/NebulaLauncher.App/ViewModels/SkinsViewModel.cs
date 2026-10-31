@@ -35,6 +35,15 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     private readonly ILauncherPaths? _paths;
 
+    /// <summary>
+    /// 公开皮肤库的纹理落盘缓存（票 54）。数据目录没注册时是 null，预览退化成只走网络。
+    /// 分区名用站点主机名，换站不会互相顶掉。
+    /// </summary>
+    private readonly SkinTextureStore? _store;
+
+    /// <summary>落盘分区名：站点主机名。解析不出来时退回 unknown，落盘本身不会抛。</summary>
+    private readonly string _libraryScope;
+
     private IAccountService? _accounts;
 
     private IAppLog? _log;
@@ -109,6 +118,10 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         // 本地皮肤库跟着数据目录走；容器里没注册路径时退化成「不可用」，不抛异常。
         _paths = services.GetService(typeof(ILauncherPaths)) as ILauncherPaths;
         _localStore = _paths is null ? null : new LocalSkinStore(_paths, _log);
+        _store = _paths is null ? null : new SkinTextureStore(_paths, _log);
+        // 分区名取站点主机名；地址解析不出来就传 null，由 NormalizeScope 归到 unknown 分区。
+        _libraryScope = SkinTextureStore.NormalizeScope(
+            Uri.TryCreate(_library.BaseAddress, UriKind.Absolute, out var libraryUri) ? libraryUri.Host : null);
         _platform = services.GetService(typeof(IPlatformService)) as IPlatformService;
 
         // 官方换肤：容器里注册了就用注册的（测试可注入假 HttpClient）；
@@ -1733,6 +1746,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         try
         {
+            // 先看落盘：断网时站点详情与纹理都拉不到，但上一次预览过的那套还能直接从磁盘画出来。
+            if (await TryUseStoredTextureAsync(entry, cancellation.Token).ConfigureAwait(true))
+            {
+                return;
+            }
+
             var info = await _library.InfoAsync(entry.Tid, cancellation.Token).ConfigureAwait(true);
             if (cancellation.IsCancellationRequested)
             {
@@ -1765,6 +1784,19 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             }
 
             _previewCache[entry.Tid] = texture;
+
+            // 落盘与预览解耦：写不进去只是下次还得重下，不能让预览跟着失败。
+            if (_store is not null)
+            {
+                await _store.SaveTidAsync(
+                    _libraryScope,
+                    entry.Tid,
+                    detail.Hash,
+                    png,
+                    new SkinTextureMeta(detail.Hash, ModelTextOf(entry), _library.TextureUrl(detail.Hash)),
+                    cancellation.Token).ConfigureAwait(true);
+            }
+
             PreviewVisual = BuildVisual(entry, texture);
         }
         catch (OperationCanceledException)
@@ -1779,6 +1811,45 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             }
         }
     }
+
+    /// <summary>
+    /// 试读落盘纹理：命中就直接出预览。详情栏已经在选行时写好了模型与点赞数，
+    /// 所以断网也能画出来，连详情请求都不用发。磁盘上没有或文件已坏一律返 false，交回网络流程。
+    /// </summary>
+    private async Task<bool> TryUseStoredTextureAsync(SkinEntryViewModel entry, CancellationToken cancellationToken)
+    {
+        var path = _store?.TryGetTidPath(_libraryScope, entry.Tid);
+        if (path is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(true);
+            var texture = SkinTextureLoader.DecodePng(bytes, _log);
+            if (texture is null)
+            {
+                return false;
+            }
+
+            _previewCache[entry.Tid] = texture;
+            PreviewVisual = BuildVisual(entry, texture);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log?.Debug($"离线皮肤纹理读取失败：{entry.Tid}（{ex.GetType().Name}）");
+            return false;
+        }
+    }
+
+    private static string ModelTextOf(SkinEntryViewModel entry) =>
+        entry.Model == SkinModelKind.Alex ? "slim" : "classic";
 
     private static SkinVisual BuildVisual(SkinEntryViewModel entry, ArgbSkinTexture texture) =>
         SkinTextureLoader.CreateVisual(texture, entry.Model == SkinModelKind.Alex);

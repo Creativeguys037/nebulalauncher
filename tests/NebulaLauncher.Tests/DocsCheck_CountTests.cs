@@ -30,12 +30,13 @@ public sealed class DocsCheck_CountTests
     /// 票 #51 给窗口最小尺寸的测量兜底加了 3 个 InlineData（NaN / +∞ / 负数各一行），净增 3。
     /// 票 #44 给官方换肤的失败态映射加了 3 个 InlineData（429 / 500 / 503 各一行），净增 3。
     /// 票 #43 给皮肤站换肤的 model 取值与失败态映射加了 9 个 InlineData，净增 9。
+    /// 票 #54 给纹理落盘缓存加了 8 个 InlineData（哈希取值规则 4 + 分区名归一 4），净增 8。
     ///
     /// 票 #48 的 7 条 InlineData 曾经只落在工作树里、没有进任何提交，master 上扫不到，
     /// 所以 782 → 794 这段基线不含它们。现在那批测试文件（CoreAccounts_SkinAvatarTests.cs）
-    /// 已随 WIP 提交真正落地，基线再加回这 7 条，为 801。
+    /// 已随 WIP 提交真正落地，基线再加回这 7 条，为 801；加上票 #54 的 8 条，为 809。
     /// </summary>
-    private const int BaselineInlineData = 801;
+    private const int BaselineInlineData = 809;
 
     [Fact]
     public void 按Fact与InlineData计数()

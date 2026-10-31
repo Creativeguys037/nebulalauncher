@@ -264,6 +264,43 @@ public sealed class CoreMaintenance_StorageTests
         Assert.False(File.Exists(installerJar));
     }
 
+    [Fact]
+    public async Task 清理下载缓存时皮肤纹理缓存被清且用户皮肤库完好()
+    {
+        using var temp = new TempDirectory();
+        var paths = new FakeLauncherPaths(temp.Path);
+        var service = new StorageService(paths, NullAppLog.Instance);
+
+        // 票 54：纹理缓存落在 cache/skins/（uuid 分区 + 站点分区 + 根上的默认皮肤），
+        // 用户导入的本地皮肤库在 <data>/skins/。两者只差一层目录，正是最容易删错的一对。
+        WriteFile(Path.Combine(paths.CacheDirectory, "skins", UuidScope), "texture.png", Kilobyte);
+        WriteFile(Path.Combine(paths.CacheDirectory, "skins", "littleskin.cn"), "917742.png", Kilobyte);
+        WriteFile(Path.Combine(paths.CacheDirectory, "skins"), "default-steve.png", Kilobyte);
+        WriteFile(Path.Combine(paths.RootDirectory, "skins"), "my-skin.png", 2 * Kilobyte);
+
+        var result = await service.CleanAsync([StorageCategoryKeys.Cache]);
+
+        Assert.Null(result.Rejected);
+        Assert.Equal(3, result.DeletedFiles);
+        Assert.Equal(3 * Kilobyte, result.DeletedBytes);
+
+        // cache/skins/ 被清空：目录连同内容一起删掉或只剩空目录都算过，下次落盘会自动重建。
+        var skinsCache = Path.Combine(paths.CacheDirectory, "skins");
+        if (Directory.Exists(skinsCache))
+        {
+            Assert.Empty(Directory.GetFiles(skinsCache, "*", SearchOption.AllDirectories));
+        }
+
+        // 类别根目录本身必须保留。
+        Assert.True(Directory.Exists(paths.CacheDirectory));
+
+        // <data>/skins/ 一个字节都不能少。
+        Assert.True(File.Exists(Path.Combine(paths.RootDirectory, "skins", "my-skin.png")));
+        Assert.Equal(2 * Kilobyte, new FileInfo(Path.Combine(paths.RootDirectory, "skins", "my-skin.png")).Length);
+    }
+
+    private const string UuidScope = "493e32e14248466d97fd154e215f2201";
+
     private static void WriteFile(string directory, string name, long bytes)
     {
         Directory.CreateDirectory(directory);

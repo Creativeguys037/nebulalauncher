@@ -8,6 +8,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 
 namespace NebulaLauncher.Skinning;
 
@@ -30,16 +31,40 @@ public static class SkinTextureLoader
 
     private const int CapeContentHeight = 17;
 
+    /// <summary>
+    /// 取账户皮肤。<paramref name="store"/> 不为 null 时先读上次落盘的纹理：断网启动也能显示
+    /// 「上次看过的皮肤」，而且这一步不发任何请求——比先打 profile 再回落快，也更省配额。
+    ///
+    /// 落盘命中时披风只能是 null：披风地址在 profile 里，离线拿不到。皮肤本身（脸、身体、手脚）
+    /// 已经够撑住侧边栏那张卡，不值得为了披风再挡住启动。
+    /// </summary>
     public static async Task<SkinVisual> LoadAsync(
         Account? account,
         IAppLog? log,
+        SkinTextureStore? store = null,
         CancellationToken cancellationToken = default)
     {
+        var slim = string.Equals(
+            SkinProfileParser.NormalizeModel(account?.SkinModel),
+            "slim",
+            StringComparison.Ordinal);
+
+        if (store is not null && account is not null && !string.IsNullOrWhiteSpace(account.Id))
+        {
+            var cached = await TryLoadCachedAsync(store, account.Id, slim, log, cancellationToken).ConfigureAwait(false);
+            if (cached is not null)
+            {
+                return cached;
+            }
+        }
+
         var profileUrl = SkinProfileParser.BuildProfileUrl(account);
         if (profileUrl is null)
         {
             return SkinVisual.Default;
         }
+
+        var scope = store is null || account is null ? null : account.Id;
 
         try
         {
@@ -50,7 +75,13 @@ public static class SkinTextureLoader
                 return SkinVisual.Default;
             }
 
-            var skin = await DownloadTextureAsync(textures.SkinUrl, log, cancellationToken).ConfigureAwait(false);
+            var skin = await DownloadTextureAsync(
+                textures.SkinUrl,
+                log,
+                store,
+                scope,
+                textures.Model,
+                cancellationToken).ConfigureAwait(false);
             if (skin is null)
             {
                 return SkinVisual.Default;
@@ -59,7 +90,8 @@ public static class SkinTextureLoader
             ArgbSkinTexture? cape = null;
             if (!string.IsNullOrWhiteSpace(textures.CapeUrl))
             {
-                var downloaded = await DownloadTextureAsync(textures.CapeUrl!, log, cancellationToken).ConfigureAwait(false);
+                // 披风不落盘：一个 scope 只记「当前皮肤」这一条元数据，写进去会把皮肤顶掉。
+                var downloaded = await DownloadTextureAsync(textures.CapeUrl!, log, cancellationToken: cancellationToken).ConfigureAwait(false);
                 cape = NormalizeCape(downloaded);
             }
 
@@ -73,6 +105,62 @@ public static class SkinTextureLoader
         {
             WarnUnlessCancelled(log, account, "查询账户皮肤失败", ex, cancellationToken);
             return SkinVisual.Default;
+        }
+    }
+
+    /// <summary>读落盘纹理；没有缓存、文件读不出来、解不出像素时返回 null（交给网络那条路）。</summary>
+    private static async Task<SkinVisual?> TryLoadCachedAsync(
+        SkinTextureStore store,
+        string accountId,
+        bool slim,
+        IAppLog? log,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var path = store.TryGetCurrentPath(accountId);
+            if (path is null)
+            {
+                return null;
+            }
+
+            var texture = await TryReadTextureAsync(path, log, cancellationToken).ConfigureAwait(false);
+            return texture is null ? null : new SkinVisual(texture, null, slim, IsLegacyLayout(texture));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsTransient(ex))
+        {
+            // 缓存读坏了就当没有：下一段网络请求会重写一份。
+            log?.Debug($"读皮肤落盘缓存失败：{ex.GetType().Name}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 读一个已落盘的纹理文件并解码。读不出来或解不出来都返回 null（当作没缓存），
+    /// 让调用方回落到网络；取消照常抛出。
+    /// </summary>
+    private static async Task<ArgbSkinTexture?> TryReadTextureAsync(
+        string path,
+        IAppLog? log,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            return DecodePng(bytes, log);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsTransient(ex))
+        {
+            log?.Debug($"读皮肤纹理缓存失败：{ex.GetType().Name}");
+            return null;
         }
     }
 
@@ -123,16 +211,54 @@ public static class SkinTextureLoader
         log?.Warn($"{action}：{account?.Username ?? "未登录"}", exception);
     }
 
-    /// <summary>下载并按 PNG 解码。地址为空、响应不是合法 PNG 时返回 null。</summary>
-    public static async Task<ArgbSkinTexture?> DownloadTextureAsync(string url, IAppLog? log, CancellationToken cancellationToken)
+    /// <summary>
+    /// 下载并按 PNG 解码。地址为空、响应不是合法 PNG 时返回 null。
+    ///
+    /// 传了 <paramref name="store"/> 与 <paramref name="scope"/> 就走落盘缓存：先按哈希找本地文件，
+    /// 命中直接读盘（不发请求），没命中去下载并在成功后写回去。
+    /// </summary>
+    public static async Task<ArgbSkinTexture?> DownloadTextureAsync(
+        string url,
+        IAppLog? log,
+        SkinTextureStore? store = null,
+        string? scope = null,
+        string model = "classic",
+        CancellationToken cancellationToken = default)
     {
+        var hash = store is null || string.IsNullOrWhiteSpace(scope) ? null : SkinTextureStore.HashOf(url);
+
         try
         {
+            if (store is not null && hash is not null && scope is not null)
+            {
+                var cachedPath = store.TryGetPath(scope, hash);
+                if (cachedPath is not null)
+                {
+                    var cachedTexture = await TryReadTextureAsync(cachedPath, log, cancellationToken).ConfigureAwait(false);
+                    if (cachedTexture is not null)
+                    {
+                        return cachedTexture;
+                    }
+                }
+            }
+
             var bytes = await Client.GetByteArrayAsync(url, cancellationToken).ConfigureAwait(false);
             var texture = DecodePng(bytes, log);
             if (texture is null)
             {
                 log?.Warn($"皮肤图片无法解码：{url}");
+                return null;
+            }
+
+            if (store is not null && hash is not null && scope is not null)
+            {
+                // 落盘失败不影响这次的显示：调用方已经拿到纹理了。
+                await store.SaveAsync(
+                    scope,
+                    hash,
+                    bytes,
+                    new SkinTextureMeta(hash, model, url),
+                    cancellationToken).ConfigureAwait(false);
             }
 
             return texture;

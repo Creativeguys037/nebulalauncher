@@ -66,7 +66,7 @@ tools/DocsCheck/             文档引用 / 行数预算 / 功能三态校验（
 - **匿名类型不能直接序列化**：HTTP 请求体一律写 `internal sealed record`，字段名用 `[property: JsonPropertyName("...")]` 钉死——record 参数名默认按 PascalCase 落盘，而 API 要的是小写驼峰。
 - **枚举转换器用泛型版本**：写 `JsonStringEnumConverter<DownloadSource>` 而不是 `JsonStringEnumConverter`（后者靠运行时反射枚举字段，AOT / 裁剪下过不了 IL3050）；手写转换器要排在通用转换器前面，否则 `"BmclApi"` 这类历史名会被当成未知值。
 
-两道闸：`src/NebulaLauncher.Core/NebulaLauncher.Core.csproj` 开着 `<IsAotCompatible>true</IsAotCompatible>`，漏改在 `dotnet build` 期报 IL2026 / IL2072 / IL3050；发布自检第 2 关 `--selftest-json`（§8.5）在真实裁剪产物上再验七条落盘通路，新增落盘文件要同步加进 `src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`。
+两道闸：`src/NebulaLauncher.Core/NebulaLauncher.Core.csproj` 开着 `<IsAotCompatible>true</IsAotCompatible>`，漏改在 `dotnet build` 期报 IL2026 / IL2072 / IL3050；发布自检第 2 关 `--selftest-json`（§8.5）在真实裁剪产物上再验八条落盘通路，新增落盘文件要同步加进 `src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`。
 
 ## 4. XAML 规范
 
@@ -352,7 +352,7 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 **产物可用 = 三道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
 1. `<out>\NebulaLauncher.exe --probe-dir <out>`：30 秒内退出码 0 且输出含 `writable=YES`。
-2. `<out>\NebulaLauncher.exe --selftest-json`：120 秒内退出码 0、输出里没有 `json-selfcheck.FAIL`、且 `json-selfcheck.summary=<N>/<N>` 的两个数字相同——它在真实产物里跑七条 JSON 落盘往返（`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`）。
+2. `<out>\NebulaLauncher.exe --selftest-json`：120 秒内退出码 0、输出里没有 `json-selfcheck.FAIL`、且 `json-selfcheck.summary=<N>/<N>` 的两个数字相同——它在真实产物里跑八条 JSON 落盘往返（`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`）。
 3. `--data-dir <out>\.verify --screenshot <out>\.verify.png --page home`：20 秒内退出码 0 且 PNG > 10240 字节。
 
 三道关堵的都是「退出码 0 但用不了」：前两条分别挡「启动不起来」和「启动了但设置存不住」——裁剪发布关掉 System.Text.Json 反射元数据时，只有真跑一遍落盘才会露（见 `docs/PITFALLS.md` 3.16）；第三条挡「启得起来但不渲染」：`obj/<Configuration>` 里留着过期 XAML 中间产物时，publish 出的 exe 会静默退出（exit 0、无窗口、不产图），而同一二进制的 `--probe-dir` 却正常。脚本自己在构建前做过期检测并只清过期的 XAML 中间产物；不确定时加 `-Clean` 做完全清理。`-SkipVerify` 只用于本地试验，**正式发版不得加**。

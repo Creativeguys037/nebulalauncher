@@ -1,12 +1,11 @@
 using System.Collections.Concurrent;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Skinning;
 
 namespace NebulaLauncher.Core.Accounts;
 
@@ -23,9 +22,6 @@ namespace NebulaLauncher.Core.Accounts;
 /// </summary>
 public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
 {
-    /// <summary>缓存子目录名，落在 <see cref="ILauncherPaths.CacheDirectory"/> 下。</summary>
-    internal const string CacheFolderName = "skin";
-
     /// <summary>Mojang 会话服务的纹理查询地址。</summary>
     internal const string MojangProfileRoot = "https://sessionserver.mojang.com/session/minecraft/profile/";
 
@@ -47,6 +43,9 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
     private readonly IAppLog? _log;
     private readonly HttpClient _http;
 
+    /// <summary>纹理落盘与命中判定都交给它，账户头像不再自己拼缓存路径。</summary>
+    private readonly SkinTextureStore _store;
+
     /// <summary>同一账户的并发请求合并成一次：列表页重建时多行会同时触发。</summary>
     private readonly ConcurrentDictionary<string, Task<string?>> _inflight = new(StringComparer.Ordinal);
 
@@ -58,6 +57,7 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _log = log;
         _http = httpClient ?? SharedHttp;
+        _store = new SkinTextureStore(_paths, _log);
     }
 
     /// <summary>
@@ -108,14 +108,8 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
 
         try
         {
-            var metaPath = MetaPathOf(account.Id);
-            var meta = ReadMetadata(metaPath);
-            if (meta is not null && !string.IsNullOrWhiteSpace(meta.PngFileName))
-            {
-                TryDelete(Path.Combine(SkinDirectory, meta.PngFileName));
-            }
-
-            TryDelete(metaPath);
+            // 只删这个账户自己的目录：默认皮肤与别的账户都在缓存根下的兄弟位置。
+            _store.Invalidate(account.Id);
         }
         catch (Exception ex)
         {
@@ -255,19 +249,6 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
     internal static string NormalizeModel(string? model)
         => string.Equals(model, "slim", StringComparison.OrdinalIgnoreCase) ? "slim" : "classic";
 
-    private string SkinDirectory => Path.Combine(_paths.CacheDirectory, CacheFolderName);
-
-    private string MetaPathOf(string accountId)
-    {
-        var safe = accountId;
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            safe = safe.Replace(invalid, '_');
-        }
-
-        return Path.Combine(SkinDirectory, safe + ".json");
-    }
-
     private async Task<string?> ResolveAsync(
         Account account,
         string model,
@@ -275,9 +256,6 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
         bool refresh,
         CancellationToken cancellationToken)
     {
-        var metaPath = MetaPathOf(account.Id);
-        string? tempPng = null;
-        string? tempMeta = null;
         try
         {
             if (refresh)
@@ -287,14 +265,10 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
             else
             {
                 // 缓存命中：纹理地址与 PNG 都在。不再打皮肤服务，这也是「启动一次只请求一次」的落点。
-                var cached = ReadMetadata(metaPath);
-                if (cached is not null && !string.IsNullOrWhiteSpace(cached.PngFileName))
+                var cachedPng = _store.TryGetCurrentPath(account.Id);
+                if (cachedPng is not null)
                 {
-                    var cachedPng = Path.Combine(SkinDirectory, cached.PngFileName);
-                    if (File.Exists(cachedPng))
-                    {
-                        return cachedPng;
-                    }
+                    return cachedPng;
                 }
             }
 
@@ -312,28 +286,18 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            Directory.CreateDirectory(SkinDirectory);
 
-            var fileName = HashUrl(texture.Value.Url) + ".png";
-            var pngPath = Path.Combine(SkinDirectory, fileName);
-
-            // 先写临时文件再改名：进程在写一半时退出会留下截断的 PNG，而它会被当成有效缓存反复读。
-            tempPng = pngPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            await File.WriteAllBytesAsync(tempPng, png, cancellationToken).ConfigureAwait(false);
-            File.Move(tempPng, pngPath, overwrite: true);
-            tempPng = null;
-
-            // 元数据最后落地：它是缓存的提交标记，PNG 没写好时下次会重拉而不是读半截内容。
-            tempMeta = metaPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            var metadata = new SkinCacheMetadata(texture.Value.Url, texture.Value.Model, fileName);
-            await File.WriteAllBytesAsync(
-                tempMeta,
-                JsonSerializer.SerializeToUtf8Bytes(metadata, SkinAvatarJsonContext.Default.SkinCacheMetadata),
+            // 落盘（含原子改名与提交标记）由 SkinTextureStore 统一负责；写不进去时退回默认皮肤，
+            // 下次进来还会重拉一次，不会留下半截缓存。
+            var hash = SkinTextureStore.HashOf(texture.Value.Url);
+            var saved = await _store.SaveAsync(
+                account.Id,
+                hash,
+                png,
+                new SkinTextureMeta(hash, texture.Value.Model, texture.Value.Url),
                 cancellationToken).ConfigureAwait(false);
-            File.Move(tempMeta, metaPath, overwrite: true);
-            tempMeta = null;
 
-            return pngPath;
+            return saved ?? await GetDefaultSkinPathAsync(model, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -343,11 +307,6 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
         {
             _log?.Warn($"获取皮肤头像失败：{account.Username}", ex);
             return await GetDefaultSkinPathAsync(model, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            TryDelete(tempPng);
-            TryDelete(tempMeta);
         }
     }
 
@@ -404,7 +363,7 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
     private async Task<string?> GetDefaultSkinPathAsync(string model, CancellationToken cancellationToken)
     {
         var name = model == "slim" ? "alex" : "steve";
-        var path = Path.Combine(SkinDirectory, "default-" + name + ".png");
+        var path = Path.Combine(_store.Root, "default-" + name + ".png");
         if (File.Exists(path))
         {
             return path;
@@ -431,7 +390,7 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
                     return null;
                 }
 
-                Directory.CreateDirectory(SkinDirectory);
+                Directory.CreateDirectory(_store.Root);
                 temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 await using (var file = File.Create(temp))
                 {
@@ -453,7 +412,7 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
             }
             finally
             {
-                TryDelete(temp);
+                SkinTextureStore.TryDelete(temp);
             }
         }
         finally
@@ -462,50 +421,8 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
         }
     }
 
-    private static SkinCacheMetadata? ReadMetadata(string metaPath)
-    {
-        try
-        {
-            if (!File.Exists(metaPath))
-            {
-                return null;
-            }
 
-            return JsonSerializer.Deserialize(
-                File.ReadAllBytes(metaPath),
-                SkinAvatarJsonContext.Default.SkinCacheMetadata);
-        }
-        catch (Exception)
-        {
-            // 元数据损坏等价于没有缓存：重新拉一份比修它便宜。
-            return null;
-        }
-    }
-
-    private static void TryDelete(string? path)
-    {
-        if (string.IsNullOrEmpty(path))
-        {
-            return;
-        }
-
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception)
-        {
-            // 临时文件删不掉只是残留，不影响本次结果。
-        }
-    }
-
-    /// <summary>纹理地址 → 缓存文件名。只做去重，不承担任何安全用途。</summary>
-    private static string HashUrl(string url)
-        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(url))).ToLowerInvariant();
 }
-
-/// <summary>纹理缓存的旁记元数据：地址、模型、PNG 文件名。</summary>
-internal sealed record SkinCacheMetadata(string Url, string Model, string PngFileName);
 
 /// <summary>皮肤头像的 DI 注册入口。</summary>
 public static class SkinAvatarServiceCollectionExtensions
@@ -515,10 +432,4 @@ public static class SkinAvatarServiceCollectionExtensions
         services.AddSingleton<ISkinAvatarService, SkinAvatarService>();
         return services;
     }
-}
-
-/// <summary>皮肤缓存的 Source Generator 上下文（裁剪发布下不能用运行时反射）。</summary>
-[JsonSerializable(typeof(SkinCacheMetadata))]
-internal sealed partial class SkinAvatarJsonContext : JsonSerializerContext
-{
 }

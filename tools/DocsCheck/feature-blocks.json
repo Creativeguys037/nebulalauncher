@@ -196,7 +196,7 @@
         "entry": "`src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel`",
         "core": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore`",
-        "storage": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`）"
+        "storage": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`）；纹理缓存 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.Root`（`cache/skins/`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs", "symbol": "LocalSkinStore" },
@@ -211,7 +211,8 @@
       "tests": [
         { "path": "tests/NebulaLauncher.Tests/CoreSkinning_LocalSkinStoreTests.cs", "symbol": "CoreSkinning_LocalSkinStoreTests" },
         { "path": "tests/NebulaLauncher.Tests/AppSkin_AuthlibSkinClientTests.cs", "symbol": "AppSkin_AuthlibSkinClientTests" },
-        { "path": "tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs", "symbol": "AppSkin_MojangSkinClientTests" }
+        { "path": "tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs", "symbol": "AppSkin_MojangSkinClientTests" },
+        { "path": "tests/NebulaLauncher.Tests/CoreSkinning_TextureStoreTests.cs", "symbol": "CoreSkinning_TextureStoreTests" }
       ]
     }
   ]

@@ -5,6 +5,7 @@ using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Paths;
 using NebulaLauncher.Core.Servers;
 using NebulaLauncher.Core.Settings;
+using NebulaLauncher.Core.Skinning;
 using NebulaLauncher.Core.Versions;
 
 namespace NebulaLauncher.Core.Diagnostics;
@@ -138,6 +139,16 @@ public static class JsonSelfCheck
                 await javaPathsReread.LoadAsync(cancellationToken).ConfigureAwait(false);
                 Check("javaPaths.roundTrip", javaPathsReread.Contains(JavaPath));
             }
+
+            // ---- 皮肤纹理缓存的旁记元数据（票 54）：current.json 是新加的落盘通路 ----
+            var skinStore = new SkinTextureStore(paths, log);
+            var skinHash = new string('a', 64);
+            var skinMeta = new SkinTextureMeta(skinHash, "slim", "https://e.invalid/texture/" + skinHash);
+            await skinStore.SaveAsync("selfcheck", skinHash, SelfCheckPng(), skinMeta, cancellationToken)
+                .ConfigureAwait(false);
+
+            // 换一个新实例读回，验的是「落盘能跨实例命中」而不只是内存里那份对象。
+            Check("skins.roundTrip", new SkinTextureStore(paths, log).TryGetMeta("selfcheck") == skinMeta);
         }
         catch (Exception ex)
         {
@@ -159,6 +170,25 @@ public static class JsonSelfCheck
 
         lines.Add($"json-selfcheck.summary={passed}/{total}");
         return lines;
+    }
+
+    /// <summary>
+    /// 够 <see cref="SkinTextureStore"/> 校验用的最小 PNG 头：签名 + IHDR 的 64×64。
+    /// 只验通路能不能落盘读回，不需要真的像素数据。
+    /// </summary>
+    private static byte[] SelfCheckPng()
+    {
+        var bytes = new byte[24];
+        byte[] magic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        magic.CopyTo(bytes, 0);
+        bytes[11] = 13;
+        bytes[12] = (byte)'I';
+        bytes[13] = (byte)'H';
+        bytes[14] = (byte)'D';
+        bytes[15] = (byte)'R';
+        bytes[19] = 64;
+        bytes[23] = 64;
+        return bytes;
     }
 
     /// <summary>自检用的静默日志：不让业务日志混进脚本要读的 stdout。</summary>

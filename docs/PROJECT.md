@@ -90,14 +90,14 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 
 存储管理只有四个可清理类别（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService.BuildDefinitions（:424）`）：
 
-- **下载缓存**：`<data>/cache` 下的下载缓存、图标与头像缓存，清掉后按需重建；`cache/loader-install` 不在这一类里。
+- **下载缓存**：`<data>/cache` 下的下载缓存、图标、头像与皮肤纹理缓存（`cache/skins/`），清掉后按需重建；`cache/loader-install` 不在这一类里。
 - **日志**：`<data>/logs`，只删 7 天前的文件，当天正在写的日志不动。
 - **安装器临时文件**：`cache/loader-install`，加载器安装器解包与下载的残留。
 - **回收站**：`<data>/trash`，实例与内容回收站；清掉后已删除内容不可恢复。
 
 清理范围之外还有一道硬保护：`settings.json`、`accounts.json`、`servers.json`、`favorites.json`、`java-excluded.json`、`java-cache.json` 永不进入删除列表；`instances/`、`versions/`、`libraries/`、`assets/`、`backups/`、`saves/`、`minecraft/`、`skins/` 这些顶层目录也被挡住（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService.ProtectedTopLevelNames`）。清理前还会校验目标必须在数据根内，防止类别定义写错时越界删到用户数据（`src/NebulaLauncher.Core/Maintenance/StorageService.cs StorageService（:474）`）。
 
-结论：清「下载缓存」只动 `<data>/cache` 里可重建的内容，不碰四个顶层配置文件、不碰版本与游戏目录、不碰备份与存档、不碰用户自己的皮肤库 `<data>/skins/`。日志按 7 天窗口清，安装器残留与回收站是另外两个独立类别。
+结论：清「下载缓存」只动 `<data>/cache` 里可重建的内容，不碰四个顶层配置文件、不碰版本与游戏目录、不碰备份与存档、不碰用户自己的皮肤库 `<data>/skins/`——皮肤纹理缓存落在 `cache/skins/`，它在这一类里，两者是不同目录。日志按 7 天窗口清，安装器残留与回收站是另外两个独立类别。
 
 ## 当前状态
 
@@ -136,7 +136,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 体积差距来自运行时：PCL 用系统自带的 .NET Framework 4.8，HMCL 依赖用户已有的 Java，所以它们能做到十几 MB；.NET 8 不在 Windows 自带组件里，自包含必然多带几十 MB（`build.ps1:32`）。
 
-发布脚本有三道产物自检：`--probe-dir` 断言数据目录可写并打印 `writable=YES`，`--selftest-json` 在真实产物里跑七条 JSON 落盘往返并要求 `json-selfcheck.summary=7/7`，`--screenshot` 要求 20 秒内退出且 PNG 大于 10 KB。三道关堵的都是「退出码 0 但用不了」——前两条挡「启动不起来」，第三条挡「启动得起来但设置存不住」（`build.ps1:39`；早前发布检查记录也列过同一条）。
+发布脚本有三道产物自检：`--probe-dir` 断言数据目录可写并打印 `writable=YES`，`--selftest-json` 在真实产物里跑八条 JSON 落盘往返并要求 `json-selfcheck.summary=8/8`，`--screenshot` 要求 20 秒内退出且 PNG 大于 10 KB。三道关堵的都是「退出码 0 但用不了」——前两条挡「启动不起来」，第三条挡「启动得起来但设置存不住」（`build.ps1:39`；早前发布检查记录也列过同一条）。
 
 ### 已发布版本的口径
 
@@ -168,7 +168,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 **已做的三件事。** ① 本地皮肤库：`<data>/skins/` 下的 PNG 可导入、删除、应用到预览，尺寸按游戏规则校验（宽必须是 64 的倍数、高 32 的倍数，`slim` 只能恰好 64×64，`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinFormat.Validate`）；② 皮肤站换肤：浏览 littleskin 皮肤库、上传皮肤与披风、删除材质（`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadCapeAsync`）；③ 官方账户换肤：微软账户上传皮肤与重置默认皮肤（`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.ResetSkinAsync`）。入口是皮肤页（`src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView`）与侧边栏 3D 皮肤卡。
 
-**缓存。** 只有进程内缓存：缩略图、预览纹理与本地缩略图三个字典，页面释放即清空，不落盘、没有跨进程复用，也不参与存储清理的任何可清理类别。
+**缓存。** 两层。进程内是三个字典：缩略图、预览纹理与本地缩略图，页面释放即清空。跨进程复用靠纹理落盘 `<data>/cache/skins/`，读写统一走 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore（:32）`：根上放内嵌默认皮肤 `default-steve.png` / `default-alex.png`（不跟着账户重复），账户自有纹理落 `<uuid>/<hash>.png` 配一份 `current.json`，公开皮肤库落 `<站点主机名>/<hash>.png` 配 `<tid>.json`（`src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.SaveTidAsync（:94）`）。文件名里的 hash 取纹理地址末段（≥32 位十六进制），取不到就退回地址的 sha256，站点换哈希规则也不会把旧文件读成新纹理（`src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.HashOf（:187）`）；落盘先写 `.tmp` 再 `File.Move` 覆盖，元数据最后落地当提交标记，半截 PNG 不会被当成有效缓存（`src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.SaveAsync（:83）`）。断网启动时先前取过的账户皮肤与皮肤站纹理仍能 3D 预览，靠的就是这层：账户线命中即不请求 profile，公开库线命中即不请求详情（`src/NebulaLauncher.App/Skinning/SkinTextureLoader.cs SkinTextureLoader.LoadAsync`、`src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel`）。这层缓存按可重建物对待：归入「下载缓存」清理类别，清掉后下次打开页面自动重建，`<data>/skins/` 用户皮肤库不在这一类里；旧的 `<data>/cache/skin/` 布局不写迁移代码，随一次「下载缓存」清理消失。
 
 **明确不做。** 衣柜（closet）式多皮肤收藏与轮换、皮肤站注册/登录、多皮肤站自由增删、3D 动作动画都没有做。**官方账户不能换披风**：官方没有披风上传接口，界面上那句「官方账户不支持更换披风」是常量而非状态（`src/NebulaLauncher.App/Skinning/OfficialSkinActions.cs OfficialSkinActions.CapeText`）。能否上传材质由服务端返回的 `uploadableTextures` 决定，不由本地判断（`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseUploadableTextures`）。
 
