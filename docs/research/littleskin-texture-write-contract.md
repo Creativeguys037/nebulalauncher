@@ -74,6 +74,20 @@ Route::prefix('players')->middleware('auth:oauth')->group(function () {
 2. 需要 OAuth access token 与 `Player.ReadWrite`；现有 `Account` 模型只有 Yggdrasil 的 `AccessToken` / `RefreshToken`，接这条链路要另存 OAuth token。
 3. 「上传自己的 PNG」在当前 OAuth API 下无解；若产品要求上传，只能走 web session 或另找站方接口。
 
+## 6. Yggdrasil 材质上传路由的横向复核（2026-11-01 实测）
+
+票 #59 要判「`PUT {apiRoot}/api/user/profile/{uuid}/{textureType}` 这条路径到底存不存在」，为对照三个站点各探了一次（只读探测：假令牌 `Bearer garbage`，multipart，不写真数据）：
+
+| 站点 | `OPTIONS` 同路径 | `PUT` 同路径（假令牌） | 判读 |
+| --- | --- | --- | --- |
+| `https://skin.vlssu.com/api/yggdrasil/api/user/profile/{uuid}/skin` | `200`，`Allow: PUT, DELETE` | `401` `{"error":"UnauthorizedException","errorMessage":"Bearer token expired or is not correct."}` | 路由在，只是令牌假 |
+| `https://mcskin.cn/api/yggdrasil/api/user/profile/{uuid}/skin` | `200`，`Allow: PUT, DELETE` | `401` 同上 | 路由在，只是令牌假 |
+| `https://littleskin.cn/api/yggdrasil/api/user/profile/{uuid}/skin` | `404` | `404` `{"message":"Cannot PUT /api/user/profile/{uuid}/skin","error":"Not Found","statusCode":404}`（`x-powered-by: Express`） | littleskin 的 `/api/yggdrasil` 是另一套网关，没装这个插件 |
+
+插件侧依据：`MUAlliance/yggdrasil-connect` 的 `src/routes.php` 用 `Route::prefix('api/user/profile')` 注册 `PUT {uuid}/{type}`，bootstrap 再把它挂在 `Route::prefix('api/yggdrasil')` 下——因为 `{apiRoot}` 本身已含 `/api/yggdrasil`，真实 URL 就是上表的形状。
+
+对客户端的含义：`404` 不是「路径拼错」的同义词，得按错误体形状分开——网关体带 `statusCode`，Yggdrasil 体带 `error`/`errorMessage`；前者引导去站点网页操作（上传或删除，跟着请求方法走），后者把服务端原文交给用户。
+
 ## 来源
 
 - Blessing Skin Server 源码：<https://github.com/bs-community/blessing-skin-server/blob/dev/routes/api.php>、<https://github.com/bs-community/blessing-skin-server/blob/dev/app/Http/Controllers/PlayerController.php>、<https://github.com/bs-community/blessing-skin-server/blob/dev/app/Http/Controllers/ClosetController.php>、<https://github.com/bs-community/blessing-skin-server/blob/dev/routes/web.php>、<https://github.com/bs-community/blessing-skin-server/blob/dev/app/helpers.php>

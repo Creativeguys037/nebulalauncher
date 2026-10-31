@@ -15,13 +15,20 @@ namespace NebulaLauncher.Skinning;
 /// 皮肤站（authlib-injector / Yggdrasil）的材质读写端点：上传皮肤、上传披风、删除材质。
 ///
 /// <para>
-/// <b>地址形状</b>以《Yggdrasil 服务端技术规范》「材质上传」节与参考实现
-/// <c>yggdrasil-mock</c>（<c>@PutMapping("/api/user/profile/{uuid}/{textureType}")</c>）为准：
-/// 规范里写的 <c>PUT /api/user/profile/{uuid}/{textureType}</c> 是<b>相对 API 根</b>的，
-/// 与同一份规范里的 <c>POST /api/profiles/minecraft</c>、<c>GET /sessionserver/…</c> 同一套拼法。
-/// 2026-10-27 对 littleskin.cn 实测：<c>POST {apiRoot}/api/profiles/minecraft</c> 返回 200、
-/// <c>PUT {apiRoot}/user/profile/{uuid}/skin</c> 返回 Yggdrasil 风格的 JSON 404，
-/// 而站点根下的同类路径只返回 HTML 404，故取 <c>{apiRoot}/api/user/profile/…</c>。
+/// <b>地址形状</b>以《Yggdrasil 服务端技术规范》「材质上传」节为准：规范里写的
+/// <c>PUT /api/user/profile/{uuid}/{textureType}</c> 是<b>相对 API 根</b>的，与同一份规范里的
+/// <c>POST /api/profiles/minecraft</c>、<c>GET /sessionserver/…</c> 同一套拼法。
+/// 2026-11-01 复核过三条证据（探测记录见 <c>docs/research/littleskin-texture-write-contract.md</c> §6）：
+/// ① LittleSkin 自己的插件 <c>MUAlliance/yggdrasil-connect</c> 把 <c>Route::prefix('api/user/profile')</c>
+///（<c>PUT {uuid}/{type}</c>）挂在 <c>Route::prefix('api/yggdrasil')</c> 之下——<c>{apiRoot}</c> 本身就以
+/// <c>/api/yggdrasil</c> 结尾，所以真实 URL 是 <c>https://站点/api/yggdrasil/api/user/profile/{uuid}/skin</c>；
+/// ② <c>skin.vlssu.com</c> 与 <c>mcskin.cn</c> 上这条路径对假令牌回 401
+/// <c>{"error":"UnauthorizedException","errorMessage":"Bearer token expired…"}</c>，<c>OPTIONS</c> 回
+/// <c>Allow: PUT, DELETE</c>（路由存在，只是令牌不对）；③ <c>littleskin.cn</c> 自己<b>没装这个插件</b>——
+/// 它的 <c>/api/yggdrasil</c> 是另一套 Express 网关，同一路径带不带令牌都是 404
+/// <c>{"message":"Cannot PUT /api/user/profile/…","error":"Not Found","statusCode":404}</c>。
+/// 所以拿 littleskin 当「能上传」的样板是错读，它的材质写入走 Blessing Skin OAuth；
+/// 客户端对这类 404 的话术见 <c>SendAsync</c> 的 404 分支。
 /// </para>
 ///
 /// <para>
@@ -305,6 +312,28 @@ public sealed class AuthlibSkinClient : IDisposable
                 return SkinUploadResult.Fail("这个角色不允许上传该材质，或登录状态与角色不匹配，请到皮肤站网页确认。");
             }
 
+            // 404 有两种来源，要说的话完全不同：一是站点根本没实现这套材质路由
+            //（littleskin 现在就是：`/api/yggdrasil` 由 Express 网关接管，直接 404），
+            // 二是 Yggdrasil 服务端在说「找不到这个角色」。两种都重试不出结果，
+            // 但一个要人去站点网页操作，另一个应当把服务端原话交出去。
+            // 判别看错误体形状，不看状态码：网关体带 `statusCode`（Express / Nginx 的惯例），
+            // Yggdrasil 体带 `error` / `errorMessage`（`errorMessage` 规范上可以省）。
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                var (detail, isYggdrasilError) = await ReadErrorAsync(response, cancellationToken).ConfigureAwait(false);
+                if (isYggdrasilError && !string.IsNullOrWhiteSpace(detail))
+                {
+                    _log?.Warn($"皮肤站{action}返回 404：{detail}");
+                    return SkinUploadResult.Fail($"皮肤站返回 404：{detail}");
+                }
+
+                // 同一个 SendAsync 既管上传也管删除：话术里的动作必须跟着请求方法走，
+                // 否则删除材质的人会被指去「网页上传」。
+                var verb = request.Method == HttpMethod.Delete ? "删除" : "上传";
+                _log?.Warn($"皮肤站{action}返回 404：站点没有提供材质{verb}接口。");
+                return SkinUploadResult.Fail($"这个皮肤站没有提供材质{verb}接口，请到皮肤站网页{verb}。");
+            }
+
             return SkinUploadResult.Fail($"{action}返回 {(int)response.StatusCode} {response.StatusCode}。");
         }
         catch (HttpRequestException ex)
@@ -324,10 +353,28 @@ public sealed class AuthlibSkinClient : IDisposable
 
     /// <summary>
     /// 读 Yggdrasil 错误体的 <c>errorMessage</c>（形状是 <c>{error, errorMessage, cause}</c>）。
-    /// 用 <see cref="JsonDocument"/> 而不是反序列化：只想拿一句给用户看的文本，
-    /// 不值得为它造一个落盘类型。
     /// </summary>
     private static async Task<string?> ReadErrorMessageAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken) =>
+        (await ReadErrorAsync(response, cancellationToken).ConfigureAwait(false)).Detail;
+
+    /// <summary>
+    /// 读错误体，并判断它是不是 Yggdrasil 的形状（<c>{error, errorMessage, cause}</c>）。
+    ///
+    /// <para>
+    /// 判别只认这两样：<c>errorMessage</c> 字符串（规范里的长文案，可以省略），或者一个不带
+    /// <c>statusCode</c> 的 <c>error</c> 字符串（如 <c>ForbiddenOperationException</c>）。
+    /// 网关自己的错误体（Express 的 <c>{message, error, statusCode}</c>、Nginx 的 HTML）里
+    /// <c>error</c> 只是 HTTP 状态的复述且总带 <c>statusCode</c>，所以不会被当成 Yggdrasil 的话。
+    /// </para>
+    ///
+    /// <para>
+    /// 用 <see cref="JsonDocument"/> 而不是反序列化：只想拿一句给用户看的文本，
+    /// 不值得为它造一个落盘类型；HTML 与空体解析必然失败，按「不是 Yggdrasil 体」处理。
+    /// </para>
+    /// </summary>
+    private static async Task<(string? Detail, bool IsYggdrasilError)> ReadErrorAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
@@ -336,25 +383,37 @@ public sealed class AuthlibSkinClient : IDisposable
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(body))
             {
-                return null;
+                return (null, false);
             }
 
             using var document = JsonDocument.Parse(body);
             var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return (null, false);
+            }
 
-            return root.ValueKind == JsonValueKind.Object
-                   && root.TryGetProperty("errorMessage", out var message)
-                   && message.ValueKind == JsonValueKind.String
-                ? message.GetString()?.Trim()
-                : null;
+            if (root.TryGetProperty("errorMessage", out var message) && message.ValueKind == JsonValueKind.String)
+            {
+                return (message.GetString()?.Trim(), true);
+            }
+
+            if (!root.TryGetProperty("statusCode", out _)
+                && root.TryGetProperty("error", out var error)
+                && error.ValueKind == JsonValueKind.String)
+            {
+                return (error.GetString()?.Trim(), true);
+            }
+
+            return (null, false);
         }
         catch (JsonException)
         {
-            return null;
+            return (null, false);
         }
         catch (HttpRequestException)
         {
-            return null;
+            return (null, false);
         }
     }
 

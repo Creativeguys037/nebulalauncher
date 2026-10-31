@@ -18,10 +18,15 @@ namespace NebulaLauncher.Tests;
 /// 皮肤站的 <c>model</c> 只认 <c>slim</c> 与空串（空串＝Steve），传官方那个
 /// <c>classic</c> 会被服务端当成未知体型；这条差异必须被断言钉住。
 ///
-/// 地址形状以《Yggdrasil 服务端技术规范》与参考实现 yggdrasil-mock 为准：
-/// 规范里的 <c>/api/user/profile/{uuid}/{textureType}</c> 是<b>相对 API 根</b>的，
-/// 与 <c>/api/profiles/minecraft</c>、<c>/sessionserver/…</c> 同一套拼法
-/// （实测 <c>POST {apiRoot}/api/profiles/minecraft</c> 才返回 200）。
+/// 地址形状以《Yggdrasil 服务端技术规范》为准：规范里的
+/// <c>/api/user/profile/{uuid}/{textureType}</c> 是<b>相对 API 根</b>的，
+/// 与 <c>/api/profiles/minecraft</c>、<c>/sessionserver/…</c> 同一套拼法。
+/// 2026-11-01 复核（探测记录见 <c>docs/research/littleskin-texture-write-contract.md</c> §6）：
+/// ① LittleSkin 自己的插件 <c>MUAlliance/yggdrasil-connect</c> 把 <c>api/user/profile</c>
+/// 挂在 <c>api/yggdrasil</c> 之下（<c>{apiRoot}</c> 已含这一段）；
+/// ② <c>skin.vlssu.com</c> 与 <c>mcskin.cn</c> 对这条路径回 401 而不是 404，<c>OPTIONS</c> 是
+/// <c>Allow: PUT, DELETE</c>（路由存在，只是令牌是假的）；
+/// ③ <c>littleskin.cn</c> 回 404——它没装这个插件，材质写入走 Blessing Skin OAuth。
 /// </summary>
 public class AppSkin_AuthlibSkinClientTests
 {
@@ -230,6 +235,76 @@ public class AppSkin_AuthlibSkinClientTests
         Assert.False(result.IsAuthError);
         Assert.False(result.IsRetryable);
         Assert.Contains("不允许上传", result.ErrorText!);
+    }
+
+    /// <summary>
+    /// 皮肤站没装材质上传这套路由时，网关回的 404 与「角色不存在」的 404 长得完全不同：
+    /// 前者是 Express / Nginx 自己的错误体（或一段 HTML），后者是 Yggdrasil 的
+    /// <c>{error, errorMessage}</c>。两种都重试不出结果，但各自该去做什么完全不同。
+    /// </summary>
+    [Theory]
+    [InlineData("application/json", """{"message":"Cannot PUT /api/user/profile/0123456789abcdef0123456789abcdef/skin","error":"Not Found","statusCode":404}""")]
+    [InlineData("text/html", "<html><body><h1>404 Not Found</h1></body></html>")]
+    [InlineData("text/plain", "")]
+    public async Task 皮肤站没有提供材质上传接口时404给出网页上传指引且不打可重试(string contentType, string body)
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = new StringContent(body, Encoding.UTF8, contentType),
+        });
+        using var client = new AuthlibSkinClient(new HttpClient(handler));
+
+        var result = await client.UploadSkinAsync(Account(), SkinModelKind.Steve, Png(64, 64), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsAuthError);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("没有提供材质上传接口", result.ErrorText!);
+        Assert.Contains("网页上传", result.ErrorText!);
+        Assert.Single(handler.Requests);
+    }
+
+    /// <summary>
+    /// Yggdrasil 的 <c>errorMessage</c> 规范上可以省，只剩 <c>error</c> 时也得当服务端的话交出去：
+    /// 判据是「像不像 Yggdrasil 体」，不是「有没有 errorMessage 这一个字段」。
+    /// </summary>
+    [Theory]
+    [InlineData("""{"error":"ForbiddenOperationException","errorMessage":"The user has no profile."}""", "The user has no profile.")]
+    [InlineData("""{"error":"ForbiddenOperationException"}""", "ForbiddenOperationException")]
+    public async Task 服务端用404说找不到角色时把原文带给用户(string body, string expected)
+    {
+        var handler = new CapturingHandler(_ => Json(HttpStatusCode.NotFound, body));
+        using var client = new AuthlibSkinClient(new HttpClient(handler));
+
+        var result = await client.UploadCapeAsync(Account(), Png(64, 64), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsAuthError);
+        Assert.False(result.IsRetryable);
+        Assert.Contains(expected, result.ErrorText!);
+        Assert.DoesNotContain("没有提供材质上传接口", result.ErrorText!);
+    }
+
+    /// <summary>
+    /// 删除材质走同一个 <c>SendAsync</c>：站点没实现这条路由时，话术要跟着请求方法走，
+    /// 否则用户被指去「网页上传」，而他要做的是删除。
+    /// </summary>
+    [Fact]
+    public async Task 删除材质时404给出网页删除指引()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = new StringContent("<html><body><h1>404 Not Found</h1></body></html>", Encoding.UTF8, "text/html"),
+        });
+        using var client = new AuthlibSkinClient(new HttpClient(handler));
+
+        var result = await client.DeleteSkinAsync(Account(), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("没有提供材质删除接口", result.ErrorText!);
+        Assert.Contains("网页删除", result.ErrorText!);
+        Assert.Single(handler.Requests);
     }
 
     [Fact]
