@@ -292,10 +292,10 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --emit-featu
 默认扫 5 份文档：`docs/PROJECT.md`、`docs/CODE.md`、`docs/FEATURES.md`、`docs/PITFALLS.md`、`GLOSSARY.md`（`--docs` 可换）。这 5 份缺任何一份都算失败——只有显式加 `--allow-missing` 才降级成「缺失（跳过）」。预算：单份 400 行、总量 1000 行。约束层（`CONVENTIONS.md`、`README.md`、`AGENTS.md`）与证据链（`docs/agents/`、`docs/research/`、`docs/release-notes/`）不占这 1000 行额度，但引用照样要校验：`--evidence <路径>...` 只做引用与链接校验、不进行数预算。全仓 16 份文档的口径是：
 
 ```powershell
-dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.0.3.md
+dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release -- --evidence CONVENTIONS.md README.md AGENTS.md docs/agents/domain.md docs/agents/issue-tracker.md docs/agents/triage-labels.md docs/research/code-map.md docs/research/doc-trust-audit.md docs/research/junk-audit.md docs/research/release-checklist.md docs/release-notes/v1.1.0.md
 ```
 
-release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.0.3.md` 的已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
+release notes 进这份清单是为了让它的代码位置指针也被校验：`docs/release-notes/v1.1.0.md` 的已知限制各带一个 `路径 符号（:行号）`，指错或代码挪位时退出码非 0。
 
 退出码：
 
@@ -352,7 +352,7 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 **产物可用 = 三道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
 1. `<out>\NebulaLauncher.exe --probe-dir <out>`：30 秒内退出码 0 且输出含 `writable=YES`。
-2. `<out>\NebulaLauncher.exe --selftest-json`：120 秒内退出码 0、输出里没有 `json-selfcheck.FAIL`、且 `json-selfcheck.summary=<N>/<N>` 的两个数字相同——它在真实产物里跑八条 JSON 落盘往返（`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`）。
+2. `<out>\NebulaLauncher.exe --selftest-json`：120 秒内退出码 0、输出里没有 `json-selfcheck.FAIL`、且 `json-selfcheck.summary=<N>/<N>` 的两个数字相同——它在真实产物里跑十条 JSON 落盘往返（`src/NebulaLauncher.Core/Diagnostics/JsonSelfCheck.cs JsonSelfCheck.RunAsync（:32）`）。
 3. `--data-dir <out>\.verify --screenshot <out>\.verify.png --page home`：20 秒内退出码 0 且 PNG > 10240 字节。
 
 三道关堵的都是「退出码 0 但用不了」：前两条分别挡「启动不起来」和「启动了但设置存不住」——裁剪发布关掉 System.Text.Json 反射元数据时，只有真跑一遍落盘才会露（见 `docs/PITFALLS.md` 3.16）；第三条挡「启得起来但不渲染」：`obj/<Configuration>` 里留着过期 XAML 中间产物时，publish 出的 exe 会静默退出（exit 0、无窗口、不产图），而同一二进制的 `--probe-dir` 却正常。脚本自己在构建前做过期检测并只清过期的 XAML 中间产物；不确定时加 `-Clean` 做完全清理。`-SkipVerify` 只用于本地试验，**正式发版不得加**。
@@ -373,23 +373,23 @@ $env:AVALONIA_TELEMETRY_OPTOUT='1'
 # 0) 先打本地 tag：-Publish 会校验 HEAD 上的 tag 与 <Version> 一致（不打就失败）
 git status --short            # 必须为空或只剩已决定的改动
 git log --oneline -1          # HEAD 是定稿提交
-git tag -l v1.0.3             # 必须为空
-git tag -a v1.0.3 -m "Nebula Launcher v1.0.3"
+git tag -l v1.1.0             # 必须为空
+git tag -a v1.1.0 -m "Nebula Launcher v1.1.0"
 
 # 主产物：-OutDir 必须指向最内层目录，build.ps1 会把它整体删掉重建
-New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.0.3 | Out-Null
+New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.1.0 | Out-Null
 pwsh -NoProfile -File .\build.ps1 -Publish -Mode minimal `
-    -OutDir D:\agent_workspace\pub\v1.0.3\NebulaLauncher-v1.0.3-win-x64
+    -OutDir D:\agent_workspace\pub\v1.1.0\NebulaLauncher-v1.1.0-win-x64
 
 # 备选产物（不加 -SkipVerify；不过关就不发 portable）
-pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.0.3\_portable
-Move-Item D:\agent_workspace\pub\v1.0.3\_portable\NebulaLauncher.exe `
-          D:\agent_workspace\pub\v1.0.3\NebulaLauncher-v1.0.3-win-x64-portable.exe
-Remove-Item D:\agent_workspace\pub\v1.0.3\_portable -Recurse -Force
+pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.1.0\_portable
+Move-Item D:\agent_workspace\pub\v1.1.0\_portable\NebulaLauncher.exe `
+          D:\agent_workspace\pub\v1.1.0\NebulaLauncher-v1.1.0-win-x64-portable.exe
+Remove-Item D:\agent_workspace\pub\v1.1.0\_portable -Recurse -Force
 
 # 打包 → 校验和 → 上传（顺序不能换）
-cd D:\agent_workspace\pub\v1.0.3
-tar -a -c -f NebulaLauncher-v1.0.3-win-x64.zip NebulaLauncher-v1.0.3-win-x64
+cd D:\agent_workspace\pub\v1.1.0
+tar -a -c -f NebulaLauncher-v1.1.0-win-x64.zip NebulaLauncher-v1.1.0-win-x64
 $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
@@ -402,17 +402,17 @@ $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } 
 ### 8.7 GitHub Release
 
 ```powershell
-git tag -l v1.0.3             # 必须存在：§8.6 第一步已在本机打过
-git push origin v1.0.3
-gh release create v1.0.3 --draft --title "Nebula Launcher v1.0.3" `
-  --notes-file docs\release-notes\v1.0.3.md `
-  "D:\agent_workspace\pub\v1.0.3\NebulaLauncher-v1.0.3-win-x64.zip" `
-  "D:\agent_workspace\pub\v1.0.3\NebulaLauncher-v1.0.3-win-x64-portable.exe" `
-  "D:\agent_workspace\pub\v1.0.3\SHA256SUMS.txt"
-gh release view v1.0.3 --json isDraft,name,tagName,assets,url
+git tag -l v1.1.0             # 必须存在：§8.6 第一步已在本机打过
+git push origin v1.1.0
+gh release create v1.1.0 --title "Nebula Launcher v1.1.0" `
+  --notes-file docs\release-notes\v1.1.0.md `
+  "D:\agent_workspace\pub\v1.1.0\NebulaLauncher-v1.1.0-win-x64.zip" `
+  "D:\agent_workspace\pub\v1.1.0\NebulaLauncher-v1.1.0-win-x64-portable.exe" `
+  "D:\agent_workspace\pub\v1.1.0\SHA256SUMS.txt"
+gh release view v1.1.0 --json isDraft,name,tagName,assets,url
 ```
 
-附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。**「Publish release」由人在网页点**，命令只建草稿。仓库已转 public（2026-10-25），该 Release 匿名访问返回 200、附件可直接下载；若将来转回私有，需在 notes 里同步说明匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
+附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。命令**直接创建已发布的 Release**（不带 `--draft`），跑完即对外可见，`gh release view … --json isDraft` 应为 `false`；若某次需要先审阅，自行加 `--draft` 并在网页点「Publish release」。仓库已转 public（2026-10-25），该 Release 匿名访问返回 200、附件可直接下载；若将来转回私有，需在 notes 里同步说明匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
 
 ### 8.8 并行协作的三条硬规则
 
