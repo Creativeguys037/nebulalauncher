@@ -1,0 +1,283 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:skinning="using:NebulaLauncher.Skinning"
+             x:Class="NebulaLauncher.Views.CloudClosetView"
+             x:DataType="vm:CloudClosetViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="Border.feedback">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+      <Setter Property="Padding" Value="14,10" />
+    </Style>
+
+    <Style Selector="Border.feedback.danger">
+      <Setter Property="Background" Value="{DynamicResource Status.Danger.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Status.Danger.Edge}" />
+    </Style>
+
+    <Style Selector="Button.pill.tab.active">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="ListBox.skinList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+    </Style>
+
+    <Style Selector="Border.card.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*">
+    <!-- 错误条只留给真正的失败：一条消息占 40px，信息类消息用下面那条细线，
+         否则登录后常驻的「已登录」会把列表挤掉一行。 -->
+    <Border Grid.Row="0" Classes="feedback danger" Margin="0,0,0,10"
+            IsVisible="{Binding HasError}">
+      <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" />
+    </Border>
+
+    <Grid Grid.Row="1">
+      <!-- 未登录：账号密码只进本机凭据库，界面不提供「记住密码」开关。 -->
+      <Border Classes="card" Padding="20" VerticalAlignment="Top"
+              IsVisible="{Binding IsSignedOut}">
+        <StackPanel Spacing="12" MaxWidth="460" HorizontalAlignment="Left">
+          <TextBlock Text="登录皮肤站" Classes="h3" />
+          <TextBlock Text="用 Blessing Skin / littleskin 的账号登录。登录后会读取你的角色列表和衣柜，上传、应用、下载都在这里完成。"
+                     Classes="muted" TextWrapping="Wrap" />
+          <StackPanel Spacing="6">
+            <TextBlock Text="站点地址" Classes="caption" />
+            <TextBox Text="{Binding SiteAddress}" Watermark="https://littleskin.cn" />
+          </StackPanel>
+          <StackPanel Spacing="6">
+            <TextBlock Text="用户名或邮箱" Classes="caption" />
+            <TextBox Text="{Binding Username}" Watermark="皮肤站账号" />
+          </StackPanel>
+          <StackPanel Spacing="6">
+            <TextBlock Text="密码" Classes="caption" />
+            <TextBox Text="{Binding Password}" PasswordChar="●" Watermark="皮肤站密码" />
+          </StackPanel>
+          <Grid ColumnDefinitions="Auto,*">
+            <Button Classes="accent" Content="登录"
+                    Command="{Binding LoginCommand}"
+                    IsEnabled="{Binding CanLogin}" />
+            <TextBlock Grid.Column="1" Text="密码加密保存在本机，不会上传到别处。"
+                       Classes="caption" Margin="12,0,0,0" VerticalAlignment="Center"
+                       TextWrapping="Wrap" />
+          </Grid>
+          <ProgressBar IsIndeterminate="True" Height="3"
+                       IsVisible="{Binding IsRestoring}" />
+          <!-- 未登录时也把信息线放在卡内：提示「第一次使用」不必占掉列表的高度。 -->
+          <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}"
+                     Classes="caption" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <!-- 已登录：衣柜。四行工具条压到最扁，把高度留给列表。 -->
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto"
+            IsVisible="{Binding IsLoggedIn}">
+
+        <!-- 账号与全局动作 -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,8">
+          <!-- 账号只占一行：第二行那句「密码只在本机使用」在登录卡里已经说过一遍，
+               窄窗口下它会缩成半句，不如改成悬停提示，把高度留给列表。 -->
+          <TextBlock Grid.Column="0" Text="{Binding AccountLabel}" FontWeight="SemiBold"
+                     VerticalAlignment="Center" Margin="0,0,12,0"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding AccountLabel}" />
+          <Button Grid.Column="1" Classes="pill" Content="刷新"
+                  Command="{Binding RefreshCommand}" IsEnabled="{Binding IsIdle}"
+                  Margin="8,0,0,0" />
+          <Button Grid.Column="2" Classes="pill" Content="退出登录"
+                  Command="{Binding LogoutCommand}"
+                  Margin="8,0,0,0" />
+          <!-- 「忘记密码」比「忘记本机密码」少 40px：1024 宽下省下的宽度正好让账号名不被截成半句。 -->
+          <Button Grid.Column="3" Classes="pill" Content="忘记密码"
+                  Command="{Binding ForgetSavedCommand}"
+                  ToolTip.Tip="删掉本机保存的这个皮肤站账号，下次要重新登录"
+                  Margin="8,0,0,0" />
+        </Grid>
+
+        <!-- 分类 + 角色 + 搜索挤一行：三者都是「接下来操作哪个对象」，拆成两行只是白白吃掉一行列表。
+             用 WrapPanel 而不是 Grid：1024 宽下这一行放不开，Grid 会把它压成一条缝，
+             搜索框只剩一个「搜」字、按钮被右边界切掉；Wrap 会换行，至少每个控件都完整。 -->
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+          <Button Classes="pill tab" Margin="0,0,6,6"
+                  Classes.active="{Binding IsSkinCategory}"
+                  Content="皮肤"
+                  Command="{Binding ShowSkinsCommand}" />
+          <Button Classes="pill tab" Margin="0,0,10,6"
+                  Classes.active="{Binding IsCapeCategory}"
+                  Content="披风"
+                  Command="{Binding ShowCapesCommand}" />
+          <ComboBox MinWidth="150" Margin="0,0,10,6"
+                    ItemsSource="{Binding Players}"
+                    SelectedItem="{Binding SelectedPlayer}"
+                    ToolTip.Tip="{Binding PlayerStatus}"
+                    PlaceholderText="选择角色">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="skinning:CloudPlayer">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBox Width="240" Margin="0,0,8,6"
+                   Text="{Binding Keyword}"
+                   Watermark="搜衣柜里的名字，回车"
+                   KeyDown="OnSearchKeyDown" />
+          <Button Classes="accent" Margin="0,0,0,6" Content="搜索"
+                  Command="{Binding SearchCommand}" IsEnabled="{Binding IsIdle}" />
+        </WrapPanel>
+
+        <!-- 上传、上传选项与选中项的四个动作放在同一个 WrapPanel 里：
+             它们在宽窗口下正好排成两行，窄窗口下继续往下折，不会多出一条空白行。 -->
+        <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,6">
+          <Button Classes="accent" Content="{Binding UploadLabel}"
+                  Click="OnUploadClick" IsEnabled="{Binding IsIdle}"
+                  Margin="0,0,8,6" />
+          <CheckBox Content="细手臂（Alex）" IsChecked="{Binding UploadIsSlim}"
+                    IsVisible="{Binding IsSkinCategory}" Margin="0,0,12,6"
+                    VerticalAlignment="Center" />
+          <CheckBox Content="公开到皮肤站" IsChecked="{Binding UploadIsPublic}"
+                    Margin="0,0,16,6" VerticalAlignment="Center" />
+          <Button Classes="pill" Margin="0,0,8,6" Content="应用到角色"
+                  Command="{Binding ApplyCommand}" IsEnabled="{Binding CanApply}" />
+          <Button Classes="pill" Margin="0,0,8,6" Content="清除角色材质"
+                  Command="{Binding ClearCommand}" IsEnabled="{Binding CanClear}" />
+          <Button Classes="pill" Margin="0,0,8,6" Content="下载到本地"
+                  Command="{Binding DownloadToLocalCommand}" IsEnabled="{Binding CanDownload}" />
+          <Button Classes="pill" Margin="0,0,10,6" Content="删除云端"
+                  Command="{Binding DeleteCommand}" IsEnabled="{Binding CanDelete}"
+                  ToolTip.Tip="只删除启动器自己上传并记录过的材质" />
+          <TextBlock Text="{Binding PlayerStatus}" Classes="caption"
+                     VerticalAlignment="Center" Margin="0,0,0,6" MaxWidth="260"
+                     TextTrimming="CharacterEllipsis" />
+        </WrapPanel>
+
+        <!-- 信息线：一行 caption，不画边框。上传/登录的进展都在这里，别再抢列表高度。 -->
+        <TextBlock Grid.Row="3" Text="{Binding StatusText}" IsVisible="{Binding HasStatus}"
+                   Classes="caption" Margin="0,0,0,8"
+                   TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding StatusText}" />
+
+        <!-- 列表 / 空态 / 首屏占位。ClipToBounds 兜底：窗口再窄也不许行画到下面的页码上。 -->
+        <Grid Grid.Row="4" ClipToBounds="True">
+          <ProgressBar IsIndeterminate="True" Height="3" VerticalAlignment="Top"
+                       IsVisible="{Binding IsLoading}" Margin="0,0,0,6" />
+
+          <Border Classes="card" VerticalAlignment="Top" Padding="24,28"
+                  IsVisible="{Binding ShowLoadingPlaceholder}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+              <ProgressBar IsIndeterminate="True" Width="160" Height="4" />
+              <TextBlock Text="正在读取云端衣柜…" Classes="muted" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <ListBox Classes="skinList"
+                   ItemsSource="{Binding Items}"
+                   SelectedItem="{Binding SelectedItem}"
+                   IsVisible="{Binding HasItems}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Padding="0"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:CloudClosetItemViewModel">
+                <Border Classes="card hoverable"
+                        Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                        Padding="10">
+                  <Grid ColumnDefinitions="44,*,Auto">
+                    <Border Width="44" Height="44"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            ClipToBounds="True"
+                            Background="{DynamicResource Surface.Sunken}">
+                      <Panel>
+                        <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                              IsVisible="{Binding !HasThumbnail}"
+                              Stroke="{DynamicResource Text.Muted}"
+                              StrokeThickness="1.4"
+                              Stretch="Uniform"
+                              Width="20" Height="20"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                        <Image Source="{Binding Thumbnail}"
+                               IsVisible="{Binding HasThumbnail}"
+                               Stretch="Uniform" />
+                      </Panel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="2"
+                                VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <!-- 第二行并排：模型 · 收藏 · 公开 + tid。三行文字会把每张卡片顶到 82px，
+                           一行并排后 44px 的缩略图就是行高的上限，一屏能多放一行。 -->
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding DetailLabel}" Classes="caption" />
+                        <TextBlock Text="{Binding TidLabel}" Classes="caption" />
+                      </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                      <Border Classes="badge" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding ModelLabel}" />
+                      </Border>
+                      <Border Classes="badge" HorizontalAlignment="Right"
+                              IsVisible="{Binding IsOwned}">
+                        <TextBlock Text="启动器上传" />
+                      </Border>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Border Classes="card" VerticalAlignment="Top" Padding="24,28"
+                  IsVisible="{Binding IsEmpty}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="430">
+              <Border Width="52" Height="52" CornerRadius="26"
+                      Background="{DynamicResource Accent.Soft}"
+                      HorizontalAlignment="Center">
+                <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                      Stroke="{DynamicResource Accent.Primary}"
+                      StrokeThickness="1.6" Stretch="Uniform"
+                      Width="24" Height="24"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="{Binding CategoryLabel}" Classes="h3" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding ClosetHint}" Classes="muted"
+                         TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- 页码与选中摘要：一行，两段文字并排，别让摘要单独占一行。 -->
+        <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+          <Button Classes="pill" Content="上一页"
+                  Command="{Binding PreviousPageCommand}" IsEnabled="{Binding CanGoPrev}" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="{Binding PageLabel}" Classes="caption" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SelectedSummary}" Classes="caption"
+                       VerticalAlignment="Center" MaxWidth="320"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <Button Grid.Column="2" Classes="pill" Content="下一页"
+                  Command="{Binding NextPageCommand}" IsEnabled="{Binding CanGoNext}" />
+        </Grid>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

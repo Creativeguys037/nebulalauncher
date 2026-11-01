@@ -144,11 +144,35 @@ public static class JsonSelfCheck
             var skinStore = new SkinTextureStore(paths, log);
             var skinHash = new string('a', 64);
             var skinMeta = new SkinTextureMeta(skinHash, "slim", "https://e.invalid/texture/" + skinHash);
-            await skinStore.SaveAsync("selfcheck", skinHash, SelfCheckPng(), skinMeta, cancellationToken)
+            await skinStore.SaveAsync("selfcheck", skinHash, SelfCheckPng(64, 64), skinMeta, cancellationToken)
                 .ConfigureAwait(false);
 
             // 换一个新实例读回，验的是「落盘能跨实例命中」而不只是内存里那份对象。
             Check("skins.roundTrip", new SkinTextureStore(paths, log).TryGetMeta("selfcheck") == skinMeta);
+
+            // ---- 本地披风库：22×17 / 64×32 是独立落盘通路 ----
+            var capeStore = new LocalCapeStore(paths, log);
+            var cape = await capeStore.SaveAsync("selfcheck.png", SelfCheckPng(64, 32), cancellationToken)
+                .ConfigureAwait(false);
+            var capeScan = await new LocalCapeStore(paths, log).ScanAsync(cancellationToken).ConfigureAwait(false);
+            Check(
+                "capes.roundTrip",
+                cape.IsSuccess && capeScan.Entries.Count == 1
+                    && capeScan.Entries[0].Width == 64 && capeScan.Entries[0].Height == 32);
+
+            // ---- 皮肤站凭据：密码加密与 tid 账本共用一条落盘通路 ----
+            var credentials = new SkinSiteCredentialStore(paths, new SelfCheckPlatform(), log);
+            await credentials.SaveAsync("https://example.invalid", "selfcheck", "password", cancellationToken)
+                .ConfigureAwait(false);
+            await credentials.RememberOwnedTextureAsync("https://example.invalid", "selfcheck", 42, cancellationToken)
+                .ConfigureAwait(false);
+            var credential = await new SkinSiteCredentialStore(paths, new SelfCheckPlatform(), log)
+                .FindAsync("https://example.invalid", "selfcheck", cancellationToken)
+                .ConfigureAwait(false);
+            Check(
+                "skinSiteCredentials.roundTrip",
+                credential is not null && credential.Password == "password"
+                    && credential.OwnedTextureTids.Contains(42));
         }
         catch (Exception ex)
         {
@@ -176,7 +200,7 @@ public static class JsonSelfCheck
     /// 够 <see cref="SkinTextureStore"/> 校验用的最小 PNG 头：签名 + IHDR 的 64×64。
     /// 只验通路能不能落盘读回，不需要真的像素数据。
     /// </summary>
-    private static byte[] SelfCheckPng()
+    private static byte[] SelfCheckPng(int width, int height)
     {
         var bytes = new byte[24];
         byte[] magic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -186,9 +210,43 @@ public static class JsonSelfCheck
         bytes[13] = (byte)'H';
         bytes[14] = (byte)'D';
         bytes[15] = (byte)'R';
-        bytes[19] = 64;
-        bytes[23] = 64;
+        bytes[19] = (byte)width;
+        bytes[23] = (byte)height;
         return bytes;
+    }
+
+    /// <summary>自检用的平台替身：凭据加密只需要平台能力声明，不碰真实窗口。</summary>
+    private sealed class SelfCheckPlatform : IPlatformService
+    {
+        public string PlatformName => "selfcheck";
+
+        public bool SupportsWindowMaterial => false;
+
+        public bool SupportsSecureTokenStorage => false;
+
+        public string DefaultMinecraftDirectory => string.Empty;
+
+        public IReadOnlyList<string> JavaSearchRoots => [];
+
+        public string JavaExecutableName => "java";
+
+        public Task OpenFolderAsync(string path) => Task.CompletedTask;
+
+        public Task OpenUrlAsync(string url) => Task.CompletedTask;
+
+        public Task RevealInFileManagerAsync(string path) => Task.CompletedTask;
+
+        public Task CopyTextAsync(string text) => Task.CompletedTask;
+
+        public void ApplyWindowMaterial(IntPtr windowHandle, string material)
+        {
+        }
+
+        public void SetTaskbarProgress(IntPtr windowHandle, double progress)
+        {
+        }
+
+        public IDisposable? AcquireSingleInstanceLock(string name) => null;
     }
 
     /// <summary>自检用的静默日志：不让业务日志混进脚本要读的 stdout。</summary>

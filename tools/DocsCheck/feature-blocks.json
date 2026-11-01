@@ -126,8 +126,8 @@
       "columns": {
         "entry": "`src/NebulaLauncher.App/Views/AccountsView.axaml AccountsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/AccountsViewModel.cs AccountsViewModel`",
-        "core": "`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth`",
-        "storage": "`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`（`accounts.json`）、`src/NebulaLauncher.Core/Servers/ServerService.cs ServerService`（`servers.json`）"
+        "core": "`src/NebulaLauncher.Core/Accounts/MicrosoftDeviceCodeAuth.cs MicrosoftDeviceCodeAuth`；头像线 `src/NebulaLauncher.Core/Accounts/SkinAvatarService.cs SkinAvatarService`（取纹理 + 缓存）与 `src/NebulaLauncher.App/Controls/SkinAvatar.cs SkinAvatar`（从纹理裁 8×8 脸）",
+        "storage": "`src/NebulaLauncher.Core/Accounts/AccountService.cs AccountService.PersistAsync`（`accounts.json`）、`src/NebulaLauncher.Core/Servers/ServerService.cs ServerService`（`servers.json`）；头像纹理复用 `cache/skins/`（`<uuid>/<hash>.png` 配 `current.json`，见 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Net/NetworkProbe.cs", "symbol": "NetworkProbe" },
@@ -191,12 +191,12 @@
     {
       "id": "换得动",
       "title": "皮肤与材质",
-      "summary": "本地皮肤库、皮肤站换肤、官方账户换肤三条链路都在，披风只有皮肤站能传",
+      "summary": "本地皮肤库、皮肤站换肤、官方账户换肤与云端衣柜都在，披风只有皮肤站与云端衣柜能传",
       "columns": {
         "entry": "`src/NebulaLauncher.App/Views/SkinsView.axaml SkinsView`",
         "viewModel": "`src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel`",
         "core": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore`",
-        "storage": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`）；纹理缓存 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.Root`（`cache/skins/`）"
+        "storage": "`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinStore.DirectoryPath`（`<data>/skins/` 与 `index.json`）、`src/NebulaLauncher.Core/Skinning/LocalCapeStore.cs LocalCapeStore.DirectoryPath`（`<data>/capes/`）、`src/NebulaLauncher.Core/Skinning/SkinSiteCredentialStore.cs SkinSiteCredentialStore.FilePath`（`skin-site-credentials.json`）；纹理缓存 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.Root`（`cache/skins/`）"
       },
       "code": [
         { "path": "src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs", "symbol": "LocalSkinStore" },
@@ -212,7 +212,9 @@
         { "path": "tests/NebulaLauncher.Tests/CoreSkinning_LocalSkinStoreTests.cs", "symbol": "CoreSkinning_LocalSkinStoreTests" },
         { "path": "tests/NebulaLauncher.Tests/AppSkin_AuthlibSkinClientTests.cs", "symbol": "AppSkin_AuthlibSkinClientTests" },
         { "path": "tests/NebulaLauncher.Tests/AppSkin_MojangSkinClientTests.cs", "symbol": "AppSkin_MojangSkinClientTests" },
-        { "path": "tests/NebulaLauncher.Tests/CoreSkinning_TextureStoreTests.cs", "symbol": "CoreSkinning_TextureStoreTests" }
+        { "path": "tests/NebulaLauncher.Tests/CoreSkinning_TextureStoreTests.cs", "symbol": "CoreSkinning_TextureStoreTests" },
+        { "path": "tests/NebulaLauncher.Tests/AppSkin_CloudClosetClientTests.cs", "symbol": "AppSkin_CloudClosetClientTests" },
+        { "path": "tests/NebulaLauncher.Tests/CoreSkinning_SkinSiteCredentialStoreTests.cs", "symbol": "CoreSkinning_SkinSiteCredentialStoreTests" }
       ]
     }
   ]

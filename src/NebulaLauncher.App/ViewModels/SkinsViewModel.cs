@@ -93,6 +93,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     private INavigationService? _navigation;
 
+    /// <summary>
+    /// 云端衣柜（票 #58 后续）：Blessing Skin 网页会话的登录、上传、应用与删除。
+    /// 数据目录与平台服务缺任何一个都拿不到凭据库，此时为 null，页签显示为不可用而不是让页面崩。
+    /// </summary>
+    private CloudClosetViewModel? _cloud;
+
     /// <summary>429 / 5xx 的重试冷却。UI 层节流，客户端一次调用只发一次请求。</summary>
     private readonly SkinUploadThrottle _throttle = new();
 
@@ -136,6 +142,13 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         _authlibClient = services.GetService(typeof(AuthlibSkinClient)) as AuthlibSkinClient
                    ?? new AuthlibSkinClient(log: _log);
 
+        // 云端衣柜：凭据库与本地材质库都挂在数据目录上，缺任一个就整块不可用。
+        if (_paths is not null && _platform is not null)
+        {
+            _cloud = new CloudClosetViewModel(_paths, _platform, _log, _skinChanges);
+            _cloud.LocalLibraryChanged += OnCloudLibraryChanged;
+        }
+
         Items.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasItems));
@@ -149,6 +162,25 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         PreviewVisual = SkinVisual.Default;
         ApplyAccount(_accounts?.ActiveAccount);
         ApplyScreenshotFeedbackDemo();
+
+        // 截图模式没有点击能力，云端页签只能靠 --section cloud 摆出来；
+        // cloud-demo 额外摆一份登录后的衣柜样本，否则整块列表没有数据可看。
+        if (ScreenshotMode.IsActive &&
+            ScreenshotMode.SectionKey is { } section &&
+            section.StartsWith("cloud", StringComparison.OrdinalIgnoreCase))
+        {
+            IsCloudTab = true;
+            IsNetworkTab = false;
+
+            if (string.Equals(section, "cloud-demo", StringComparison.OrdinalIgnoreCase))
+            {
+                Cloud?.ApplyScreenshotDemo();
+            }
+            else if (string.Equals(section, "cloud-empty", StringComparison.OrdinalIgnoreCase))
+            {
+                Cloud?.ApplyScreenshotDemo(empty: true);
+            }
+        }
     }
 
     /// <summary>
@@ -198,7 +230,16 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     [ObservableProperty]
     private bool _isNetworkTab = true;
 
-    public bool IsLocalTab => !IsNetworkTab;
+    /// <summary>云端衣柜页签。与网络/本地互斥，三个页签共用右列那张预览卡的位置。</summary>
+    [ObservableProperty]
+    private bool _isCloudTab;
+
+    /// <summary>云端衣柜实例。数据目录或平台服务没注册时为 null，页签置灰。</summary>
+    public CloudClosetViewModel? Cloud => _cloud;
+
+    public bool IsCloudAvailable => _cloud is not null;
+
+    public bool IsLocalTab => !IsNetworkTab && !IsCloudTab;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -211,6 +252,9 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     private string? _errorText;
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorText);
+
+    /// <summary>页面顶部的错误条属于网络皮肤库；云端页签有自己的结果条，别让两条同时出现。</summary>
+    public bool ShowErrorBar => HasError && !IsCloudTab;
 
     /// <summary>错误条的徽标文案。把 HTTP 500 说成「无网络」会让人白折腾网络设置。</summary>
     public string ErrorBadge => _lastErrorIsNetwork ? "无网络" : "皮肤站异常";
@@ -1083,6 +1127,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         // 只读文件头，代价是几十毫秒，比「必须手动刷新」符合直觉。
         await LoadLocalAsync().ConfigureAwait(true);
 
+        if (IsCloudTab && Cloud is { } cloud)
+        {
+            // 停在云端页签时回到页面：只补一次自动恢复，不重复登录。
+            await cloud.ActivateAsync().ConfigureAwait(true);
+        }
+
         if (!_hasLoadedOnce)
         {
             await LoadPageAsync(1).ConfigureAwait(true);
@@ -1120,6 +1170,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     [RelayCommand]
     private void SelectNetworkTab()
     {
+        // 先关云端再开网络：OnIsNetworkTabChanged 只看 IsNetworkTab，顺序反了会把预览拉去云端。
+        IsCloudTab = false;
         IsNetworkTab = true;
         CloseError();
     }
@@ -1127,11 +1179,24 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     [RelayCommand]
     private void SelectLocalTab()
     {
+        IsCloudTab = false;
         IsNetworkTab = false;
         CloseError();
 
         // 切到本地页签顺手重扫：手上没有「刷新」按钮的旧用户也能看到新丢进来的图。
         _ = LoadLocalAsync();
+    }
+
+    [RelayCommand]
+    private void SelectCloudTab()
+    {
+        // 先开云端再关网络：OnIsNetworkTabChanged 在 IsCloudTab 为真时不再去拉本地预览。
+        IsCloudTab = true;
+        IsNetworkTab = false;
+        CloseError();
+
+        // 自动恢复本机保存的凭据只跑一次，之后切页签不重复登录。
+        _ = Cloud?.ActivateAsync();
     }
 
     // ==================== 本地皮肤的命令（票 42） ====================
@@ -1968,15 +2033,25 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(IsLocalTab));
 
         // 从本地切回网络：把预览卡还给网络列表当前选中的那套，别让右侧停在本地皮肤上。
+        // 云端页签有自己的预览卡，不能被这里顺带改写成本地皮肤。
         if (value)
         {
             _ = PreviewAsync(Selected);
         }
-        else
+        else if (!IsCloudTab)
         {
             _ = PreviewLocalAsync(SelectedLocal);
         }
     }
+
+    partial void OnIsCloudTabChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsLocalTab));
+        OnPropertyChanged(nameof(ShowErrorBar));
+    }
+
+    /// <summary>云端下载到本地材质库后，把「本地皮肤」页签的列表刷新一次。</summary>
+    private void OnCloudLibraryChanged(object? sender, EventArgs e) => _ = LoadLocalAsync();
 
     partial void OnIsLoadingChanged(bool value)
     {
@@ -1997,6 +2072,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     partial void OnErrorTextChanged(string? value)
     {
         OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(ShowErrorBar));
         OnPropertyChanged(nameof(EmptyHint));
     }
 
@@ -2072,6 +2148,13 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             _library.Dispose();
             _mojang?.Dispose();
             _authlibClient?.Dispose();
+
+            if (_cloud is not null)
+            {
+                _cloud.LocalLibraryChanged -= OnCloudLibraryChanged;
+                _cloud.Dispose();
+                _cloud = null;
+            }
 
             foreach (var bitmap in _thumbnailCache.Values)
             {

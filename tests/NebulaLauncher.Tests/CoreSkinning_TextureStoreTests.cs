@@ -240,7 +240,16 @@ public sealed class CoreSkinning_TextureStoreTests
         // 自检是裁剪产物上唯一能验落盘通路的关卡：新通路不加进来，AOT 关掉反射后也发现不了。
         Assert.Contains(lines, line => string.Equals(line, "json-selfcheck.OK.skins.roundTrip", StringComparison.Ordinal));
         Assert.DoesNotContain(lines, line => line.StartsWith("json-selfcheck.FAIL", StringComparison.Ordinal));
-        Assert.Contains(lines, line => string.Equals(line, "json-selfcheck.summary=8/8", StringComparison.Ordinal));
+
+        // 自检通路会随功能增加而变多，这里只锁「全部通过」，不锁固定条数；
+        // 锁死 8/8 会让每加一条落盘通路都变成一次无关的测试失败。
+        var summary = lines.Single(line => line.StartsWith("json-selfcheck.summary=", StringComparison.Ordinal));
+        var counts = summary["json-selfcheck.summary=".Length..].Split('/');
+        Assert.Equal(counts[1], counts[0]);
+        // 解析成整数再比：ToString() 会跟当前区域走（CA1305），而且比字符串更容易定位不一致的数字。
+        Assert.Equal(
+            lines.Count(line => line.StartsWith("json-selfcheck.OK.", StringComparison.Ordinal)),
+            int.Parse(counts[0], System.Globalization.CultureInfo.InvariantCulture));
     }
 
     // ---------------- 构造辅助 ----------------
