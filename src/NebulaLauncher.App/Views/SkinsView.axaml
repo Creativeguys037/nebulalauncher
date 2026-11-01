@@ -15,10 +15,10 @@
       <Setter Property="FontWeight" Value="Medium" />
     </Style>
 
-    <!-- 浏览列表：卡片自带边框，去掉 ListBoxItem 的默认内边距与间距。 -->
+    <!-- 浏览列表：卡片自带边框，去掉 ListBoxItem 的默认内边距。 -->
     <Style Selector="ListBox.skinList ListBoxItem">
       <Setter Property="Padding" Value="0" />
-      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="Margin" Value="0,0,12,12" />
       <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
     </Style>
 
@@ -54,10 +54,10 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*,320">
+  <Grid RowDefinitions="Auto,Auto,Auto,*">
 
     <!-- 错误条：断网时出现，可关闭、可重试。已有内容不清空，所以重试成功即恢复。 -->
-    <Border Grid.Row="0" Grid.ColumnSpan="2"
+    <Border Grid.Row="0"
             Margin="0,0,0,10"
             IsVisible="{Binding ShowErrorBar}"
             Background="{DynamicResource Status.Danger.Soft}"
@@ -86,7 +86,7 @@
          放在账户条里而不是右列底部：1024×660 下右列只剩 ~460px，预览卡占掉大半，
          操作区塞在下面就会被裁掉。这里横向有 ~750px，一行放得下三个按钮。 -->
     <!-- 账户与官方换肤只服务网络/本地页签；云端页签有自己的一条账号栏，不重复显示。 -->
-    <Border Grid.Row="1" Grid.ColumnSpan="2"
+    <Border Grid.Row="1"
             Classes="card"
             Padding="16,12"
             Margin="0,0,0,12"
@@ -119,14 +119,14 @@
                     IsEnabled="{Binding !IsOfficialBusy}"
                     ToolTip.Tip="把官方档案恢复成默认皮肤"
                     Command="{Binding ResetOfficialSkinCommand}" />
-            <!-- 披风按钮只在微软账户下出现：官方没有披风上传接口，按钮的存在本身
-                 就是「告诉你这里不能传」。第三方账户看见它只会被误导成「官方区我为什么有披风按钮」。
-                 可见性用 Official.CanUpload（微软且有令牌）而不是 HasAccount。 -->
+            <!-- 披风不能上传，但已经拥有的可以切换：这里不放一个永远点不了的按钮，
+                 直接把人带到本地皮肤库的披风分类。可见性仍用 Official.CanUpload
+                 （微软且有令牌），第三方账户看见它只会被误导。 -->
             <Button Classes="pill"
-                    Content="上传披风"
+                    Content="管理披风"
                     IsVisible="{Binding Official.CanUpload}"
-                    IsEnabled="False"
-                    ToolTip.Tip="{Binding OfficialCapeText}" />
+                    ToolTip.Tip="披风由官方发放；这里只能切换这个账户已经拥有的披风"
+                    Command="{Binding ManageCapesCommand}" />
           </StackPanel>
         </Grid>
 
@@ -219,7 +219,7 @@
     <!-- 皮肤站换肤区（票 43）。与上面官方那块并列而不是塞进同一个工具条：
          两条通道的可用条件不同（账户类型 + 服务端 uploadableTextures），
          挤在一起会让「这个按钮为什么灰着」变得看不出来。 -->
-    <Border Grid.Row="2" Grid.ColumnSpan="2"
+    <Border Grid.Row="2"
             Classes="card"
             Padding="16,12"
             Margin="0,0,0,12"
@@ -308,9 +308,8 @@
     </Border>
 
     <!-- 左列：页签 + 搜索 + 列表 + 页码 -->
-    <Grid Grid.Row="3" Grid.Column="0"
-          RowDefinitions="Auto,*,Auto"
-          Margin="0,0,12,0">
+    <Grid Grid.Row="3"
+          RowDefinitions="Auto,*,Auto">
 
       <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,10">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
@@ -348,7 +347,7 @@
       </Grid>
 
       <!-- 网络皮肤页签的内容 -->
-      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*"
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*"
             IsVisible="{Binding IsNetworkTab}">
 
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
@@ -361,14 +360,44 @@
                   Command="{Binding SearchCommand}" />
         </Grid>
 
+        <!-- 网络皮肤应用到皮肤站的结果条。与官方换肤那条分开：两条通道的失败原因不同。 -->
+        <Border Grid.Row="1"
+                Classes="feedback"
+                Classes.danger="{Binding IsCloudApplyError}"
+                IsVisible="{Binding HasCloudApplyFeedback}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Padding="10,8"
+                Margin="0,0,0,8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding CloudApplyFeedbackText}"
+                       Classes="feedbackText"
+                       TextWrapping="Wrap"
+                       LineHeight="18"
+                       VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                        VerticalAlignment="Center" Margin="10,0,0,0">
+              <Button Classes="pill"
+                      Content="重试"
+                      IsVisible="{Binding CanRetryCloudApply}"
+                      IsEnabled="{Binding CanStartCloudApply}"
+                      Command="{Binding RetryCloudApplyCommand}" />
+              <Button Classes="pill"
+                      Content="去云端衣柜"
+                      IsVisible="{Binding CloudApplyGoToClosetVisible}"
+                      Command="{Binding GoToCloudClosetCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
         <!-- 顶部细进度条：翻页时不遮挡已有行，断网时也还能看缓存下来的列表。 -->
-        <ProgressBar Grid.Row="1"
+        <ProgressBar Grid.Row="2"
                      IsVisible="{Binding IsLoading}"
                      IsIndeterminate="True"
                      Height="3"
                      Margin="0,0,0,8" />
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
           <!-- 首屏加载占位 -->
           <Border Classes="card"
                   IsVisible="{Binding ShowLoadingPlaceholder}"
@@ -380,66 +409,92 @@
             </StackPanel>
           </Border>
 
-          <!-- 浏览列表：一行 = 小图 + 名字 + 类型 + 人气 -->
+          <!-- 浏览列表：自适应平铺。卡片宽度固定，列数随窗口宽度变（票 61）。 -->
           <ListBox Classes="skinList"
                    ItemsSource="{Binding Items}"
                    SelectedItem="{Binding Selected}"
                    IsVisible="{Binding !IsEmpty}"
                    Background="Transparent"
                    BorderThickness="0"
-                   Padding="0"
+                   Padding="0,0,236,260"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:SkinEntryViewModel">
                 <Border Classes="card hoverable"
                         Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
-                        Padding="10">
-                  <Grid ColumnDefinitions="44,*,Auto">
-                    <Border Width="44" Height="44"
-                            CornerRadius="{DynamicResource Radius.Sm}"
-                            ClipToBounds="True"
-                            Background="{DynamicResource Surface.Sunken}">
-                      <Panel>
-                        <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
-                              IsVisible="{Binding !HasThumbnail}"
-                              Stroke="{DynamicResource Text.Muted}"
-                              StrokeThickness="1.4"
-                              Stretch="Uniform"
-                              Width="20" Height="20"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center" />
-                        <Image Source="{Binding Thumbnail}"
-                               IsVisible="{Binding HasThumbnail}"
-                               Stretch="Uniform" />
-                      </Panel>
-                    </Border>
-
-                    <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="2" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Name}"
-                                 FontWeight="SemiBold"
-                                 TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding LikesLabel}" Classes="caption" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                      <Border Classes="badge" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding ModelLabel}" />
+                        Width="232"
+                        Height="150"
+                        Padding="12">
+                  <Grid RowDefinitions="Auto,*,Auto">
+                    <Grid ColumnDefinitions="48,*">
+                      <Border Width="48" Height="48"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              ClipToBounds="True"
+                              Background="{DynamicResource Surface.Sunken}">
+                        <Panel>
+                          <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                                IsVisible="{Binding !HasThumbnail}"
+                                Stroke="{DynamicResource Text.Muted}"
+                                StrokeThickness="1.4"
+                                Stretch="Uniform"
+                                Width="20" Height="20"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                          <Image Source="{Binding Thumbnail}"
+                                 IsVisible="{Binding HasThumbnail}"
+                                 Stretch="Uniform" />
+                        </Panel>
                       </Border>
 
-                      <!-- 票 42：把这一套存进本地皮肤目录，之后离线也能用 -->
+                      <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   MaxLines="2"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding LikesLabel}" Classes="caption" />
+                      </StackPanel>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                Margin="0,8,0,8"
+                                VerticalAlignment="Center">
+                      <Border Classes="badge">
+                        <TextBlock Text="{Binding ModelLabel}" />
+                      </Border>
+                      <TextBlock Text="{Binding LocalState}"
+                                 IsVisible="{Binding HasLocalState}"
+                                 Classes="caption"
+                                 VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="2" ColumnDefinitions="*,*">
                       <Button Classes="pill"
+                              Padding="6,6" FontSize="12"
                               Content="下载到本地"
                               IsEnabled="{Binding !IsSavingToLocal}"
                               ToolTip.Tip="把这张皮肤存进本地皮肤目录"
                               Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).DownloadToLocalCommand}"
                               CommandParameter="{Binding}" />
-
-                      <TextBlock Text="{Binding LocalState}"
-                                 IsVisible="{Binding HasLocalState}"
-                                 Classes="caption"
-                                 HorizontalAlignment="Right" />
-                    </StackPanel>
+                      <Button Grid.Column="1"
+                              Classes="pill"
+                              Padding="6,6" FontSize="12"
+                              Margin="6,0,0,0"
+                              Content="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).ApplyToCloudLabel}"
+                              IsEnabled="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).CanApplyNetworkToCloud}"
+                              ToolTip.Tip="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).CloudApplyBlockedHint}"
+                              ToolTip.ShowOnDisabled="True"
+                              Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).ApplyToCloudCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
                   </Grid>
                 </Border>
               </DataTemplate>
@@ -474,8 +529,8 @@
         </Grid>
       </Grid>
 
-      <!-- 本地皮肤页签（票 42）：磁盘上的 PNG，一行 = 平面小图 + 文件名 -->
-      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto"
+      <!-- 本地皮肤库（票 42 / 票 61）：磁盘上的 PNG，自适应平铺；披风是官方已拥有的列表。 -->
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,*,Auto"
             IsVisible="{Binding IsLocalTab}">
 
         <!-- 本地自己的错误条：打不开目录、删不掉文件都落在这里，不去挤网络那条 -->
@@ -500,14 +555,46 @@
           </Grid>
         </Border>
 
+        <!-- 皮肤 / 披风分段。默认皮肤；选择在当前页面生命周期内保留。 -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Classes="pill tab"
+                    Classes.active="{Binding IsLocalSkinCategory}"
+                    Content="皮肤"
+                    Command="{Binding SelectLocalSkinCategoryCommand}" />
+            <Button Classes="pill tab"
+                    Classes.active="{Binding IsLocalCapeCategory}"
+                    Content="披风"
+                    Command="{Binding SelectLocalCapeCategoryCommand}" />
+          </StackPanel>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                      IsVisible="{Binding IsLocalCapeCategory}">
+            <TextBlock Text="{Binding CapeHint}"
+                       Classes="caption"
+                       MaxWidth="360"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+            <Button Classes="pill"
+                    Content="刷新披风"
+                    IsEnabled="{Binding !IsCapeLoading}"
+                    ToolTip.Tip="重新读取这个微软账户已拥有的披风"
+                    Command="{Binding RefreshCapesCommand}" />
+            <Button Classes="pill"
+                    Content="隐藏披风"
+                    IsEnabled="{Binding CanHideCape}"
+                    ToolTip.Tip="把当前披风从角色身上取下来"
+                    Command="{Binding HideCapeCommand}" />
+          </StackPanel>
+        </Grid>
+
         <!-- 细进度条：重扫时不遮已有行，用户手上还有旧列表可点 -->
-        <ProgressBar Grid.Row="1"
+        <ProgressBar Grid.Row="2"
                      IsVisible="{Binding IsLocalLoading}"
                      IsIndeterminate="True"
                      Height="3"
                      Margin="0,0,0,8" />
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3" IsVisible="{Binding IsLocalSkinCategory}">
           <!-- 首屏加载占位 -->
           <Border Classes="card"
                   IsVisible="{Binding ShowLocalLoadingPlaceholder}"
@@ -525,68 +612,95 @@
                    IsVisible="{Binding HasLocalItems}"
                    Background="Transparent"
                    BorderThickness="0"
-                   Padding="0"
+                   Padding="0,0,236,260"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:LocalSkinEntryViewModel">
                 <Border Classes="card hoverable"
                         Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
-                        Padding="10">
-                  <Grid ColumnDefinitions="44,*,Auto,Auto">
-                    <Border Width="44" Height="44"
-                            CornerRadius="{DynamicResource Radius.Sm}"
-                            ClipToBounds="True"
-                            Background="{DynamicResource Surface.Sunken}">
-                      <Panel>
-                        <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
-                              IsVisible="{Binding !HasThumbnail}"
-                              Stroke="{DynamicResource Text.Muted}"
-                              StrokeThickness="1.4"
-                              Stretch="Uniform"
-                              Width="20" Height="20"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center" />
-                        <Image Source="{Binding Thumbnail}"
-                               IsVisible="{Binding HasThumbnail}"
-                               Stretch="Uniform" />
-                      </Panel>
-                    </Border>
+                        Width="232"
+                        Height="150"
+                        Padding="12">
+                  <Grid RowDefinitions="Auto,*,Auto">
+                    <Grid ColumnDefinitions="48,*">
+                      <Border Width="48" Height="48"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              ClipToBounds="True"
+                              Background="{DynamicResource Surface.Sunken}">
+                        <Panel>
+                          <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
+                                IsVisible="{Binding !HasThumbnail}"
+                                Stroke="{DynamicResource Text.Muted}"
+                                StrokeThickness="1.4"
+                                Stretch="Uniform"
+                                Width="20" Height="20"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                          <Image Source="{Binding Thumbnail}"
+                                 IsVisible="{Binding HasThumbnail}"
+                                 Stretch="Uniform" />
+                        </Panel>
+                      </Border>
 
-                    <StackPanel Grid.Column="1" Margin="10,0,8,0" Spacing="2" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Name}"
-                                 FontWeight="SemiBold"
-                                 TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding DetailLabel}" Classes="caption" />
-                    </StackPanel>
+                      <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   MaxLines="2"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding DetailLabel}" Classes="caption" />
+                      </StackPanel>
+                    </Grid>
 
-                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
+                    <Border Grid.Row="1" Classes="badge"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Margin="0,8,0,8">
                       <TextBlock Text="{Binding ModelLabel}" />
                     </Border>
 
-                    <Button Grid.Column="3" Classes="pill"
-                            Content="删除"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"
-                            ToolTip.Tip="删除这个皮肤文件"
-                            Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).DeleteLocalCommand}"
-                            CommandParameter="{Binding}" />
+                    <Grid Grid.Row="2" ColumnDefinitions="*,*">
+                      <Button Classes="pill"
+                              Padding="6,6" FontSize="12"
+                              Content="应用到微软账户"
+                              IsEnabled="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).CanApplyLocalToOfficial}"
+                              ToolTip.Tip="把这套皮肤上传到当前微软账户"
+                              Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).ApplyLocalToOfficialCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Grid.Column="1"
+                              Classes="pill"
+                              Padding="6,6" FontSize="12"
+                              Margin="6,0,0,0"
+                              Content="删除"
+                              ToolTip.Tip="删除这个皮肤文件"
+                              Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).DeleteLocalCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
                   </Grid>
                 </Border>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
 
-          <!-- 空态：引导 + 两个按钮（AC8：不白屏，给的是一条走得通的路） -->
+          <!-- 空态：引导 + 两个按钮（AC8：不白屏，给的是一条走得通的路）。
+               左对齐限宽：右下角留给悬浮预览卡，窄窗下也不会盖住「从文件导入」。 -->
           <Border Classes="card"
                   IsVisible="{Binding IsLocalEmpty}"
                   VerticalAlignment="Top"
+                  HorizontalAlignment="Left"
+                  MaxWidth="440"
                   Padding="24,28">
-            <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="460">
+            <StackPanel Spacing="12" HorizontalAlignment="Left" MaxWidth="380">
               <Border Width="52" Height="52"
                       CornerRadius="26"
                       Background="{DynamicResource Accent.Soft}"
-                      HorizontalAlignment="Center">
+                      HorizontalAlignment="Left">
                 <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
                       Stroke="{DynamicResource Accent.Primary}"
                       StrokeThickness="1.6"
@@ -595,16 +709,16 @@
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center" />
               </Border>
-              <TextBlock Text="本地还没有皮肤" Classes="h3" HorizontalAlignment="Center" />
+              <TextBlock Text="本地还没有皮肤" Classes="h3" HorizontalAlignment="Left" />
               <TextBlock Text="把皮肤 PNG 导进来，或者直接丢进下面这个目录——放进去之后回到这一页就能看见。"
                          Classes="muted"
                          TextWrapping="Wrap"
-                         TextAlignment="Center" />
+                         TextAlignment="Left" />
               <TextBlock Text="{Binding LocalDirectory}"
                          Classes="caption"
                          TextWrapping="Wrap"
-                         TextAlignment="Center" />
-              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                         TextAlignment="Left" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                 <Button Classes="accent"
                         Content="从文件导入"
                         Click="OnImportLocalSkinClick" />
@@ -617,9 +731,135 @@
           </Border>
         </Grid>
 
+        <!-- 披风分类：官方已拥有的披风列表。这里只能切换，不能上传新披风。 -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,Auto,Auto,*"
+              IsVisible="{Binding IsLocalCapeCategory}">
+
+          <Border Grid.Row="0"
+                  Classes="card"
+                  IsVisible="{Binding HasCapeError}"
+                  Padding="14,10"
+                  Margin="0,0,0,8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Border Classes="badge" VerticalAlignment="Center">
+                <TextBlock Text="披风" />
+              </Border>
+              <TextBlock Grid.Column="1"
+                         Text="{Binding CapeErrorText}"
+                         Margin="10,0"
+                         TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="2" Classes="pill"
+                      Content="重试"
+                      Command="{Binding RefreshCapesCommand}" />
+            </Grid>
+          </Border>
+
+          <Border Grid.Row="1"
+                  Classes="feedback"
+                  IsVisible="{Binding HasCapeStatus}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource Radius.Md}"
+                  Padding="10,8"
+                  Margin="0,0,0,8">
+            <TextBlock Text="{Binding CapeStatusText}"
+                       Classes="feedbackText"
+                       TextWrapping="Wrap"
+                       LineHeight="18" />
+          </Border>
+
+          <ProgressBar Grid.Row="2"
+                       IsVisible="{Binding IsCapeLoading}"
+                       IsIndeterminate="True"
+                       Height="3"
+                       Margin="0,0,0,8" />
+
+          <Grid Grid.Row="3">
+            <ItemsControl ItemsSource="{Binding Capes}"
+                          Margin="0,0,236,260"
+                          IsVisible="{Binding HasCapes}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:MojangCapeViewModel">
+                  <Border Classes="card"
+                          Width="220"
+                          Height="196"
+                          Padding="12"
+                          Margin="0,0,12,12">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                      <Border Width="64" Height="64"
+                              HorizontalAlignment="Left"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              ClipToBounds="True"
+                              Background="{DynamicResource Surface.Sunken}">
+                        <Panel>
+                          <Path Data="M8 6h8l2 4v10H6V10l2-4Zm2 8h4"
+                                IsVisible="{Binding !HasThumbnail}"
+                                Stroke="{DynamicResource Text.Muted}"
+                                StrokeThickness="1.4"
+                                Stretch="Uniform"
+                                Width="28" Height="28"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                          <Image Source="{Binding Thumbnail}"
+                                 IsVisible="{Binding HasThumbnail}"
+                                 Stretch="Uniform" />
+                        </Panel>
+                      </Border>
+
+                      <StackPanel Grid.Row="1" Spacing="4" Margin="0,8,0,8">
+                        <TextBlock Text="{Binding DisplayName}"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Border Classes="badge"
+                                HorizontalAlignment="Left"
+                                IsVisible="{Binding IsActive}">
+                          <TextBlock Text="使用中" />
+                        </Border>
+                      </StackPanel>
+
+                      <Button Grid.Row="2"
+                              Classes="pill"
+                              Content="{Binding ActionLabel}"
+                              IsEnabled="{Binding CanUse}"
+                              ToolTip.Tip="把这个披风穿到当前角色上"
+                              Command="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).UseCapeCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- 空态：没有披风，或这个账户根本不能换披风 -->
+            <Border Classes="card"
+                    IsVisible="{Binding IsCapeEmpty}"
+                    HorizontalAlignment="Left"
+                    MaxWidth="460"
+                    VerticalAlignment="Top"
+                    Padding="24,28">
+              <StackPanel Spacing="10" HorizontalAlignment="Left" MaxWidth="400">
+                <TextBlock Text="没有可切换的披风" Classes="h3" HorizontalAlignment="Left" />
+                <TextBlock Text="{Binding CapeHint}"
+                           Classes="muted"
+                           TextWrapping="Wrap"
+                           TextAlignment="Left" />
+                <Button Classes="pill"
+                        Content="刷新披风"
+                        HorizontalAlignment="Left"
+                        Command="{Binding RefreshCapesCommand}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+
         <!-- 底部：目录路径常驻，用户想手丢文件时不用去别处找 -->
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,10,0,0"
-              IsVisible="{Binding HasLocalItems}">
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,10,236,0"
+              IsVisible="{Binding ShowLocalFooter}">
           <TextBlock Text="{Binding LocalDirectory}"
                      Classes="caption"
                      VerticalAlignment="Center"
@@ -636,8 +876,8 @@
         <views:CloudClosetView DataContext="{Binding Cloud}" />
       </Grid>
 
-      <!-- 页码：末页时「下一页」禁用 -->
-      <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0"
+      <!-- 页码：末页时「下一页」禁用。右侧留出悬浮预览卡的位置。 -->
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,236,0"
             IsVisible="{Binding IsNetworkTab}">
         <Button Classes="pill"
                 Content="上一页"
@@ -655,76 +895,105 @@
       </Grid>
     </Grid>
 
-    <!-- 右列：中等尺寸 3D 预览卡。可自转、可拖动。云端页签有自己的那张，二者互斥。 -->
-    <Border Grid.Row="3" Grid.Column="1"
+    <!-- 右下角悬浮预览卡（票 61）：不再占一整列。宽 220 高约 260，
+         可收起成 44×44 圆钮；云端页签共用同一张，内容按页签切换。 -->
+    <Border Grid.Row="3"
+            Width="220"
+            Height="260"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="0,0,16,16"
+            ZIndex="100"
             Classes="card"
             Padding="0"
-            VerticalAlignment="Top"
             ClipToBounds="True"
-            IsVisible="{Binding !IsCloudTab}">
-      <StackPanel>
-        <Border Height="300"
-                Background="{DynamicResource Surface.Sunken}"
+            IsVisible="{Binding !IsPreviewCollapsed}">
+      <Grid RowDefinitions="150,*">
+        <Border Background="{DynamicResource Surface.Sunken}"
                 ClipToBounds="True">
           <Panel>
-            <controls:SkinModelView Visual="{Binding PreviewVisual}"
-                                    Cursor="SizeAll"
-                                    ClipToBounds="True" />
-            <ProgressBar IsVisible="{Binding IsPreviewLoading}"
-                         IsIndeterminate="True"
-                         Height="3"
-                         VerticalAlignment="Top" />
+            <Panel IsVisible="{Binding !IsCloudTab}">
+              <controls:SkinModelView Visual="{Binding PreviewVisual}"
+                                      Cursor="SizeAll"
+                                      ClipToBounds="True" />
+              <!-- 刚切换披风时先用官方 capes[].url 的图顶上，别让用户盯着旧模型等会话缓存。 -->
+              <Image Source="{Binding CapePreviewOverride}"
+                     IsVisible="{Binding HasCapePreviewOverride}"
+                     Stretch="Uniform"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+              <ProgressBar IsVisible="{Binding IsPreviewLoading}"
+                           IsIndeterminate="True"
+                           Height="3"
+                           VerticalAlignment="Top" />
+            </Panel>
+            <Panel IsVisible="{Binding IsCloudTab}">
+              <controls:SkinModelView Visual="{Binding Cloud.PreviewVisual}"
+                                      Cursor="SizeAll"
+                                      ClipToBounds="True" />
+              <ProgressBar IsVisible="{Binding Cloud.IsPreviewLoading}"
+                           IsIndeterminate="True"
+                           Height="3"
+                           VerticalAlignment="Top" />
+            </Panel>
+            <Button Classes="icon"
+                    Content="–"
+                    Width="28" Height="28"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="4"
+                    ToolTip.Tip="收起预览卡"
+                    Command="{Binding TogglePreviewCollapsedCommand}" />
           </Panel>
         </Border>
 
-        <StackPanel Margin="14,10,14,14" Spacing="4">
+        <StackPanel Grid.Row="1" Margin="12,8,12,10" Spacing="3"
+                    IsVisible="{Binding !IsCloudTab}">
           <TextBlock Text="{Binding PreviewName}"
                      FontWeight="SemiBold"
                      TextTrimming="CharacterEllipsis" />
           <TextBlock Text="{Binding PreviewDetail}"
                      Classes="caption"
-                     TextWrapping="Wrap" />
+                     TextWrapping="Wrap"
+                     MaxLines="2"
+                     TextTrimming="CharacterEllipsis" />
           <TextBlock Text="按住拖动可以转视角，松手继续自转"
                      Classes="muted"
-                     TextWrapping="Wrap" />
+                     TextWrapping="Wrap"
+                     FontSize="11" />
         </StackPanel>
-      </StackPanel>
-    </Border>
 
-    <!-- 云端衣柜的预览卡：选中云端材质后由 Cloud 自己更新，与本地/网络那张互斥。 -->
-    <Border Grid.Row="3" Grid.Column="1"
-            Classes="card"
-            Padding="0"
-            VerticalAlignment="Top"
-            ClipToBounds="True"
-            IsVisible="{Binding IsCloudTab}">
-      <StackPanel>
-        <Border Height="300"
-                Background="{DynamicResource Surface.Sunken}"
-                ClipToBounds="True">
-          <Panel>
-            <controls:SkinModelView Visual="{Binding Cloud.PreviewVisual}"
-                                    Cursor="SizeAll"
-                                    ClipToBounds="True" />
-            <ProgressBar IsVisible="{Binding Cloud.IsPreviewLoading}"
-                         IsIndeterminate="True"
-                         Height="3"
-                         VerticalAlignment="Top" />
-          </Panel>
-        </Border>
-
-        <StackPanel Margin="14,10,14,14" Spacing="4">
+        <StackPanel Grid.Row="1" Margin="12,8,12,10" Spacing="3"
+                    IsVisible="{Binding IsCloudTab}">
           <TextBlock Text="{Binding Cloud.PreviewName}"
                      FontWeight="SemiBold"
                      TextTrimming="CharacterEllipsis" />
           <TextBlock Text="{Binding Cloud.PreviewDetail}"
                      Classes="caption"
-                     TextWrapping="Wrap" />
+                     TextWrapping="Wrap"
+                     MaxLines="2"
+                     TextTrimming="CharacterEllipsis" />
           <TextBlock Text="按住拖动可以转视角，松手继续自转"
                      Classes="muted"
-                     TextWrapping="Wrap" />
+                     TextWrapping="Wrap"
+                     FontSize="11" />
         </StackPanel>
-      </StackPanel>
+      </Grid>
     </Border>
+
+    <!-- 收起后的圆钮：只留一个入口，不占内容区的视觉空间。 -->
+    <Button Grid.Row="3"
+            Width="44" Height="44"
+            CornerRadius="22"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="0,0,16,16"
+            ZIndex="101"
+            Classes="pill"
+            Content="预览"
+            FontSize="11"
+            ToolTip.Tip="展开预览卡"
+            IsVisible="{Binding IsPreviewCollapsed}"
+            Command="{Binding TogglePreviewCollapsedCommand}" />
   </Grid>
 </UserControl>

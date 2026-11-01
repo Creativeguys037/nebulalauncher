@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -110,6 +111,27 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>冷却到期的刷新任务。冷却期间「重试」按钮是隐藏的，到期要让它自己冒出来。</summary>
     private CancellationTokenSource? _cooldownCancellation;
 
+    // ==================== 官方披风（票 #61） ====================
+
+    /// <summary>官方 CDN 披风图下载。与 API 客户端分开：这里只要字节，不参与鉴权与错误映射。</summary>
+    private static readonly HttpClient CapeImageHttp = new() { Timeout = TimeSpan.FromSeconds(20) };
+
+    /// <summary>披风列表读取的在途取消线。切账户/离开页面时取消，避免旧账户的披风落到新账户上。</summary>
+    private CancellationTokenSource? _capeCancellation;
+
+    /// <summary>披风列表「至少拉过一次」。没拉过不显示「这个账户还没有披风」。</summary>
+    private bool _hasLoadedCapes;
+
+    /// <summary>侧边栏头像缓存失效入口：切完披风要让账户卡立刻重取官方档案。</summary>
+    private ISkinAvatarService? _skinAvatar;
+
+    [ObservableProperty]
+    private bool _isCapeBusy;
+
+    /// <summary>本地皮肤库顶部的「皮肤 / 披风」分段。选择在当前页面生命周期内保留（票 #61）。</summary>
+    [ObservableProperty]
+    private bool _isLocalCapeCategory;
+
     public SkinsViewModel(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -137,6 +159,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         _skinChanges = services.GetService(typeof(SkinChangeNotifier)) as SkinChangeNotifier
                        ?? SkinChangeBus.Current;
         _navigation = services.GetService(typeof(INavigationService)) as INavigationService;
+        _skinAvatar = services.GetService(typeof(ISkinAvatarService)) as ISkinAvatarService;
 
         // 皮肤站通道（票 43）：同样容器优先、缺省自建。
         _authlibClient = services.GetService(typeof(AuthlibSkinClient)) as AuthlibSkinClient
@@ -147,6 +170,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         {
             _cloud = new CloudClosetViewModel(_paths, _platform, _log, _skinChanges);
             _cloud.LocalLibraryChanged += OnCloudLibraryChanged;
+            _cloud.PropertyChanged += OnCloudPropertyChanged;
         }
 
         Items.CollectionChanged += (_, _) =>
@@ -181,7 +205,67 @@ public sealed partial class SkinsViewModel : PageViewModelBase
                 Cloud?.ApplyScreenshotDemo(empty: true);
             }
         }
+        else if (ScreenshotMode.IsActive &&
+                 ScreenshotMode.SectionKey is { } localSection &&
+                 (localSection.StartsWith("local", StringComparison.OrdinalIgnoreCase) ||
+                  localSection.StartsWith("cape", StringComparison.OrdinalIgnoreCase)))
+        {
+            ApplyScreenshotLocalDemo(localSection);
+        }
     }
+
+    /// <summary>
+    /// 截图模式专用：本地皮肤库的「皮肤 / 披风」两种分类与空态样本。
+    /// 只摆内存对象，不扫盘也不联网；缩略图留占位，布局验收看的是卡片尺寸与换行。
+    /// </summary>
+    private static bool IsScreenshotLocalSection =>
+        ScreenshotMode.IsActive &&
+        ScreenshotMode.SectionKey is { } key &&
+        (key.StartsWith("local", StringComparison.OrdinalIgnoreCase) ||
+         key.StartsWith("cape", StringComparison.OrdinalIgnoreCase));
+
+    private void ApplyScreenshotLocalDemo(string section)
+    {
+        IsCloudTab = false;
+        IsNetworkTab = false;
+        _hasLoadedLocalOnce = true;
+        _hasLoadedCapes = true;
+
+        var capes = section.StartsWith("cape", StringComparison.OrdinalIgnoreCase);
+        IsLocalCapeCategory = capes;
+
+        if (capes)
+        {
+            if (!section.EndsWith("-empty", StringComparison.OrdinalIgnoreCase))
+            {
+                Capes.Add(new MojangCapeViewModel(new MojangCape("cape-1", true, null, "Migrator")));
+                Capes.Add(new MojangCapeViewModel(new MojangCape("cape-2", false, null, "MineCon 2015")));
+                Capes.Add(new MojangCapeViewModel(new MojangCape("cape-3", false, null, "Vanilla")));
+            }
+
+            NotifyCapeState();
+            return;
+        }
+
+        if (!section.EndsWith("-empty", StringComparison.OrdinalIgnoreCase))
+        {
+            LocalItems.Add(NewLocalDemo("夏日短袖.png", LocalSkinModel.Classic));
+            LocalItems.Add(NewLocalDemo("冬装 ver.2.png", LocalSkinModel.Classic));
+            LocalItems.Add(NewLocalDemo("细手臂角色.png", LocalSkinModel.Slim));
+            LocalItems.Add(NewLocalDemo("长名字的皮肤文件用来验证两行省略.png", LocalSkinModel.Classic));
+        }
+
+        NotifyLocalState();
+    }
+
+    private LocalSkinEntryViewModel NewLocalDemo(string name, LocalSkinModel model) =>
+        new(new LocalSkinEntry(
+            name,
+            Path.Combine(LocalDirectory, name),
+            64,
+            64,
+            model,
+            DateTimeOffset.Now));
 
     /// <summary>
     /// 截图模式专用：把一条真实的 <see cref="SkinUploadFeedback"/> 摆进结果区。
@@ -338,6 +422,9 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     public bool HasLocalItems => LocalItems.Count > 0;
 
+    /// <summary>底部目录条只属于皮肤分类；披风分类底部不显示本地目录。</summary>
+    public bool ShowLocalFooter => IsLocalSkinCategory && HasLocalItems;
+
     /// <summary>扫过一次、扫完了、结果为空——三个条件齐了才显示空态，避免进页面先闪一下。</summary>
     public bool IsLocalEmpty => _hasLoadedLocalOnce && !IsLocalLoading && LocalItems.Count == 0;
 
@@ -386,6 +473,562 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     public string OfficialCapeText => Official.CapeText;
 
+    /// <summary>本地皮肤卡片的「应用到微软账户」是否可点：可上传且当前没有官方换肤在跑。</summary>
+    public bool CanApplyLocalToOfficial => Official.CanUpload && !IsOfficialBusy;
+
+    // ==================== 官方披风（票 #61） ====================
+
+    /// <summary>当前微软账户已拥有的披风。只在内存，进页面 / 换账户 / 手动刷新时重拉。</summary>
+    public ObservableCollection<MojangCapeViewModel> Capes { get; } = [];
+
+    [ObservableProperty]
+    private bool _isCapeLoading;
+
+    [ObservableProperty]
+    private string? _capeErrorText;
+
+    [ObservableProperty]
+    private string? _capeStatusText;
+
+    public bool HasCapeError => !string.IsNullOrWhiteSpace(CapeErrorText);
+
+    public bool HasCapeStatus => !string.IsNullOrWhiteSpace(CapeStatusText);
+
+    public bool HasCapes => Capes.Count > 0;
+
+    /// <summary>拉过一次、现在没在拉、列表为空——才显示「这个账户还没有披风」。</summary>
+    public bool IsCapeEmpty => _hasLoadedCapes && !IsCapeLoading && Capes.Count == 0;
+
+    /// <summary>常驻说明：披风由官方发放，这里只能切换已拥有的。</summary>
+    public string CapeHint => !Official.CanChangeCape
+        ? Official.CapeText
+        : Capes.Count == 0
+            ? "这个账户还没有披风。披风由官方发放，这里只能切换已拥有的。"
+            : "披风由官方发放，这里只能切换已拥有的。";
+
+    /// <summary>「隐藏披风」只在有生效中的披风时可点。</summary>
+    public bool CanHideCape => Official.CanChangeCape && !IsCapeBusy && Capes.Any(cape => cape.IsActive);
+
+    /// <summary>本地皮肤库顶部的分段：true 表示正在看「披风」。</summary>
+    public bool IsLocalSkinCategory => !IsLocalCapeCategory;
+
+    public string LocalCategoryLabel => IsLocalCapeCategory ? "披风" : "皮肤";
+
+    /// <summary>右下角预览卡是否收起。只存内存，当前页面会话内保留。</summary>
+    /// <summary>切换披风后先用官方 capes[].url 的图顶上，等会话服务器对齐再回到 3D 模型。</summary>
+    [ObservableProperty]
+    private Bitmap? _capePreviewOverride;
+
+    public bool HasCapePreviewOverride => CapePreviewOverride is not null;
+
+    partial void OnCapePreviewOverrideChanged(Bitmap? value) =>
+        OnPropertyChanged(nameof(HasCapePreviewOverride));
+
+    [ObservableProperty]
+    private bool _isPreviewCollapsed;
+
+    [RelayCommand]
+    private void TogglePreviewCollapsed() => IsPreviewCollapsed = !IsPreviewCollapsed;
+
+    [RelayCommand]
+    private void SelectLocalSkinCategory() => IsLocalCapeCategory = false;
+
+    [RelayCommand]
+    private void SelectLocalCapeCategory()
+    {
+        IsLocalCapeCategory = true;
+        if (!_hasLoadedCapes)
+        {
+            _ = LoadCapesAsync();
+        }
+    }
+
+    /// <summary>官方卡上的「管理披风」：跳到本地皮肤库的披风分类。</summary>
+    [RelayCommand]
+    private void ManageCapes()
+    {
+        SelectLocalTab();
+        SelectLocalCapeCategory();
+    }
+
+    [RelayCommand]
+    private Task RefreshCapesAsync() => LoadCapesAsync();
+
+    /// <summary>把某一件已拥有的披风设为当前披风。只作用于这一张卡，不要求先选中。</summary>
+    [RelayCommand]
+    private async Task UseCapeAsync(MojangCapeViewModel? cape)
+    {
+        if (cape is null || cape.IsActive || IsCapeBusy || IsDisposed)
+        {
+            return;
+        }
+
+        if (!TryGetCapeToken(out var token))
+        {
+            return;
+        }
+
+        var account = _accounts?.ActiveAccount;
+        IsCapeBusy = true;
+        CapeErrorText = null;
+        CapeStatusText = null;
+        try
+        {
+            var result = await _mojang!.SetActiveCapeAsync(token, cape.Id, CancellationToken.None).ConfigureAwait(true);
+            if (IsDisposed || !ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                return;
+            }
+
+            if (!result.Succeeded)
+            {
+                CapeErrorText = result.ErrorText;
+                return;
+            }
+
+            foreach (var item in Capes)
+            {
+                item.IsActive = ReferenceEquals(item, cape);
+            }
+
+            CapeStatusText = $"已换上披风：{cape.DisplayName}";
+            NotifyCapeChanged();
+            _ = LoadCapePreviewAsync(cape.Url, account);
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("切换官方披风失败", ex);
+            CapeErrorText = $"切换披风失败：{ex.Message}";
+        }
+        finally
+        {
+            IsCapeBusy = false;
+            NotifyCapeState();
+        }
+    }
+
+    /// <summary>隐藏当前披风：官方 DELETE 后角色回到无披风状态。</summary>
+    [RelayCommand]
+    private async Task HideCapeAsync()
+    {
+        if (IsCapeBusy || IsDisposed || !CanHideCape || !TryGetCapeToken(out var token))
+        {
+            return;
+        }
+
+        var account = _accounts?.ActiveAccount;
+        IsCapeBusy = true;
+        CapeErrorText = null;
+        CapeStatusText = null;
+        try
+        {
+            var result = await _mojang!.HideCapeAsync(token, CancellationToken.None).ConfigureAwait(true);
+            if (IsDisposed || !ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                return;
+            }
+
+            if (!result.Succeeded)
+            {
+                CapeErrorText = result.ErrorText;
+                return;
+            }
+
+            foreach (var item in Capes)
+            {
+                item.IsActive = false;
+            }
+
+            CapeStatusText = "已隐藏披风，角色回到无披风状态。";
+            CapePreviewOverride?.Dispose();
+            CapePreviewOverride = null;
+            NotifyCapeChanged();
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("隐藏官方披风失败", ex);
+            CapeErrorText = $"隐藏披风失败：{ex.Message}";
+        }
+        finally
+        {
+            IsCapeBusy = false;
+            NotifyCapeState();
+        }
+    }
+
+    private bool TryGetCapeToken(out string token)
+    {
+        token = string.Empty;
+        var account = _accounts?.ActiveAccount;
+        if (_mojang is null || account is null || !Official.CanChangeCape ||
+            string.IsNullOrWhiteSpace(account.AccessToken))
+        {
+            return false;
+        }
+
+        token = account.AccessToken;
+        return true;
+    }
+
+    /// <summary>重拉官方档案里的 capes[]。账户不支持换披风时直接清空，不发请求。</summary>
+    private async Task LoadCapesAsync()
+    {
+        // 截图模式摆的是内存披风样本，重拉会把它清空。
+        if (IsScreenshotLocalSection)
+        {
+            return;
+        }
+
+        var account = _accounts?.ActiveAccount;
+        if (IsDisposed || _mojang is null || account is null || !Official.CanChangeCape ||
+            string.IsNullOrWhiteSpace(account.AccessToken))
+        {
+            ClearCapes();
+            _hasLoadedCapes = true;
+            CapeErrorText = null;
+            NotifyCapeState();
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _capeCancellation, cancellation);
+        previous?.Cancel();
+        previous?.Dispose();
+
+        IsCapeLoading = true;
+        CapeErrorText = null;
+        try
+        {
+            var result = await _mojang.GetProfileAsync(account.AccessToken, cancellation.Token).ConfigureAwait(true);
+            if (IsDisposed || cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (!result.Succeeded || result.Value is null)
+            {
+                CapeErrorText = result.ErrorText;
+                return;
+            }
+
+            ClearCapes();
+            foreach (var cape in result.Value.Capes)
+            {
+                Capes.Add(new MojangCapeViewModel(cape));
+            }
+
+            _hasLoadedCapes = true;
+            NotifyCapeState();
+            _ = LoadCapeThumbnailsAsync(cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // 切账户或离开页面：结果作废，不改 UI。
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("读取官方披风列表失败", ex);
+            CapeErrorText = $"读取披风列表失败：{ex.Message}";
+        }
+        finally
+        {
+            if (ReferenceEquals(_capeCancellation, cancellation))
+            {
+                IsCapeLoading = false;
+            }
+
+            NotifyCapeState();
+        }
+    }
+
+    private async Task LoadCapeThumbnailsAsync(CancellationToken cancellationToken)
+    {
+        foreach (var cape in Capes.ToList())
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (cape.Url is not { Length: > 0 } url || cape.Thumbnail is not null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var bytes = await CapeImageHttp.GetByteArrayAsync(url, cancellationToken).ConfigureAwait(true);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                using var stream = new MemoryStream(bytes, writable: false);
+                var bitmap = new Bitmap(stream);
+                var old = cape.Thumbnail;
+                cape.Thumbnail = bitmap;
+                old?.Dispose();
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // 官方 CDN 失败不该挡住列表：卡片留占位。
+                _log?.Warn($"下载披风缩略图失败：{cape.DisplayName}", ex);
+            }
+        }
+    }
+
+    /// <summary>切换成功后用 capes[].url 的官方图顶上，别等会话服务器缓存过期。</summary>
+    private async Task LoadCapePreviewAsync(string? url, Account? account)
+    {
+        if (string.IsNullOrWhiteSpace(url) || account is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var bytes = await CapeImageHttp.GetByteArrayAsync(url, CancellationToken.None).ConfigureAwait(true);
+            if (IsDisposed || !ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                return;
+            }
+
+            using var stream = new MemoryStream(bytes, writable: false);
+            var bitmap = new Bitmap(stream);
+            var old = CapePreviewOverride;
+            CapePreviewOverride = bitmap;
+            old?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            // 即时预览只是锦上添花：失败就继续用缓存失效后的 3D 模型。
+            _log?.Warn("下载披风即时预览失败", ex);
+        }
+    }
+
+    /// <summary>清空披风列表并释放缩略图，避免切账户后旧位图留在内存。</summary>
+    private void ClearCapes()
+    {
+        foreach (var cape in Capes)
+        {
+            cape.Thumbnail?.Dispose();
+        }
+
+        Capes.Clear();
+    }
+
+    /// <summary>披风切换成功后让侧边栏与预览立刻重新取图（Mojang 会话缓存会有延迟，先不等它）。</summary>
+    private void NotifyCapeChanged()
+    {
+        var account = _accounts?.ActiveAccount;
+        if (account is null)
+        {
+            return;
+        }
+
+        _store?.Invalidate(account.Id);
+        _skinAvatar?.Invalidate(account);
+        _skinChanges?.Notify("官方披风切换");
+    }
+
+    private void NotifyCapeState()
+    {
+        OnPropertyChanged(nameof(HasCapes));
+        OnPropertyChanged(nameof(IsCapeEmpty));
+        OnPropertyChanged(nameof(CanHideCape));
+        OnPropertyChanged(nameof(CapeHint));
+        OnPropertyChanged(nameof(HasCapeError));
+        OnPropertyChanged(nameof(HasCapeStatus));
+    }
+
+    partial void OnIsCapeBusyChanged(bool value) => OnPropertyChanged(nameof(CanHideCape));
+
+    partial void OnCapeErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasCapeError));
+
+    partial void OnCapeStatusTextChanged(string? value) => OnPropertyChanged(nameof(HasCapeStatus));
+
+    partial void OnIsLocalCapeCategoryChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsLocalSkinCategory));
+        OnPropertyChanged(nameof(LocalCategoryLabel));
+        OnPropertyChanged(nameof(ShowLocalFooter));
+    }
+
+    // ==================== 网络皮肤 → 皮肤站（票 #61） ====================
+
+    /// <summary>正在上传并应用。同一时间只允许一个应用动作，按钮文案随之变成「正在应用…」。</summary>
+    [ObservableProperty]
+    private bool _isApplyingToCloud;
+
+    [ObservableProperty]
+    private CloudApplyFeedback? _cloudApplyFeedback;
+
+    public bool HasCloudApplyFeedback => CloudApplyFeedback is not null;
+
+    public bool IsCloudApplyError => CloudApplyFeedback?.IsError ?? false;
+
+    public bool CanRetryCloudApply => CloudApplyFeedback?.CanRetry == true && !IsApplyingToCloud;
+
+    public bool CloudApplyGoToClosetVisible => CloudApplyFeedback?.GoToCloset == true;
+
+    public string CloudApplyFeedbackText => CloudApplyFeedback?.Text ?? string.Empty;
+
+    public string ApplyToCloudLabel => IsApplyingToCloud ? "正在应用…" : "应用到皮肤站";
+
+    /// <summary>卡片按钮只看是否有应用动作在跑，不要求先选中。</summary>
+    public bool CanStartCloudApply => !IsApplyingToCloud;
+
+    /// <summary>没有选中项或正在应用时禁用。登录与角色的缺失交给点击后的提示，不在这里猜。</summary>
+    public bool CanApplyToCloud => !IsApplyingToCloud && Selected is not null;
+
+    /// <summary>网络皮肤卡片上的「应用到皮肤站」：要云端衣柜已登录且已经选好角色。</summary>
+    public bool CanApplyNetworkToCloud =>
+        !IsApplyingToCloud &&
+        Cloud is { IsLoggedIn: true, IsBusy: false, SelectedPlayer: not null, HasChosenPlayer: true };
+
+    /// <summary>按钮不可点时告诉用户缺哪一步，而不是让人对着灰按钮猜。</summary>
+    public string CloudApplyBlockedHint =>
+        Cloud is null ? "这台机器上没有可用的皮肤站配置。"
+        : !Cloud.IsLoggedIn ? "先在云端衣柜登录皮肤站。"
+        : Cloud.Players.Count == 0 ? "这个账号还没有角色，先在云端衣柜刷新角色列表。"
+        : !Cloud.HasChosenPlayer ? "先在云端衣柜选一个角色。"
+        : Cloud.IsBusy ? "云端衣柜正在处理上一条操作，请稍后再试。"
+        : "把这套皮肤上传并应用到这个角色";
+
+    /// <summary>上一次成功读到的网络皮肤字节。重试按钮必须重试同一张，不能跟着当前选中项换。</summary>
+    private (SkinEntryViewModel Entry, byte[] Png, bool IsSlim)? _lastCloudApply;
+
+    /// <summary>网络皮肤卡片的「应用到皮肤站」：参数是这一行，不依赖当前选中项。</summary>
+    [RelayCommand]
+    private async Task ApplyToCloudAsync(SkinEntryViewModel? entry)
+    {
+        if (IsApplyingToCloud || IsDisposed)
+        {
+            return;
+        }
+
+        if (Cloud is not { } cloud)
+        {
+            CloudApplyFeedback = new CloudApplyFeedback("云端衣柜还没准备好。", true, false, false);
+            return;
+        }
+
+        if (!cloud.IsLoggedIn)
+        {
+            // 票面：未登录不后台登录、不自动填密码，只把用户带到登录卡。
+            CloudApplyFeedback = new CloudApplyFeedback("先登录皮肤站，再把这套皮肤应用到角色。", true, false, true);
+            ShowCloudTab(activate: false);
+            return;
+        }
+
+        var target = entry ?? Selected;
+        if (target is null)
+        {
+            CloudApplyFeedback = new CloudApplyFeedback("先选中一套网络皮肤。", true, false, false);
+            return;
+        }
+
+        IsApplyingToCloud = true;
+        CloudApplyFeedback = null;
+        try
+        {
+            // 卡片动作永远读这一行的网络原图，不走「本地页签当前选中」的捷径。
+            var source = await ReadSkinAsync(target, CancellationToken.None).ConfigureAwait(true);
+            if (source?.Png is null)
+            {
+                CloudApplyFeedback = new CloudApplyFeedback(
+                    source?.ErrorText ?? "拿不到这套皮肤的图片。",
+                    true,
+                    true,
+                    false);
+                return;
+            }
+
+            var isSlim = source.Model == LocalSkinModel.Slim;
+            _lastCloudApply = (target, source.Png, isSlim);
+            await UploadCloudApplyAsync(cloud, target.Name, source.Png, isSlim).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("应用到皮肤站失败", ex);
+            CloudApplyFeedback = new CloudApplyFeedback($"应用到皮肤站失败：{ex.Message}", true, true, false);
+        }
+        finally
+        {
+            IsApplyingToCloud = false;
+        }
+    }
+
+    /// <summary>失败条上的「重试」：复用上一次的目标与字节，不重新读当前选中项。</summary>
+    [RelayCommand]
+    private async Task RetryCloudApplyAsync()
+    {
+        if (IsApplyingToCloud || IsDisposed || _lastCloudApply is not { } snapshot || Cloud is not { } cloud)
+        {
+            return;
+        }
+
+        IsApplyingToCloud = true;
+        CloudApplyFeedback = null;
+        try
+        {
+            await UploadCloudApplyAsync(cloud, snapshot.Entry.Name, snapshot.Png, snapshot.IsSlim).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("重试应用到皮肤站失败", ex);
+            CloudApplyFeedback = new CloudApplyFeedback($"应用到皮肤站失败：{ex.Message}", true, true, false);
+        }
+        finally
+        {
+            IsApplyingToCloud = false;
+        }
+    }
+
+    private async Task UploadCloudApplyAsync(CloudClosetViewModel cloud, string name, byte[] png, bool isSlim)
+    {
+        var result = await cloud.UploadAndApplyAsync(
+                name,
+                png,
+                isSlim,
+                cloud.UploadIsPublic,
+                CancellationToken.None)
+            .ConfigureAwait(true);
+
+        // 票面：失败给「重试」与「去云端衣柜」两个出口；成功不需要。
+        CloudApplyFeedback = new CloudApplyFeedback(result.Text, !result.Succeeded, result.CanRetry, !result.Succeeded);
+        if (result.NeedsLogin)
+        {
+            ShowCloudTab(activate: false);
+        }
+    }
+
+    /// <summary>失败条上的「去云端衣柜」：只切页签，不碰登录表单。</summary>
+    [RelayCommand]
+    private void GoToCloudCloset() => ShowCloudTab(activate: false);
+
+    partial void OnCloudApplyFeedbackChanged(CloudApplyFeedback? value)
+    {
+        OnPropertyChanged(nameof(HasCloudApplyFeedback));
+        OnPropertyChanged(nameof(IsCloudApplyError));
+        OnPropertyChanged(nameof(CanRetryCloudApply));
+        OnPropertyChanged(nameof(CloudApplyGoToClosetVisible));
+        OnPropertyChanged(nameof(CloudApplyFeedbackText));
+    }
+
+    partial void OnIsApplyingToCloudChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ApplyToCloudLabel));
+        OnPropertyChanged(nameof(CanStartCloudApply));
+        OnPropertyChanged(nameof(CanApplyToCloud));
+        OnPropertyChanged(nameof(CanApplyNetworkToCloud));
+        OnPropertyChanged(nameof(CanRetryCloudApply));
+    }
+
     /// <summary>离线账户的体型切换：两个选项，只有 <see cref="OfficialSkinCapability.CanPickModel"/> 时才显示。</summary>
     public bool IsClassicModel => SkinModelMapping.FromAccountValue(_accounts?.ActiveAccount?.SkinModel) == LocalSkinModel.Classic;
 
@@ -403,6 +1046,62 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>「重置为默认皮肤」（AC3）。</summary>
     [RelayCommand]
     private Task ResetOfficialSkinAsync() => RunOfficialAsync(ResetOfficialCoreAsync, "重置官方皮肤");
+
+    /// <summary>
+    /// 本地皮肤卡片上的「应用到微软账户」（票 #61）：直接作用于这张卡，不要求先选中。
+    /// 前置校验、冷却、401/429 反馈全部复用官方换肤那条通路。
+    /// </summary>
+    [RelayCommand]
+    private Task ApplyLocalToOfficialAsync(LocalSkinEntryViewModel? entry)
+    {
+        if (entry is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunOfficialAsync(
+            cancellationToken => UploadLocalEntryToOfficialAsync(entry, cancellationToken),
+            "官方换肤");
+    }
+
+    private async Task<SkinUploadResult> UploadLocalEntryToOfficialAsync(
+        LocalSkinEntryViewModel entry,
+        CancellationToken cancellationToken)
+    {
+        var account = _accounts?.ActiveAccount;
+        if (account is null || _mojang is null)
+        {
+            return SkinUploadResult.Fail("先在账户页添加一个微软账户。");
+        }
+
+        if (!Official.CanUpload || string.IsNullOrWhiteSpace(account.AccessToken))
+        {
+            return SkinUploadResult.Fail("这个微软账户现在不能上传皮肤，请到账户页重新登录。");
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = await Task.Run(() => File.ReadAllBytes(entry.FilePath), cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log?.Warn($"读取本地皮肤失败：{entry.FilePath}", ex);
+            return SkinUploadResult.Fail($"读不了这个皮肤文件：{ex.Message}");
+        }
+
+        if (SkinUploadPreflight.Check(bytes, entry.Model) is { } error)
+        {
+            return SkinUploadResult.Fail(error);
+        }
+
+        return await _mojang.UploadSkinAsync(
+                account.AccessToken,
+                SkinModelMapping.ToKind(entry.Model),
+                bytes,
+                cancellationToken)
+            .ConfigureAwait(true);
+    }
 
     /// <summary>失败态上的「重试」：只重放上一次那条操作，且必须先过冷却。</summary>
     [RelayCommand]
@@ -696,7 +1395,15 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             }
         }
 
-        if (Selected is not { } entry || _library is null)
+        return Selected is { } entry
+            ? await ReadSkinAsync(entry, cancellationToken).ConfigureAwait(true)
+            : null;
+    }
+
+    /// <summary>按网络行取原图。卡片上的「应用到皮肤站」直接传这一行，不要求先选中。</summary>
+    private async Task<SkinSource?> ReadSkinAsync(SkinEntryViewModel entry, CancellationToken cancellationToken)
+    {
+        if (_library is null)
         {
             return null;
         }
@@ -1125,7 +1832,11 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         // 每次进页面都重扫本地目录：用户可能刚把图丢进文件夹（票 42 的 AC4）。
         // 只读文件头，代价是几十毫秒，比「必须手动刷新」符合直觉。
-        await LoadLocalAsync().ConfigureAwait(true);
+        // 截图模式摆的是内存样本，扫盘会把它覆盖成空态。
+        if (!IsScreenshotLocalSection)
+        {
+            await LoadLocalAsync().ConfigureAwait(true);
+        }
 
         if (IsCloudTab && Cloud is { } cloud)
         {
@@ -1133,7 +1844,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             await cloud.ActivateAsync().ConfigureAwait(true);
         }
 
-        if (!_hasLoadedOnce)
+        if (!IsScreenshotLocalSection && !_hasLoadedOnce)
         {
             await LoadPageAsync(1).ConfigureAwait(true);
             return;
@@ -1155,6 +1866,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         Cancel(ref _authlibCancellation);
         Cancel(ref _authlibCooldownCancellation);
         Cancel(ref _authlibProfileCancellation);
+        Cancel(ref _capeCancellation);
         return Task.CompletedTask;
     }
 
@@ -1188,7 +1900,10 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     }
 
     [RelayCommand]
-    private void SelectCloudTab()
+    private void SelectCloudTab() => ShowCloudTab(activate: true);
+
+    /// <summary>切到云端页签。从网络皮肤失败条跳过来时不自动恢复登录，只把登录卡摆出来。</summary>
+    private void ShowCloudTab(bool activate)
     {
         // 先开云端再关网络：OnIsNetworkTabChanged 在 IsCloudTab 为真时不再去拉本地预览。
         IsCloudTab = true;
@@ -1196,7 +1911,10 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         CloseError();
 
         // 自动恢复本机保存的凭据只跑一次，之后切页签不重复登录。
-        _ = Cloud?.ActivateAsync();
+        if (activate)
+        {
+            _ = Cloud?.ActivateAsync();
+        }
     }
 
     // ==================== 本地皮肤的命令（票 42） ====================
@@ -1551,6 +2269,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(IsLocalEmpty));
         OnPropertyChanged(nameof(ShowLocalLoadingPlaceholder));
         OnPropertyChanged(nameof(LocalSummary));
+        OnPropertyChanged(nameof(ShowLocalFooter));
     }
 
     [RelayCommand]
@@ -1964,6 +2683,18 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         // 不能拿来给新角色点亮披风按钮（那是越权猜测）。
         Authlib = AuthlibSkinActions.Of(account);
         StartAuthlibCapabilityLoad(account);
+
+        // 披风跟着账户走：换人先清空旧列表，再按新账户重拉（票 #61）。
+        // 截图模式摆的是内存披风样本，导航回来时不能被这一步清掉。
+        if (!IsScreenshotLocalSection)
+        {
+            _hasLoadedCapes = false;
+            ClearCapes();
+            CapeErrorText = null;
+            CapeStatusText = null;
+            NotifyCapeState();
+            _ = LoadCapesAsync();
+        }
     }
 
     /// <summary>
@@ -2053,6 +2784,19 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>云端下载到本地材质库后，把「本地皮肤」页签的列表刷新一次。</summary>
     private void OnCloudLibraryChanged(object? sender, EventArgs e) => _ = LoadLocalAsync();
 
+    /// <summary>云端衣柜的登录态/角色一变，网络卡片上的「应用到皮肤站」就跟着变可用。</summary>
+    private void OnCloudPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CloudClosetViewModel.IsLoggedIn)
+            or nameof(CloudClosetViewModel.IsBusy)
+            or nameof(CloudClosetViewModel.SelectedPlayer)
+            or nameof(CloudClosetViewModel.HasChosenPlayer))
+        {
+            OnPropertyChanged(nameof(CanApplyNetworkToCloud));
+            OnPropertyChanged(nameof(CloudApplyBlockedHint));
+        }
+    }
+
     partial void OnIsLoadingChanged(bool value)
     {
         OnPropertyChanged(nameof(CanGoNext));
@@ -2085,6 +2829,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         {
             _ = PreviewAsync(value);
         }
+
+        OnPropertyChanged(nameof(CanApplyToCloud));
     }
 
     partial void OnSelectedLocalChanged(LocalSkinEntryViewModel? value)
@@ -2108,6 +2854,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(OfficialCapeText));
         OnPropertyChanged(nameof(IsClassicModel));
         OnPropertyChanged(nameof(IsSlimModel));
+        OnPropertyChanged(nameof(CanApplyLocalToOfficial));
     }
 
     partial void OnOfficialFeedbackChanged(SkinUploadFeedback? value)
@@ -2125,6 +2872,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     {
         // 在途时连重试按钮也一起禁掉：否则一次点击会同时发出两条请求。
         OnPropertyChanged(nameof(CanRetryOfficial));
+        OnPropertyChanged(nameof(CanApplyLocalToOfficial));
     }
 
     protected override void Dispose(bool disposing)
@@ -2144,6 +2892,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             Cancel(ref _authlibCancellation);
             Cancel(ref _authlibCooldownCancellation);
             Cancel(ref _authlibProfileCancellation);
+            Cancel(ref _capeCancellation);
 
             _library.Dispose();
             _mojang?.Dispose();
@@ -2152,6 +2901,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             if (_cloud is not null)
             {
                 _cloud.LocalLibraryChanged -= OnCloudLibraryChanged;
+                _cloud.PropertyChanged -= OnCloudPropertyChanged;
                 _cloud.Dispose();
                 _cloud = null;
             }
@@ -2166,6 +2916,13 @@ public sealed partial class SkinsViewModel : PageViewModelBase
                 bitmap.Dispose();
             }
 
+            foreach (var cape in Capes)
+            {
+                cape.Thumbnail?.Dispose();
+            }
+
+            Capes.Clear();
+
             _thumbnailCache.Clear();
             _previewCache.Clear();
             _localThumbnailCache.Clear();
@@ -2178,6 +2935,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             _authlibClient = null;
             _skinChanges = null;
             _navigation = null;
+            _skinAvatar = null;
             _officialRetry = null;
             _authlibRetry = null;
         }

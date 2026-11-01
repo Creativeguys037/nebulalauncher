@@ -132,13 +132,15 @@ public class AppSkin_OfficialUploadUiTests
     }
 
     [Fact]
-    public void 披风按钮恒为禁用并写明官方不支持()
+    public void 披风上传按钮恒为禁用但已拥有的披风可以切换()
     {
         var capability = OfficialSkinActions.Of(Microsoft());
 
-        // AC4：官方没有披风上传接口，所以按钮只能是灰色禁用 + 这句话。
+        // 上传仍然没有接口（AC4），但能切换账户已拥有的披风（票 #61）。
         Assert.False(capability.CapeEnabled);
-        Assert.Equal("官方账户不支持更换披风", capability.CapeText);
+        Assert.True(capability.CanChangeCape);
+        Assert.DoesNotContain("不支持更换披风", capability.CapeText);
+        Assert.Contains("可以切换已拥有的披风", capability.CapeText);
     }
 
     [Fact]
@@ -375,5 +377,40 @@ public class AppSkin_OfficialUploadUiTests
         Assert.False(feedback.CanRetry);
         Assert.False(feedback.GoToAccountPage);
         Assert.Contains("64×64", feedback.Text);
+    }
+
+    // ==================== 披风能力（票 #61） ====================
+
+    [Fact]
+    public void 带令牌的微软账户可以管理已拥有的披风()
+    {
+        var capability = OfficialSkinActions.Of(Microsoft());
+
+        Assert.True(capability.CanChangeCape);
+
+        // 上传仍然不支持：能切换已拥有的，不等于能往账户里加新披风。
+        Assert.False(capability.CapeEnabled);
+        Assert.Contains("可以切换已拥有的披风", capability.CapeText);
+    }
+
+    [Fact]
+    public void 没有令牌的微软账户不能管理披风且文案说明原因()
+    {
+        var capability = OfficialSkinActions.Of(Microsoft(accessToken: null));
+
+        Assert.False(capability.CanChangeCape);
+        Assert.Contains("缺少 Minecraft 令牌", capability.CapeText);
+    }
+
+    [Fact]
+    public void 离线与第三方账户不能管理披风且文案说明原因()
+    {
+        var offline = OfficialSkinActions.Of(new Account { Type = AccountType.Offline, Username = "Steve" });
+        var authlib = OfficialSkinActions.Of(new Account { Type = AccountType.Authlib, Username = "someone" });
+
+        Assert.False(offline.CanChangeCape);
+        Assert.Contains("离线账户", offline.CapeText);
+        Assert.False(authlib.CanChangeCape);
+        Assert.Contains("第三方账户", authlib.CapeText);
     }
 }

@@ -12,13 +12,15 @@ namespace NebulaLauncher.Skinning;
 /// <param name="CanReset">「重置为默认皮肤」是否可用。</param>
 /// <param name="CanPickModel">是否显示 Steve / Alex 切换（只有离线账户需要）。</param>
 /// <param name="CapeEnabled">披风上传按钮是否可用。官方恒为 false。</param>
-/// <param name="CapeText">披风按钮旁边那句话。</param>
+/// <param name="CanChangeCape">是否能读取并切换账户已拥有的披风（只有带令牌的微软账户可以）。</param>
+/// <param name="CapeText">披风区的说明；不可用时就是那句原因。</param>
 /// <param name="UnavailableText">不可用的原因；空串表示一切正常，不用提示。</param>
 public sealed record OfficialSkinCapability(
     bool CanUpload,
     bool CanReset,
     bool CanPickModel,
     bool CapeEnabled,
+    bool CanChangeCape,
     string CapeText,
     string UnavailableText)
 {
@@ -40,8 +42,8 @@ public sealed record OfficialSkinCapability(
 /// </summary>
 public static class OfficialSkinActions
 {
-    /// <summary>披风按钮的文案。官方没有披风上传接口，所以这句话是常量而不是状态。</summary>
-    public const string CapeText = "官方账户不支持更换披风";
+    /// <summary>披风区的说明。官方没有披风上传接口，但已拥有的披风可以切换（票 #61）。</summary>
+    public const string CapeText = "官方账户不能上传新披风，但可以切换已拥有的披风。";
 
     /// <summary>AC8：换肤生效范围的说明，常驻在操作区下方。</summary>
     public const string JavaOnlyHint = "官方换肤只影响 Java 版，且需重进游戏才在游戏中生效。";
@@ -74,6 +76,7 @@ public static class OfficialSkinActions
                         CanReset: true,
                         CanPickModel: false,
                         CapeEnabled: false,
+                        CanChangeCape: true,
                         CapeText,
                         UnavailableText: string.Empty);
 
@@ -83,7 +86,8 @@ public static class OfficialSkinActions
                     CanReset: false,
                     CanPickModel: true,
                     CapeEnabled: false,
-                    CapeText,
+                    CanChangeCape: false,
+                    OfflineText,
                     OfflineText);
 
             default:
@@ -96,6 +100,7 @@ public static class OfficialSkinActions
         CanReset: false,
         CanPickModel: false,
         CapeEnabled: false,
-        CapeText,
+        CanChangeCape: false,
+        CapeText: reason,
         reason);
 }

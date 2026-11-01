@@ -23,6 +23,10 @@ public class AppSkin_MojangSkinClientTests
 {
     private const string SkinsUrl = "https://api.minecraftservices.com/minecraft/profile/skins";
 
+    private const string ProfileUrl = "https://api.minecraftservices.com/minecraft/profile";
+
+    private const string CapeUrl = "https://api.minecraftservices.com/minecraft/profile/capes/active";
+
     private const string Token = "mc-access-token";
 
     [Fact]
@@ -153,6 +157,166 @@ public class AppSkin_MojangSkinClientTests
         Assert.False(result.IsAuthError);
         Assert.True(result.IsRetryable);
         Assert.Contains("无网络", result.ErrorText!);
+    }
+
+    // ==================== 披风（票 #61） ====================
+
+    [Fact]
+    public async Task 读取档案解析披风状态与皮肤图地址()
+    {
+        const string body = """
+            {"skins":[{"id":"s1","state":"ACTIVE","url":"https://cdn.example/skin.png"}],
+             "capes":[{"id":"c1","state":"ACTIVE","url":"https://cdn.example/c1.png","alias":"Migrator"},
+                      {"id":"c2","state":"INACTIVE","url":"https://cdn.example/c2.png","alias":"Vanilla"}]}
+            """;
+        var handler = new CapturingHandler(_ => Json(HttpStatusCode.OK, body));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.GetProfileAsync(Token, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("https://cdn.example/skin.png", result.Value!.SkinUrl);
+        Assert.Collection(
+            result.Value.Capes,
+            cape =>
+            {
+                Assert.Equal("c1", cape.Id);
+                Assert.True(cape.IsActive);
+                Assert.Equal("Migrator", cape.Alias);
+                Assert.Equal("https://cdn.example/c1.png", cape.Url);
+            },
+            cape =>
+            {
+                Assert.Equal("c2", cape.Id);
+                Assert.False(cape.IsActive);
+            });
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal(ProfileUrl, request.Url);
+        Assert.Equal("Bearer", request.AuthorizationScheme);
+        Assert.Equal(Token, request.AuthorizationParameter);
+    }
+
+    [Fact]
+    public async Task 档案没有披风时返回空列表而不是失败()
+    {
+        var handler = new CapturingHandler(_ => Json(HttpStatusCode.OK, """{"skins":[],"capes":[]}"""));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.GetProfileAsync(Token, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.Value!.Capes);
+        Assert.Null(result.Value.SkinUrl);
+    }
+
+    [Fact]
+    public async Task 档案里缺字段的披风条目被跳过()
+    {
+        const string body = """{"capes":[{"state":"ACTIVE"},{"id":"c2","state":"INACTIVE"}]}""";
+        var handler = new CapturingHandler(_ => Json(HttpStatusCode.OK, body));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.GetProfileAsync(Token, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var cape = Assert.Single(result.Value!.Capes);
+        Assert.Equal("c2", cape.Id);
+        Assert.False(cape.IsActive);
+        Assert.Null(cape.Alias);
+    }
+
+    [Fact]
+    public async Task 切换披风用PUT发capeId的JSON()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.SetActiveCapeAsync(Token, "cape-123", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Put, request.Method);
+        Assert.Equal(CapeUrl, request.Url);
+        Assert.Equal("Bearer", request.AuthorizationScheme);
+        Assert.Equal(Token, request.AuthorizationParameter);
+        Assert.Contains("\"capeId\":\"cape-123\"", request.Body);
+    }
+
+    [Fact]
+    public async Task 隐藏披风用DELETE打active端点且不带请求体()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.HideCapeAsync(Token, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Delete, request.Method);
+        Assert.Equal(CapeUrl, request.Url);
+        Assert.Equal(Token, request.AuthorizationParameter);
+        Assert.Equal(string.Empty, request.Body);
+    }
+
+    [Fact]
+    public async Task 切换披风被400拒绝且错误体为空时用本地兜底文案()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.SetActiveCapeAsync(Token, "gone", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsAuthError);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("不在当前账户的已拥有列表里", result.ErrorText!);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task 切换披风遇到404时仍用本地已拥有列表兜底()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.SetActiveCapeAsync(Token, "gone", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsAuthError);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("不在当前账户的已拥有列表里", result.ErrorText!);
+    }
+
+    [Fact]
+    public async Task 切换披风被限流时按无网络处理且允许重试()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.SetActiveCapeAsync(Token, "cape-1", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.IsAuthError);
+        Assert.True(result.IsRetryable);
+        Assert.Contains("官方服务暂时不可用", result.ErrorText!);
+    }
+
+    [Fact]
+    public async Task 读取档案时令牌过期仍然提示去账户页刷新()
+    {
+        var handler = new CapturingHandler(_ => Json(
+            HttpStatusCode.Unauthorized,
+            """{"path":"/minecraft/profile","errorMessage":"Invalid token."}"""));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.GetProfileAsync(Token, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.IsAuthError);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("登录已过期", result.ErrorText!);
     }
 
     /// <summary>客户端不校验 PNG 尺寸（那是 Core 校验器与 UI 前置拦截的职责），给一小段字节即可。</summary>

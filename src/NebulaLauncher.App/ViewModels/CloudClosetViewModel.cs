@@ -60,7 +60,8 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         ILauncherPaths paths,
         IPlatformService platform,
         IAppLog? log = null,
-        SkinChangeNotifier? changes = null)
+        SkinChangeNotifier? changes = null,
+        CloudClosetClient? client = null)
     {
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(platform);
@@ -70,7 +71,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         _credentials = new SkinSiteCredentialStore(paths, platform, log);
         _skins = new LocalSkinStore(paths, log);
         _capes = new LocalCapeStore(paths, log);
-        _client = new CloudClosetClient(log: log);
+        _client = client ?? new CloudClosetClient(log: log);
         SiteAddress = _client.BaseAddress;
 
         Items.CollectionChanged += (_, _) => NotifyListState();
@@ -170,6 +171,12 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
     /// <summary>截图样本标记：只影响 <see cref="OnSelectedItemChanged"/> 不发起预览下载。</summary>
     private bool _screenshotDemo;
 
+    /// <summary>LoadPlayersAsync 自动选中角色时置 true，避免把「自动选第一个」当成用户的选择。</summary>
+    private bool _autoSelectingPlayer;
+
+    /// <summary>用户在角色下拉里亲手选过角色。多角色时只有亲手选过才允许直接应用。</summary>
+    private bool _playerChosenByUser;
+
     /// <summary>
     /// 截图模式专用（<c>--page skins --section cloud-demo</c>）：摆出登录后的衣柜形态。
     /// 全部是内存样本，不联网、不写凭据、不碰磁盘；用于检查列表行、选中态与右侧预览的布局。
@@ -267,6 +274,9 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         : $"{SelectedItem.Name} · {SelectedItem.ModelLabel} · {SelectedItem.LikesLabel}";
 
     public bool CanApply => IsLoggedIn && !IsBusy && SelectedItem is not null && SelectedPlayer is not null;
+
+    /// <summary>多角色时必须由用户亲手选过，自动选中的第一个不算。只有一个角色时自动选中即可。</summary>
+    public bool HasChosenPlayer => _playerChosenByUser || Players.Count <= 1;
 
     public bool CanClear => IsLoggedIn && !IsBusy && SelectedPlayer is not null;
 
@@ -623,13 +633,121 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// 皮肤页「应用到皮肤站」（票 #61）：把内存里的 PNG 先传进衣柜，再应用到当前角色。
+    ///
+    /// <para>
+    /// 不落盘、不自动登录、不替用户猜角色：多个角色时要求先选，只有一个角色才自动选中并把角色名写进结果。
+    /// 返回 <see cref="CloudClosetApplyResult.NeedsLogin"/> 时由调用方切到云端衣柜页签。
+    /// </para>
+    /// </summary>
+    public async Task<CloudClosetApplyResult> UploadAndApplyAsync(
+        string name,
+        byte[] png,
+        bool isSlim,
+        bool isPublic,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn)
+        {
+            return CloudClosetApplyResult.LoginRequired("先登录皮肤站，再把这套皮肤应用到角色。");
+        }
+
+        if (IsBusy)
+        {
+            return CloudClosetApplyResult.Fail("正在处理上一条操作，请稍后再试。");
+        }
+
+        var player = SelectedPlayer;
+        if (player is null || (Players.Count > 1 && !_playerChosenByUser))
+        {
+            if (Players.Count == 1)
+            {
+                player = Players[0];
+                SelectedPlayer = player;
+            }
+            else if (Players.Count == 0)
+            {
+                return CloudClosetApplyResult.Fail("这个账号还没有角色，先在云端衣柜里刷新角色列表。");
+            }
+            else
+            {
+                return CloudClosetApplyResult.Fail("这个账号有多个角色，先在云端衣柜里选一个角色。");
+            }
+        }
+
+        var textureName = SanitizeTextureName(name);
+        IsBusy = true;
+        ErrorText = null;
+        StatusText = "正在把皮肤应用到皮肤站…";
+        try
+        {
+            var type = isSlim ? "alex" : "steve";
+            var upload = await _client.UploadTextureAsync(
+                    textureName,
+                    png,
+                    type,
+                    isPublic,
+                    cancellationToken)
+                .ConfigureAwait(true);
+            if (!upload.Succeeded || upload.Value is null)
+            {
+                ErrorText = upload.ErrorText ?? "上传到皮肤站失败。";
+                return CloudClosetApplyResult.Fail(ErrorText, upload.IsAuthError, canRetry: !upload.IsAuthError);
+            }
+
+            var tid = upload.Value.Tid;
+            if (upload.Value.IsDuplicate)
+            {
+                StatusText = $"tid {tid} 没有重复上传，直接应用。";
+            }
+            else
+            {
+                _ownedTids.Add(tid);
+            }
+
+            var apply = await _client.ApplyAsync(player.Pid, "skin", tid, cancellationToken)
+                .ConfigureAwait(true);
+            if (!apply.Succeeded)
+            {
+                ErrorText = apply.ErrorText ?? "应用到角色失败。";
+                return CloudClosetApplyResult.Fail(ErrorText, apply.IsAuthError, canRetry: !apply.IsAuthError);
+            }
+
+            // 票面要求以 GET /user/player/list 的结果为准。刷新失败不改变「已应用」，
+            // 但要在成功文案里说明还没确认上。
+            ErrorText = null;
+            await LoadPlayersAsync(cancellationToken).ConfigureAwait(true);
+            var confirmed = string.IsNullOrEmpty(ErrorText);
+            var text = confirmed
+                ? $"已应用到皮肤站：{player.Name} · 皮肤 #{tid}"
+                : $"已应用到皮肤站：{player.Name} · 皮肤 #{tid}（角色列表还没刷新，重进页面可确认）";
+            StatusText = text;
+            _changes?.Notify("皮肤站云端衣柜换肤");
+            return CloudClosetApplyResult.Ok(text, tid, player.Name);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn("从皮肤页上传并应用失败", ex);
+            ErrorText = $"应用到皮肤站失败：{ex.Message}";
+            return CloudClosetApplyResult.Fail(ErrorText, canRetry: true);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-
         _disposed = true;
         _loadCancellation?.Cancel();
         _thumbnailCancellation?.Cancel();
@@ -691,6 +809,12 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedPlayerChanged(CloudPlayer? value)
     {
+        if (!_autoSelectingPlayer)
+        {
+            _playerChosenByUser = true;
+        }
+
+        OnPropertyChanged(nameof(HasChosenPlayer));
         OnPropertyChanged(nameof(PlayerStatus));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanClear));
@@ -770,14 +894,14 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task LoadPlayersAsync()
+    private async Task LoadPlayersAsync(CancellationToken cancellationToken = default)
     {
         if (!IsLoggedIn)
         {
             return;
         }
 
-        var result = await _client.GetPlayersAsync(CancellationToken.None).ConfigureAwait(true);
+        var result = await _client.GetPlayersAsync(cancellationToken).ConfigureAwait(true);
         if (!result.Succeeded || result.Value is null)
         {
             ErrorText = result.ErrorText ?? "读取角色列表失败。";
@@ -796,7 +920,17 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
             Players.Add(player);
         }
 
-        SelectedPlayer = Players.FirstOrDefault(player => player.Pid == previousPid) ?? Players.FirstOrDefault();
+        _autoSelectingPlayer = true;
+        try
+        {
+            SelectedPlayer = Players.FirstOrDefault(player => player.Pid == previousPid) ?? Players.FirstOrDefault();
+        }
+        finally
+        {
+            _autoSelectingPlayer = false;
+        }
+
+        OnPropertyChanged(nameof(HasChosenPlayer));
     }
 
     private async Task SetCategoryAsync(bool cape)
@@ -1062,6 +1196,24 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasItems));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(ShowLoadingPlaceholder));
+    }
+
+    /// <summary>皮肤站把名字写进文件名，路径分隔符与控制字符先换掉，再截到 64 字。</summary>
+    private static string SanitizeTextureName(string? name)
+    {
+        var cleaned = string.IsNullOrWhiteSpace(name) ? "NebulaLauncher 皮肤" : name.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            cleaned = cleaned.Replace(invalid, '_');
+        }
+
+        cleaned = cleaned.Trim();
+        if (cleaned.Length == 0)
+        {
+            cleaned = "NebulaLauncher 皮肤";
+        }
+
+        return cleaned.Length <= 64 ? cleaned : cleaned[..64];
     }
 
     private static string BuildLocalFileName(CloudClosetItemViewModel item)
