@@ -140,7 +140,9 @@ public sealed class MojangSkinClient : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Put, $"{_baseAddress}/minecraft/profile/capes/active");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = new StringContent(
-            JsonSerializer.Serialize(new SetCapeRequest(capeId)),
+            JsonSerializer.Serialize(
+                new SetCapeRequest(capeId),
+                MojangSkinRequestJsonContext.Default.SetCapeRequest),
             Encoding.UTF8,
             "application/json");
 
@@ -352,3 +354,9 @@ public sealed class MojangSkinClient : IDisposable
 
 /// <summary>PUT /minecraft/profile/capes/active 的请求体。具名类型避免匿名类型在裁剪/AOT 下的坑。</summary>
 internal sealed record SetCapeRequest([property: JsonPropertyName("capeId")] string CapeId);
+
+/// <summary>官方皮肤接口写请求的 Source Generator 上下文；裁剪切掉反射后仍能序列化（票 #62）。</summary>
+[JsonSerializable(typeof(SetCapeRequest))]
+internal sealed partial class MojangSkinRequestJsonContext : JsonSerializerContext
+{
+}

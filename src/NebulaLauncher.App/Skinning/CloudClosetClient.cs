@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -192,12 +193,9 @@ public sealed class CloudClosetClient : IDisposable
             return CloudClosetResult<CloudOperationResult>.Fail("请填写皮肤站用户名和密码。");
         }
 
-        var body = JsonSerializer.Serialize(new Dictionary<string, object?>
-        {
-            ["identification"] = username.Trim(),
-            ["password"] = password,
-            ["remember"] = remember,
-        });
+        var body = JsonSerializer.Serialize(
+            new LoginRequest(username.Trim(), password, remember),
+            CloudClosetRequestJsonContext.Default.LoginRequest);
 
         var result = await SendWithCsrfAsync(
             () => new HttpRequestMessage(HttpMethod.Post, _baseAddress + "/auth/login")
@@ -537,7 +535,9 @@ public sealed class CloudClosetClient : IDisposable
         CancellationToken cancellationToken)
     {
         var normalizedKind = string.Equals(kind, "cape", StringComparison.OrdinalIgnoreCase) ? "cape" : "skin";
-        var body = JsonSerializer.Serialize(new Dictionary<string, int> { [normalizedKind] = tid });
+        var body = JsonSerializer.Serialize(
+            new Dictionary<string, int> { [normalizedKind] = tid },
+            CloudClosetRequestJsonContext.Default.DictionaryStringInt32);
         var result = await SendWithCsrfAsync(
             () => new HttpRequestMessage(HttpMethod.Put, $"{_baseAddress}/user/player/{pid}/textures")
             {
@@ -555,7 +555,9 @@ public sealed class CloudClosetClient : IDisposable
         CancellationToken cancellationToken)
     {
         var normalizedKind = string.Equals(kind, "cape", StringComparison.OrdinalIgnoreCase) ? "cape" : "skin";
-        var body = JsonSerializer.Serialize(new { type = new[] { normalizedKind } });
+        var body = JsonSerializer.Serialize(
+            new ClearTextureRequest([normalizedKind]),
+            CloudClosetRequestJsonContext.Default.ClearTextureRequest);
         var result = await SendWithCsrfAsync(
             () => new HttpRequestMessage(HttpMethod.Delete, $"{_baseAddress}/user/player/{pid}/textures")
             {
@@ -969,4 +971,26 @@ public sealed class CloudClosetClient : IDisposable
     {
         public static JsonResponse Empty { get; } = new(string.Empty, true, string.Empty);
     }
+}
+
+/// <summary>POST /auth/login 的请求体；站点只认小写字段名。</summary>
+internal sealed record LoginRequest(
+    [property: JsonPropertyName("identification")] string Identification,
+    [property: JsonPropertyName("password")] string Password,
+    [property: JsonPropertyName("remember")] bool Remember);
+
+/// <summary>DELETE /user/player/{pid}/textures 的请求体：type 是 skin 或 cape 的单元素数组。</summary>
+internal sealed record ClearTextureRequest([property: JsonPropertyName("type")] string[] Type);
+
+/// <summary>
+/// 皮肤站写请求的 Source Generator 上下文。
+///
+/// 这些请求原来是字典 / 匿名类型，靠运行时反射生成元数据；裁剪发布（PublishTrimmed）
+/// 关掉反射解析器后，登录会在序列化这一步直接抛异常（票 #62）。
+/// </summary>
+[JsonSerializable(typeof(LoginRequest))]
+[JsonSerializable(typeof(Dictionary<string, int>))]
+[JsonSerializable(typeof(ClearTextureRequest))]
+internal sealed partial class CloudClosetRequestJsonContext : JsonSerializerContext
+{
 }

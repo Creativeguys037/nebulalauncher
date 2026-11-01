@@ -892,6 +892,13 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
             await LoadPlayersAsync().ConfigureAwait(true);
             await LoadClosetAsync(1).ConfigureAwait(true);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // 上边界兜底：登录链路里的序列化 / 凭据落盘异常不能穿透 AsyncRelayCommand 把进程带走（票 #62）。
+            IsLoggedIn = _client.IsAuthenticated;
+            ErrorText = "皮肤站登录过程出错：" + ex.Message;
+            _log?.Warn("皮肤站登录异常", ex);
+        }
         finally
         {
             IsBusy = false;
