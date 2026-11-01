@@ -119,6 +119,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>披风列表读取的在途取消线。切账户/离开页面时取消，避免旧账户的披风落到新账户上。</summary>
     private CancellationTokenSource? _capeCancellation;
 
+    /// <summary>披风操作代际。切账户时自增，旧操作的 finally 不能解锁新账户上的操作。</summary>
+    private int _capeBusyVersion;
+
+    /// <summary>披风即时预览代际。切皮肤/刷新/切账户时自增，迟到的下载结果不能回盖当前预览。</summary>
+    private int _capePreviewVersion;
+
     /// <summary>披风列表「至少拉过一次」。没拉过不显示「这个账户还没有披风」。</summary>
     private bool _hasLoadedCapes;
 
@@ -574,6 +580,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         }
 
         var account = _accounts?.ActiveAccount;
+        var busyVersion = ++_capeBusyVersion;
         IsCapeBusy = true;
         SetCapesBusy(true);
         CapeErrorText = null;
@@ -598,6 +605,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             }
 
             CapeStatusText = $"已换上披风：{cape.DisplayName}";
+            ClearCapePreview();
             NotifyCapeChanged();
             _ = LoadCapePreviewAsync(cape.Url, account);
         }
@@ -613,7 +621,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         }
         finally
         {
-            if (ReferenceEquals(_accounts?.ActiveAccount, account))
+            // 切账户会自增代际：旧操作的收尾不能解锁新账户，也不能把新操作标成空闲。
+            if (busyVersion == _capeBusyVersion)
             {
                 IsCapeBusy = false;
                 SetCapesBusy(false);
@@ -632,6 +641,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         }
 
         var account = _accounts?.ActiveAccount;
+        var busyVersion = ++_capeBusyVersion;
         IsCapeBusy = true;
         SetCapesBusy(true);
         CapeErrorText = null;
@@ -672,7 +682,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         }
         finally
         {
-            if (ReferenceEquals(_accounts?.ActiveAccount, account))
+            // 切账户会自增代际：旧操作的收尾不能解锁新账户，也不能把新操作标成空闲。
+            if (busyVersion == _capeBusyVersion)
             {
                 IsCapeBusy = false;
                 SetCapesBusy(false);
@@ -691,6 +702,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
     private void ClearCapePreview()
     {
+        // 作废在途下载：清完之后迟到的字节不能再盖回当前预览。
+        _capePreviewVersion++;
         CapePreviewOverride?.Dispose();
         CapePreviewOverride = null;
     }
@@ -735,6 +748,8 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         if (IsDisposed || _mojang is null || account is null || !Official.CanChangeCape ||
             string.IsNullOrWhiteSpace(account.AccessToken))
         {
+            // 之前可能有一条在途请求把 IsCapeLoading 留在 true；这里换过 CTS 后它不会再收尾。
+            IsCapeLoading = false;
             ClearCapes();
             _hasLoadedCapes = true;
             CapeErrorText = null;
@@ -755,10 +770,14 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
             if (!result.Succeeded || result.Value is null)
             {
+                // 失败也要算「拉过一次」：否则 CapeHint 会一直显示「正在读取」并与错误条并存。
+                _hasLoadedCapes = true;
                 CapeErrorText = result.ErrorText;
+                NotifyCapeState();
                 return;
             }
 
+            ClearCapePreview();
             ClearCapes();
             foreach (var cape in result.Value.Capes)
             {
@@ -776,7 +795,9 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         catch (Exception ex)
         {
             _log?.Warn("读取官方披风列表失败", ex);
+            _hasLoadedCapes = true;
             CapeErrorText = $"读取披风列表失败：{ex.Message}";
+            NotifyCapeState();
         }
         finally
         {
@@ -815,8 +836,9 @@ public sealed partial class SkinsViewModel : PageViewModelBase
                 var bitmap = new Bitmap(stream);
                 if (!Capes.Contains(cape))
                 {
+                    // 这张卡已被刷新/切账户换掉：丢掉位图，但别中断后面几张卡的加载。
                     bitmap.Dispose();
-                    return;
+                    continue;
                 }
 
                 var old = cape.Thumbnail;
@@ -843,10 +865,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             return;
         }
 
+        var previewVersion = _capePreviewVersion;
         try
         {
             var bytes = await CapeImageHttp.GetByteArrayAsync(url, CancellationToken.None).ConfigureAwait(true);
-            if (IsDisposed || !ReferenceEquals(_accounts?.ActiveAccount, account))
+            if (IsDisposed || previewVersion != _capePreviewVersion ||
+                !ReferenceEquals(_accounts?.ActiveAccount, account))
             {
                 return;
             }
@@ -2746,6 +2770,9 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         // 切账户先作废在途的官方动作与重试闭包：旧账户的 401 或成功不能写到新账户界面上。
         Cancel(ref _officialCancellation);
+        // Cancel 会把字段置 null，RunOfficialAsync 的 finally 认不出自己那条 CTS；
+        // 这里显式解锁，否则切账户时正在上传会让官方换肤永久不可用。
+        IsOfficialBusy = false;
         OfficialFeedback = null;
         _officialRetry = null;
         ClearCapePreview();
@@ -2767,6 +2794,11 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         // 截图模式摆的是内存披风样本，导航回来时不能被这一步清掉。
         if (!IsScreenshotLocalSection)
         {
+            // 旧账户的切换可能还在途：先作废它的收尾，再把忙碌状态清掉，
+            // 否则 LoadCapesAsync 会被 IsCapeBusy 挡住，新账户永远等不到披风列表。
+            _capeBusyVersion++;
+            IsCapeBusy = false;
+            SetCapesBusy(false);
             _hasLoadedCapes = false;
             ClearCapes();
             CapeErrorText = null;

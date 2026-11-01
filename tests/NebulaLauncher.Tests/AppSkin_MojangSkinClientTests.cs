@@ -79,6 +79,19 @@ public class AppSkin_MojangSkinClientTests
     }
 
     [Fact]
+    public async Task 重置皮肤遇到400仍沿用皮肤尺寸话术()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
+        using var client = new MojangSkinClient(new HttpClient(handler));
+
+        var result = await client.ResetSkinAsync(Token, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("64×64", result.ErrorText);
+        Assert.DoesNotContain("重置皮肤返回 400", result.ErrorText);
+    }
+
+    [Fact]
     public async Task 令牌过期时提示去账户页刷新且只发一次请求()
     {
         var handler = new CapturingHandler(_ => Json(HttpStatusCode.Unauthorized, """{"path":"/minecraft/profile/skins","errorMessage":"Invalid token."}"""));

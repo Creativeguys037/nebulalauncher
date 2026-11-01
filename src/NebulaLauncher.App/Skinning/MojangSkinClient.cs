@@ -93,7 +93,8 @@ public sealed class MojangSkinClient : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Delete, $"{_baseAddress}/minecraft/profile/skins/active");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        return await SendAsync(request, "重置皮肤", cancellationToken).ConfigureAwait(false);
+        // 保持票 #44 的既有话术：重置的 400 仍按皮肤尺寸/格式解释，不跟着披风动作改成通用文案。
+        return await SendAsync(request, "重置皮肤", cancellationToken, skinSizeFallback: true).ConfigureAwait(false);
     }
 
     /// <summary>

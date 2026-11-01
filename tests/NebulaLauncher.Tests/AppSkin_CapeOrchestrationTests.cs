@@ -118,11 +118,59 @@ public sealed class AppSkin_CapeOrchestrationTests
         Assert.True(vm.Capes[1].IsActive);
     }
 
-    private static SkinsViewModel CreateVm(CapeHandler handler, SkinChangeNotifier? changes = null)
+    [Fact]
+    public async Task 切换披风途中换账户会解锁并重拉新账户披风()
+    {
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var handler = new CapeHandler
+        {
+            CapeChangeGate = gate.Task,
+            SecondAccountToken = "token-2",
+        };
+        var accounts = new FakeAccountService(MicrosoftAccount());
+        using var vm = CreateVm(handler, accounts: accounts);
+
+        // 页面导航时才订阅 AccountsChanged；这里绕开导航（会触发真实皮肤站请求），只挂事件。
+        typeof(SkinsViewModel)
+            .GetMethod("AttachAccounts", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(vm, null);
+
+        await WaitUntilAsync(() => vm.Capes.Count == 2);
+        var switching = vm.UseCapeCommand.ExecuteAsync(vm.Capes[1]);
+        await WaitUntilAsync(() => vm.IsCapeBusy);
+
+        accounts.SwitchTo(MicrosoftAccount("microsoft-2", "token-2"));
+        await WaitUntilAsync(() => vm.Capes.Any(c => c.DisplayName == "Optifine"));
+
+        gate.SetResult(true);
+        await switching;
+
+        Assert.False(vm.IsCapeBusy);
+        Assert.True(vm.CanRefreshCapes);
+        Assert.Contains(vm.Capes, c => c.DisplayName == "Optifine");
+        Assert.DoesNotContain(vm.Capes, c => c.DisplayName == "Migrator");
+    }
+
+    [Fact]
+    public async Task 读取披风失败后不再显示正在读取()
+    {
+        using var handler = new CapeHandler { FailProfile = true };
+        using var vm = CreateVm(handler);
+
+        await WaitUntilAsync(() => vm.HasCapeError);
+
+        Assert.DoesNotContain("正在读取", vm.CapeHint);
+        Assert.True(vm.IsCapeEmpty);
+    }
+
+    private static SkinsViewModel CreateVm(
+        CapeHandler handler,
+        SkinChangeNotifier? changes = null,
+        FakeAccountService? accounts = null)
     {
         var http = new HttpClient(handler);
         var services = new ServiceMap()
-            .Add<IAccountService>(new FakeAccountService(MicrosoftAccount()))
+            .Add<IAccountService>(accounts ?? new FakeAccountService(MicrosoftAccount()))
             .Add(new MojangSkinClient(http));
         if (changes is not null)
         {
@@ -132,13 +180,13 @@ public sealed class AppSkin_CapeOrchestrationTests
         return new SkinsViewModel(services);
     }
 
-    private static Account MicrosoftAccount() => new()
+    private static Account MicrosoftAccount(string id = AccountId, string token = Token) => new()
     {
-        Id = AccountId,
+        Id = id,
         Type = AccountType.Microsoft,
         Username = "Steve",
         Uuid = "0123456789abcdef0123456789abcdef",
-        AccessToken = Token,
+        AccessToken = token,
     };
 
     private static async Task WaitUntilAsync(Func<bool> predicate)
@@ -161,7 +209,12 @@ public sealed class AppSkin_CapeOrchestrationTests
     {
         public bool RejectCapeChange { get; init; }
 
+        public bool FailProfile { get; init; }
+
         public Task? CapeChangeGate { get; init; }
+
+        /// <summary>这个令牌对应的账户返回另一套披风，用来验证切账户后列表真的换了人。</summary>
+        public string? SecondAccountToken { get; init; }
 
         public ConcurrentQueue<RequestLog> Requests { get; } = new();
 
@@ -181,6 +234,25 @@ public sealed class AppSkin_CapeOrchestrationTests
 
             if (request.RequestUri.ToString() == ProfileUrl)
             {
+                if (FailProfile)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                }
+
+                if (request.Headers.Authorization?.Parameter == SecondAccountToken)
+                {
+                    return Json("""
+                        {
+                          "id": "profile-2",
+                          "name": "Alex",
+                          "skins": [],
+                          "capes": [
+                            { "id": "cape-3", "state": "ACTIVE", "alias": "Optifine" }
+                          ]
+                        }
+                        """);
+                }
+
                 return Json("""
                     {
                       "id": "profile-1",
@@ -237,14 +309,18 @@ public sealed class AppSkin_CapeOrchestrationTests
 
     private sealed class FakeAccountService(Account? active) : IAccountService
     {
-        public IReadOnlyList<Account> Accounts => active is null ? [] : [active];
+        private Account? _active = active;
 
-        public Account? ActiveAccount => active;
+        public IReadOnlyList<Account> Accounts => _active is null ? [] : [_active];
 
-        public event EventHandler? AccountsChanged
+        public Account? ActiveAccount => _active;
+
+        public event EventHandler? AccountsChanged;
+
+        public void SwitchTo(Account? account)
         {
-            add { }
-            remove { }
+            _active = account;
+            AccountsChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

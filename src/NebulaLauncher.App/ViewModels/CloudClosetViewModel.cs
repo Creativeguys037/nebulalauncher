@@ -273,7 +273,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         ? "选中一件材质后可以应用、下载或删除。"
         : $"{SelectedItem.Name} · {SelectedItem.ModelLabel} · {SelectedItem.LikesLabel}";
 
-    public bool CanApply => IsLoggedIn && !IsBusy && SelectedItem is not null && SelectedPlayer is not null;
+    public bool CanApply => IsLoggedIn && !IsBusy && SelectedItem is not null && SelectedPlayer is not null && HasChosenPlayer;
 
     /// <summary>多角色时必须由用户亲手选过，自动选中的第一个不算。只有一个角色时自动选中即可。</summary>
     public bool HasChosenPlayer => _playerChosenByUser || Players.Count <= 1;
