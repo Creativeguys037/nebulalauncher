@@ -84,7 +84,7 @@ public sealed class MojangSkinClient : IDisposable
 
         request.Content = form;
 
-        return await SendAsync(request, "上传皮肤", cancellationToken).ConfigureAwait(false);
+        return await SendAsync(request, "上传皮肤", cancellationToken, skinSizeFallback: true).ConfigureAwait(false);
     }
 
     /// <summary>把当前账户的皮肤重置成官方默认皮肤（没有请求体，服务端自己决定默认长什么样）。</summary>
@@ -159,9 +159,11 @@ public sealed class MojangSkinClient : IDisposable
         HttpRequestMessage request,
         string action,
         CancellationToken cancellationToken,
-        string? rejectedText = null)
+        string? rejectedText = null,
+        bool skinSizeFallback = false)
     {
-        var (result, _) = await SendCoreAsync(request, action, cancellationToken, rejectedText).ConfigureAwait(false);
+        var (result, _) = await SendCoreAsync(request, action, cancellationToken, rejectedText, skinSizeFallback)
+            .ConfigureAwait(false);
         return result;
     }
 
@@ -173,7 +175,8 @@ public sealed class MojangSkinClient : IDisposable
         HttpRequestMessage request,
         string action,
         CancellationToken cancellationToken,
-        string? rejectedText = null)
+        string? rejectedText = null,
+        bool skinSizeFallback = false)
     {
         try
         {
@@ -193,7 +196,8 @@ public sealed class MojangSkinClient : IDisposable
                 return (SkinUploadResult.Fail("登录已过期，请到账户页刷新令牌。", isAuthError: true), null);
             }
 
-            // 400 几乎都是尺寸/格式不对（官方只收 64×64 与 64×32 的 PNG）。
+            // 上传皮肤的 400 几乎都是尺寸/格式不对（官方只收 64×64 与 64×32 的 PNG）；
+            // 读档案、换披风的 400 不能套这句，否则用户会去检查一张根本没上传的图。
             // 披风用例的 400/404 另有含义（不在已拥有列表里），由调用方传入兜底文案。
             // 服务端的 errorMessage 太空泛时，本地那句才是用户真正能照做的信息。
             if (response.StatusCode == HttpStatusCode.BadRequest
@@ -204,6 +208,14 @@ public sealed class MojangSkinClient : IDisposable
                 {
                     return (SkinUploadResult.Fail(
                         string.IsNullOrWhiteSpace(detail) ? rejectedText : $"{rejectedText}（服务端：{detail}）"), null);
+                }
+
+                if (!skinSizeFallback)
+                {
+                    return (SkinUploadResult.Fail(
+                        string.IsNullOrWhiteSpace(detail)
+                            ? $"{action}返回 400 BadRequest。"
+                            : $"{action}返回 400 BadRequest（服务端：{detail}）"), null);
                 }
 
                 const string sizeHint = "皮肤尺寸必须是 64×64 或 64×32，且必须是 PNG 格式。";

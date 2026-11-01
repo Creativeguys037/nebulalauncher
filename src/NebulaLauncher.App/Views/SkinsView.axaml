@@ -105,7 +105,7 @@
           </StackPanel>
 
           <!-- 三个动作。可见性全部来自 OfficialSkinCapability：
-               离线账户不出现上传/重置（AC5），披风按钮恒禁用（AC4）。 -->
+               离线账户不出现上传/重置（AC5）；披风入口改成「管理披风」，只切换已拥有的。 -->
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <Button Classes="accent"
                     Content="应用到官方账户"
@@ -576,7 +576,7 @@
                        VerticalAlignment="Center" />
             <Button Classes="pill"
                     Content="刷新披风"
-                    IsEnabled="{Binding !IsCapeLoading}"
+                    IsEnabled="{Binding CanRefreshCapes}"
                     ToolTip.Tip="重新读取这个微软账户已拥有的披风"
                     Command="{Binding RefreshCapesCommand}" />
             <Button Classes="pill"
@@ -751,6 +751,7 @@
                          VerticalAlignment="Center" />
               <Button Grid.Column="2" Classes="pill"
                       Content="重试"
+                      IsEnabled="{Binding CanRefreshCapes}"
                       Command="{Binding RefreshCapesCommand}" />
             </Grid>
           </Border>
@@ -851,6 +852,7 @@
                 <Button Classes="pill"
                         Content="刷新披风"
                         HorizontalAlignment="Left"
+                        IsEnabled="{Binding CanRefreshCapes}"
                         Command="{Binding RefreshCapesCommand}" />
               </StackPanel>
             </Border>

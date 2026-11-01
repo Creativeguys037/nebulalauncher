@@ -502,12 +502,17 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     /// <summary>常驻说明：披风由官方发放，这里只能切换已拥有的。</summary>
     public string CapeHint => !Official.CanChangeCape
         ? Official.CapeText
-        : Capes.Count == 0
-            ? "这个账户还没有披风。披风由官方发放，这里只能切换已拥有的。"
-            : "披风由官方发放，这里只能切换已拥有的。";
+        : IsCapeLoading || !_hasLoadedCapes
+            ? "正在读取这个账户的披风…"
+            : Capes.Count == 0
+                ? "这个账户还没有披风。披风由官方发放，这里只能切换已拥有的。"
+                : "披风由官方发放，这里只能切换已拥有的。";
 
     /// <summary>「隐藏披风」只在有生效中的披风时可点。</summary>
     public bool CanHideCape => Official.CanChangeCape && !IsCapeBusy && Capes.Any(cape => cape.IsActive);
+
+    /// <summary>刷新与切换互斥：切换中途重拉会把「使用中」那张卡换掉。</summary>
+    public bool CanRefreshCapes => !IsCapeLoading && !IsCapeBusy;
 
     /// <summary>本地皮肤库顶部的分段：true 表示正在看「披风」。</summary>
     public bool IsLocalSkinCategory => !IsLocalCapeCategory;
@@ -552,7 +557,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     }
 
     [RelayCommand]
-    private Task RefreshCapesAsync() => LoadCapesAsync();
+    private Task RefreshCapesAsync() => IsCapeBusy ? Task.CompletedTask : LoadCapesAsync();
 
     /// <summary>把某一件已拥有的披风设为当前披风。只作用于这一张卡，不要求先选中。</summary>
     [RelayCommand]
@@ -570,6 +575,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         var account = _accounts?.ActiveAccount;
         IsCapeBusy = true;
+        SetCapesBusy(true);
         CapeErrorText = null;
         CapeStatusText = null;
         try
@@ -597,13 +603,22 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         }
         catch (Exception ex)
         {
+            if (!ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                return;
+            }
+
             _log?.Warn("切换官方披风失败", ex);
             CapeErrorText = $"切换披风失败：{ex.Message}";
         }
         finally
         {
-            IsCapeBusy = false;
-            NotifyCapeState();
+            if (ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                IsCapeBusy = false;
+                SetCapesBusy(false);
+                NotifyCapeState();
+            }
         }
     }
 
@@ -618,6 +633,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
         var account = _accounts?.ActiveAccount;
         IsCapeBusy = true;
+        SetCapesBusy(true);
         CapeErrorText = null;
         CapeStatusText = null;
         try
@@ -646,14 +662,37 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         }
         catch (Exception ex)
         {
+            if (!ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                return;
+            }
+
             _log?.Warn("隐藏官方披风失败", ex);
             CapeErrorText = $"隐藏披风失败：{ex.Message}";
         }
         finally
         {
-            IsCapeBusy = false;
-            NotifyCapeState();
+            if (ReferenceEquals(_accounts?.ActiveAccount, account))
+            {
+                IsCapeBusy = false;
+                SetCapesBusy(false);
+                NotifyCapeState();
+            }
         }
+    }
+
+    private void SetCapesBusy(bool value)
+    {
+        foreach (var item in Capes)
+        {
+            item.IsBusy = value;
+        }
+    }
+
+    private void ClearCapePreview()
+    {
+        CapePreviewOverride?.Dispose();
+        CapePreviewOverride = null;
     }
 
     private bool TryGetCapeToken(out string token)
@@ -679,6 +718,19 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             return;
         }
 
+        // 切换披风进行中不重拉：重拉会换掉 Capes 集合，旧卡片的「使用中」就丢了。
+        if (IsCapeBusy)
+        {
+            return;
+        }
+
+        // 先取消上一个账户的在途请求，再判断新账户能不能换披风；
+        // 否则切到离线账户时旧请求回来会把旧账户的披风填进新账户。
+        var cancellation = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _capeCancellation, cancellation);
+        previous?.Cancel();
+        previous?.Dispose();
+
         var account = _accounts?.ActiveAccount;
         if (IsDisposed || _mojang is null || account is null || !Official.CanChangeCape ||
             string.IsNullOrWhiteSpace(account.AccessToken))
@@ -690,17 +742,13 @@ public sealed partial class SkinsViewModel : PageViewModelBase
             return;
         }
 
-        var cancellation = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref _capeCancellation, cancellation);
-        previous?.Cancel();
-        previous?.Dispose();
-
         IsCapeLoading = true;
         CapeErrorText = null;
         try
         {
             var result = await _mojang.GetProfileAsync(account.AccessToken, cancellation.Token).ConfigureAwait(true);
-            if (IsDisposed || cancellation.IsCancellationRequested)
+            if (IsDisposed || cancellation.IsCancellationRequested ||
+                !ReferenceEquals(_accounts?.ActiveAccount, account))
             {
                 return;
             }
@@ -765,6 +813,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
 
                 using var stream = new MemoryStream(bytes, writable: false);
                 var bitmap = new Bitmap(stream);
+                if (!Capes.Contains(cape))
+                {
+                    bitmap.Dispose();
+                    return;
+                }
+
                 var old = cape.Thumbnail;
                 cape.Thumbnail = bitmap;
                 old?.Dispose();
@@ -845,7 +899,18 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(HasCapeStatus));
     }
 
-    partial void OnIsCapeBusyChanged(bool value) => OnPropertyChanged(nameof(CanHideCape));
+    partial void OnIsCapeBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanHideCape));
+        OnPropertyChanged(nameof(CanRefreshCapes));
+    }
+
+    partial void OnIsCapeLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsCapeEmpty));
+        OnPropertyChanged(nameof(CapeHint));
+        OnPropertyChanged(nameof(CanRefreshCapes));
+    }
 
     partial void OnCapeErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasCapeError));
 
@@ -938,6 +1003,11 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         {
             // 卡片动作永远读这一行的网络原图，不走「本地页签当前选中」的捷径。
             var source = await ReadSkinAsync(target, CancellationToken.None).ConfigureAwait(true);
+            if (IsDisposed)
+            {
+                return;
+            }
+
             if (source?.Png is null)
             {
                 CloudApplyFeedback = new CloudApplyFeedback(
@@ -2224,6 +2294,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         var cancellation = new CancellationTokenSource();
         Replace(ref _previewCancellation, cancellation);
 
+        ClearCapePreview();
         PreviewName = item.Name;
         PreviewDetail = item.DetailLabel;
         IsPreviewLoading = true;
@@ -2516,6 +2587,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         var cancellation = new CancellationTokenSource();
         Replace(ref _previewCancellation, cancellation);
 
+        ClearCapePreview();
         PreviewName = entry.Name;
         PreviewDetail = $"{entry.ModelLabel} · {entry.LikesLabel}";
 
@@ -2671,6 +2743,13 @@ public sealed partial class SkinsViewModel : PageViewModelBase
         AccountDetail = account is null
             ? "皮肤库不用登录也能逛"
             : AccountTypeDisplay.DetailOf(account, $"UUID {ShortUuid(account.Uuid)}");
+
+        // 切账户先作废在途的官方动作与重试闭包：旧账户的 401 或成功不能写到新账户界面上。
+        Cancel(ref _officialCancellation);
+        OfficialFeedback = null;
+        _officialRetry = null;
+        ClearCapePreview();
+        OnPropertyChanged(nameof(CanRetryOfficial));
 
         // 换人（或换类型）之后，官方区的按钮可用性与体型单选都必须跟着变，
         // 否则会出现「切到离线账户了，上传按钮还亮着」。
@@ -2916,6 +2995,7 @@ public sealed partial class SkinsViewModel : PageViewModelBase
                 bitmap.Dispose();
             }
 
+            ClearCapePreview();
             foreach (var cape in Capes)
             {
                 cape.Thumbnail?.Dispose();

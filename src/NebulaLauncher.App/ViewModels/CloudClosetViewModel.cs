@@ -648,6 +648,11 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         bool isPublic,
         CancellationToken cancellationToken = default)
     {
+        if (_disposed)
+        {
+            return CloudClosetApplyResult.Fail("页面已关闭，请重试。");
+        }
+
         if (!IsLoggedIn)
         {
             return CloudClosetApplyResult.LoginRequired("先登录皮肤站，再把这套皮肤应用到角色。");
@@ -663,8 +668,17 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         {
             if (Players.Count == 1)
             {
+                // 自动选中不算用户选择：否则 HasChosenPlayer 会误以为用户已经挑过角色。
                 player = Players[0];
-                SelectedPlayer = player;
+                _autoSelectingPlayer = true;
+                try
+                {
+                    SelectedPlayer = player;
+                }
+                finally
+                {
+                    _autoSelectingPlayer = false;
+                }
             }
             else if (Players.Count == 0)
             {
@@ -718,6 +732,11 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
             // 但要在成功文案里说明还没确认上。
             ErrorText = null;
             await LoadPlayersAsync(cancellationToken).ConfigureAwait(true);
+            if (_disposed)
+            {
+                return CloudClosetApplyResult.Ok("已应用到皮肤站。", tid, player.Name);
+            }
+
             var confirmed = string.IsNullOrEmpty(ErrorText);
             var text = confirmed
                 ? $"已应用到皮肤站：{player.Name} · 皮肤 #{tid}"
@@ -728,7 +747,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException)
         {
-            throw;
+            return CloudClosetApplyResult.Fail("操作已取消，请重试。", canRetry: true);
         }
         catch (Exception ex)
         {
