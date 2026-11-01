@@ -7,7 +7,7 @@
 - 依据：一手来源——Blessing Skin Server `dev` 分支与 `6.0.2` tag 源码（`routes/api.php`、`routes/web.php`、`app/Http/Controllers/PlayerController.php`、`ClosetController.php`、`SkinlibController.php`、`app/helpers.php`）、LittleSkin 官方手册与 OIDC 发现文档、对 littleskin.cn 与 api.minecraftservices.com 的只读实测。2026-11-01 采样。
 - 范围：OAuth JSON API 的材质读写端点、请求体与响应形态、鉴权 scope、PNG 上传是否可达。
 - 未做：没有真 token，成功响应、429、皮肤是否立刻可见均未实测。
-- 与既有笔记的关系：`docs/research/littleskin-and-skin-api.md` 的 A2.1 把 Yggdrasil `PUT /api/yggdrasil/user/profile/{uuid}/{textureType}` 当作既成事实，那是规范推断；票 #53 的实测显示 littleskin 上该路径一律 404。本笔记补「真实存在的那条链路」。
+- 与既有笔记的关系：`docs/research/littleskin-and-skin-api.md` 的 A2.1 把 Yggdrasil `PUT /api/yggdrasil/user/profile/{uuid}/{textureType}` 当作既成事实，那是规范推断；票 #53 的实测显示 littleskin 上该路径一律 404。本笔记补「真实存在的那条链路」。官方（Mojang）一侧的换肤请求与响应契约见 `docs/research/mojang-skin-api.md`；两套端点部署在不同域名、没有交集，排查时先确认走的是哪一侧。
 - 标签：描述「源码明写」与「实测」；推断单独标出。
 
 ---

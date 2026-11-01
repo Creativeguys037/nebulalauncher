@@ -5,7 +5,7 @@
 - 依据：2026-11-01 对 littleskin.cn 的真实账号实测（登录、上传、应用、清除、删除全链路），结合站点前端 chunk `app.6d836bf.js` / `627.2ca8103.js` 的路由与上传表单字段、Blessing Skin Server 6.0.2 源码。
 - 范围：网页会话登录、CSRF、`POST /texture` 上传、`PUT/DELETE /user/player/{pid}/textures` 应用/清除、`DELETE /texture/{tid}` 删除；以及它与 OAuth JSON API 的边界。
 - 未做：长期会话有效期、验证码/二次验证变体、其他 Blessing Skin 站点复现、积分余额变化的精确核对（扣费公式已从 6.0.2 源码抄录，实际余额未逐次核对）。
-- 与既有笔记的关系：`docs/research/littleskin-texture-write-contract.md` 只覆盖 OAuth JSON API，且把路由参数写成 `{uuid}`（实测为 `{pid}`）、把上传字段写成 `name/file/type/public`（实测还需 `source`/`link`/`ignoreSimCheck`）；本篇补网页会话链路并给出勘误。
+- 与既有笔记的关系：`docs/research/littleskin-texture-write-contract.md` 只覆盖 OAuth JSON API，且把路由参数写成 `{uuid}`（实测为 `{pid}`）、把上传字段写成 `name/file/type/public`（实测还需 `source`/`link`/`ignoreSimCheck`）；本篇补网页会话链路并给出勘误。官方（Mojang）一侧的换肤请求与响应契约见 `docs/research/mojang-skin-api.md`；两套端点部署在不同域名、没有交集，排查时先确认走的是哪一侧。
 - 标签：实测、源码明写、推断分别标注。
 
 ---
