@@ -148,8 +148,13 @@ public static class SkinMeshBuilder
     }
 
     /// <summary>
-    /// 按皮肤展开图公式算一个盒子的六面 UV：横排是「左面 | 正面 | 右面 | 背面」，
-    /// 纵向依次是顶面、侧面、底面。这是 mojang 布局，不是随便排的。
+    /// 按皮肤展开图公式算一个盒子的六面 UV：展开图横排依次是
+    /// 「玩家右面 | 正面 | 玩家左面 | 背面」，纵向依次是顶面、侧面、底面。
+    /// 这里的 Left/Right 按模型 -X/+X 命名：Left 对应展开图最左那块，Right 是第三块。
+    ///
+    /// 侧面的宽度取 <paramref name="depth"/> 而不是 <paramref name="width"/>：身体是 8×12×4，
+    /// 若把右侧面按 8 宽展开，背面会整体右移 4 像素并采样到手臂纹理 —— 这正是 3D 预览
+    /// 纹理错位/错色的根因。公式与 skinview3d 的 <c>setUVs</c> 逐项一致。
     /// </summary>
     public static IReadOnlyDictionary<SkinFace, SkinUv> BuildUv(int u, int v, int width, int height, int depth)
     {
@@ -164,8 +169,8 @@ public static class SkinMeshBuilder
             [SkinFace.Bottom] = new(u + depth + width, v, u + depth + (2 * width), v + depth),
             [SkinFace.Left] = new(u, v + depth, u + depth, v + depth + height),
             [SkinFace.Front] = new(u + depth, v + depth, u + depth + width, v + depth + height),
-            [SkinFace.Right] = new(u + depth + width, v + depth, u + depth + (2 * width), v + depth + height),
-            [SkinFace.Back] = new(u + depth + (2 * width), v + depth, u + depth + (3 * width), v + depth + height),
+            [SkinFace.Right] = new(u + depth + width, v + depth, u + (2 * depth) + width, v + depth + height),
+            [SkinFace.Back] = new(u + (2 * depth) + width, v + depth, u + (2 * depth) + (2 * width), v + depth + height),
         };
     }
 

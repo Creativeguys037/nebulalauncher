@@ -10,8 +10,15 @@ namespace NebulaLauncher.Skinning;
 /// </summary>
 public sealed class SkinVisual
 {
-    /// <summary>默认皮肤：没登录、拉取失败、或者对方没上传皮肤时都用它。</summary>
-    public static SkinVisual Default { get; } = new(DefaultSkin.Create(), null, false, false);
+    /// <summary>默认皮肤：没登录、拉取失败、或者对方没上传皮肤时都用它（Steve）。</summary>
+    public static SkinVisual Default { get; } = CreateDefault(slim: false);
+
+    /// <summary>按体型取默认皮肤：<paramref name="slim"/> 为 true 时是 Alex，否则是 Steve。</summary>
+    public static SkinVisual CreateDefault(bool slim) => new(
+        DefaultSkin.Create(slim),
+        null,
+        slim,
+        false);
 
     public SkinVisual(ISkinTexture texture, ISkinTexture? cape, bool slim, bool legacyLayout)
     {

@@ -18,7 +18,7 @@ namespace NebulaLauncher.Core.Skinning;
 ///
 /// 分层（投票 #54 定案）：
 /// <list type="bullet">
-/// <item><description><c>&lt;data&gt;/cache/skins/default-steve.png</c> / <c>default-alex.png</c>：内嵌默认皮肤，放根下，不跟着账户重复。</description></item>
+/// <item><description><c>&lt;data&gt;/cache/skins/default-v2-steve.png</c> / <c>default-v2-alex.png</c>：Mojang 官方默认皮肤，放根下，不跟着账户重复。</description></item>
 /// <item><description><c>&lt;data&gt;/cache/skins/&lt;uuid&gt;/current.json</c> + <c>&lt;hash&gt;.png</c>：账户自有纹理。</description></item>
 /// <item><description><c>&lt;data&gt;/cache/skins/&lt;site&gt;/&lt;tid&gt;.json</c> + <c>&lt;hash&gt;.png</c>：公开皮肤库，按站点主机名分目录。</description></item>
 /// </list>

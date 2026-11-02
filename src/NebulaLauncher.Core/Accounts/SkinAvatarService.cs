@@ -342,7 +342,8 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
     private async Task<string?> GetDefaultSkinPathAsync(string model, CancellationToken cancellationToken)
     {
         var name = model == "slim" ? "alex" : "steve";
-        var path = Path.Combine(_store.Root, "default-" + name + ".png");
+        // v2：默认皮肤从手绘占位换成 Mojang 官方纹理，换文件名让旧缓存自然失效。
+        var path = Path.Combine(_store.Root, "default-v2-" + name + ".png");
         if (File.Exists(path))
         {
             return path;
@@ -362,19 +363,10 @@ public sealed class SkinAvatarService : ISkinAvatarService, IDisposable
             string? temp = null;
             try
             {
-                await using var stream = typeof(SkinAvatarService).Assembly
-                    .GetManifestResourceStream("NebulaLauncher.Core.Resources.Skins." + name + ".png");
-                if (stream is null)
-                {
-                    return null;
-                }
-
+                var bytes = DefaultSkinAssets.Read(model == "slim");
                 Directory.CreateDirectory(_store.Root);
                 temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-                await using (var file = File.Create(temp))
-                {
-                    await stream.CopyToAsync(file, cancellationToken).ConfigureAwait(false);
-                }
+                await File.WriteAllBytesAsync(temp, bytes, cancellationToken).ConfigureAwait(false);
 
                 File.Move(temp, path, overwrite: true);
                 temp = null;

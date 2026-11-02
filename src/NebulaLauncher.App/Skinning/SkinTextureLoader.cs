@@ -61,7 +61,7 @@ public static class SkinTextureLoader
         var profileUrl = SkinProfileParser.BuildProfileUrl(account);
         if (profileUrl is null)
         {
-            return SkinVisual.Default;
+            return SkinVisual.CreateDefault(slim);
         }
 
         var scope = store is null || account is null ? null : account.Id;
@@ -72,7 +72,7 @@ public static class SkinTextureLoader
             var textures = SkinProfileParser.ParseProfile(json, account!.SkinModel);
             if (textures is null)
             {
-                return SkinVisual.Default;
+                return SkinVisual.CreateDefault(slim);
             }
 
             var skin = await DownloadTextureAsync(
@@ -84,7 +84,7 @@ public static class SkinTextureLoader
                 cancellationToken).ConfigureAwait(false);
             if (skin is null)
             {
-                return SkinVisual.Default;
+                return SkinVisual.CreateDefault(slim);
             }
 
             ArgbSkinTexture? cape = null;
@@ -104,7 +104,7 @@ public static class SkinTextureLoader
         catch (Exception ex) when (IsTransient(ex))
         {
             WarnUnlessCancelled(log, account, "查询账户皮肤失败", ex, cancellationToken);
-            return SkinVisual.Default;
+            return SkinVisual.CreateDefault(slim);
         }
     }
 

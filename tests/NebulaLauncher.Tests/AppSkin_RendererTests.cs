@@ -109,6 +109,17 @@ public class AppSkin_RendererTests
         Assert.NotEqual(0u, texture.GetPixel(12, 12));
         Assert.NotEqual(0u, texture.GetPixel(24, 26));
 
+        // 颜色锁到 Mojang 官方 Steve 展开图：手绘近似色过不了这几条。
+        Assert.Equal(0xFF3F2A15u, texture.GetPixel(12, 4));
+        Assert.Equal(0xFF9B6349u, texture.GetPixel(12, 12));
+        Assert.Equal(0xFF049595u, texture.GetPixel(24, 26));
+
+        // slim 模型必须用官方 Alex，而不是把 Steve 的 4 像素手臂硬套上去。
+        var alex = DefaultSkin.Create(slim: true);
+        Assert.Equal(0xFFF3A858u, alex.GetPixel(12, 4));
+        Assert.Equal(0xFFEFDABFu, alex.GetPixel(12, 12));
+        Assert.Equal(0xFF94C892u, alex.GetPixel(24, 26));
+
         // 第二层区域必须全透明，否则会把内层整个盖住。
         for (var v = 0; v < 16; v++)
         {

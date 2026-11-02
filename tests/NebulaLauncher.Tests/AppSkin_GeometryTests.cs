@@ -95,12 +95,24 @@ public class AppSkin_GeometryTests
     }
 
     [Fact]
-    public void 身体背面贴的是展开图第三块而不是正面()
+    public void 身体背面贴的是展开图第四块而不是正面()
     {
         var uv = Single(SkinMeshBuilder.Build(includeOuterLayer: false), SkinPartName.Body).Uv;
 
         AssertRectangle(uv[SkinFace.Front], 20, 20, 28, 32);
-        AssertRectangle(uv[SkinFace.Back], 36, 20, 44, 32);
+        AssertRectangle(uv[SkinFace.Right], 28, 20, 32, 32);
+        AssertRectangle(uv[SkinFace.Back], 32, 20, 40, 32);
+    }
+
+    [Fact]
+    public void Alex_手臂的侧面宽度取深度而不是臂宽()
+    {
+        var uv = SkinMeshBuilder.BuildUv(40, 16, 3, 12, 4);
+
+        AssertRectangle(uv[SkinFace.Left], 40, 20, 44, 32);
+        AssertRectangle(uv[SkinFace.Front], 44, 20, 47, 32);
+        AssertRectangle(uv[SkinFace.Right], 47, 20, 51, 32);
+        AssertRectangle(uv[SkinFace.Back], 51, 20, 54, 32);
     }
 
     [Fact]

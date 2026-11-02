@@ -26,7 +26,7 @@
     -->
     <EmbeddedResource Include="Resources\WikiEntries.txt" />
     <!--
-      默认皮肤（Steve / Alex，64×64 PNG，自绘）。
+      默认皮肤（Mojang 官方客户端的 Steve / Alex，64×64 PNG）。
       嵌入而不是 Content：单文件发布时 Content 会漏，离线账户的头像就没有兜底图。
     -->
     <EmbeddedResource Include="Resources\Skins\*.png" />

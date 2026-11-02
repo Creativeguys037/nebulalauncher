@@ -114,7 +114,7 @@ public sealed class CoreSkinning_TextureStoreTests
         await store.SaveAsync(Uuid, TextureHash, PngHeader(64, 64), new SkinTextureMeta(TextureHash, "classic", TextureUrl));
         var sibling = new string('c', 64);
         await store.SaveAsync("other-account", sibling, PngHeader(64, 64), new SkinTextureMeta(sibling, "classic", "https://e.invalid/texture/" + sibling));
-        var defaultSkin = Path.Combine(store.Root, "default-steve.png");
+        var defaultSkin = Path.Combine(store.Root, "default-v2-steve.png");
         Directory.CreateDirectory(store.Root);
         File.WriteAllBytes(defaultSkin, PngHeader(64, 64));
 
@@ -225,7 +225,7 @@ public sealed class CoreSkinning_TextureStoreTests
 
         // 回落也是「有图可显示」：内嵌默认皮肤解到缓存根下。
         Assert.NotNull(path);
-        Assert.EndsWith("default-steve.png", path, StringComparison.Ordinal);
+        Assert.EndsWith("default-v2-steve.png", path, StringComparison.Ordinal);
     }
 
     // ---------------- 发布自检（票 54 新增的第 8 条落盘通路） ----------------
