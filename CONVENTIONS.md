@@ -389,7 +389,10 @@ Remove-Item D:\agent_workspace\pub\v1.2.1\_portable -Recurse -Force
 
 # 打包 → 校验和 → 上传（顺序不能换）
 cd D:\agent_workspace\pub\v1.2.1
-tar -a -c -f NebulaLauncher-v1.2.1-win-x64.zip NebulaLauncher-v1.2.1-win-x64
+# 用 Compress-Archive（deflate）；Git Bash 的 tar 会把 D:\ 当成远程主机而报
+# "Cannot connect to D: resolve failed"
+Compress-Archive -Path 'NebulaLauncher-v1.2.1-win-x64' `
+                 -DestinationPath 'NebulaLauncher-v1.2.1-win-x64.zip' -Force
 $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
@@ -398,6 +401,8 @@ $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } 
 ```
 
 `SHA256SUMS.txt` 每行 `<64 位小写十六进制>␣␣<文件名>`（两个空格分隔，GNU 格式，`sha256sum -c` 可直接校验），只列会发布出去的文件。行尾必须是 LF：CRLF 会让 `sha256sum -c` 把 `\r` 算进文件名而报 `No such file or directory`（2026-10-24 实测）。
+
+**zip 体积口径：** `Compress-Archive` 会实际压缩内容；旧命令 `tar -a -c` 在部分 Windows / Git Bash 环境按原样存储（v1.2.0 的 zip 27,340,800 字节 ≈ 解压后 27,334,442 字节）。所以 release notes 里的 zip 大小必须写**本次实测字节**，不能拿新旧包直接比；跨版本比较用解压后字节数。v1.2.1 实测：zip 11,281,359 字节，解压后 27,350,826 字节（3 个文件）。
 
 ### 8.7 GitHub Release
 
