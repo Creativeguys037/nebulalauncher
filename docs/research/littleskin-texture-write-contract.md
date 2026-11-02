@@ -2,6 +2,8 @@
 
 > **勘误（2026-11-01 复测）**：全文 OAuth API 的 `{uuid}` 应为 `{pid}`（`players.pid`，integer）；上传页面是 `/skinlib`，真实上传端点是 `POST /texture`（`routes/web.php` 的 `texture` 前缀，不是 `skinlib` 前缀），字段还需 `source`/`link`/`ignoreSimCheck`，tid 在 `data.data.tid`。完整网页会话契约见 `docs/research/littleskin-web-session-texture-write-contract.md`。
 
+> **勘误（2026-11-02 复测）**：`client_id 1674` 的设备代码流白名单已生效，`POST /oauth/device_code` 返回 200；本篇关于「设备码流不可用」的结论作废。最新实测（含 scope 不校验、discovery 变化）见 `docs/research/littleskin-oauth-device-flow-20261102.md`。
+
 > 一句话结论：littleskin 的材质写入走 Blessing Skin 的 OAuth JSON API，`PUT /api/players/{pid}/textures` 接收的是**已存在材质的 tid**（`skin` / `cape` 字段），不是 PNG 文件；OAuth API 没有新建材质的端点，上传 PNG 只存在于网页上传页 `/skinlib` 的 `POST /texture`。
 
 - 依据：一手来源——Blessing Skin Server `dev` 分支与 `6.0.2` tag 源码（`routes/api.php`、`routes/web.php`、`app/Http/Controllers/PlayerController.php`、`ClosetController.php`、`SkinlibController.php`、`app/helpers.php`）、LittleSkin 官方手册与 OIDC 发现文档、对 littleskin.cn 与 api.minecraftservices.com 的只读实测。2026-11-01 采样。

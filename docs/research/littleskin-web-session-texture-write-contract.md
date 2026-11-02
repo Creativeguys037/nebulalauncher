@@ -1,5 +1,7 @@
 # 皮肤站网页会话的材质写入契约（littleskin / Blessing Skin 6.0.2）
 
+> **勘误（2026-11-02 复测）**：`client_id 1674` 的设备代码流白名单已生效（`POST /oauth/device_code` 200），本篇 §4 关于「设备码流仍被白名单阻塞」的结论作废；最新实测与 scope 校验行为见 `docs/research/littleskin-oauth-device-flow-20261102.md`。网页会话链路本身的结论不变。
+
 > 一句话结论：littleskin 上唯一能完成「上传本地 PNG → 应用到角色 → 清除 → 删除材质」的通道是网页会话（密码登录 + CSRF + 站点 JSON 路由）；OAuth JSON API 只能应用衣柜里已有的 tid，不能上传 PNG，且设备码流仍被应用白名单阻塞。
 
 - 依据：2026-11-01 对 littleskin.cn 的真实账号实测（登录、上传、应用、清除、删除全链路），结合站点前端 chunk `app.6d836bf.js` / `627.2ca8103.js` 的路由与上传表单字段、Blessing Skin Server 6.0.2 源码。
