@@ -116,6 +116,64 @@ public class AppSkin_GeometryTests
     }
 
     [Fact]
+    public void HD皮肤按纹理宽度整体缩放UV()
+    {
+        var mesh = SkinMeshBuilder.Build(
+            includeOuterLayer: false,
+            textureWidth: 128,
+            textureHeight: 128);
+
+        var head = Single(mesh, SkinPartName.Head).Uv;
+        AssertRectangle(head[SkinFace.Front], 16, 16, 32, 32);
+        AssertRectangle(head[SkinFace.Right], 32, 16, 48, 32);
+        AssertRectangle(head[SkinFace.Back], 48, 16, 64, 32);
+
+        var body = Single(mesh, SkinPartName.Body).Uv;
+        AssertRectangle(body[SkinFace.Front], 40, 40, 56, 64);
+        AssertRectangle(body[SkinFace.Right], 56, 40, 64, 64);
+        AssertRectangle(body[SkinFace.Back], 64, 40, 80, 64);
+    }
+
+    [Fact]
+    public void 五百一十二像素皮肤按八倍缩放且UV不越界()
+    {
+        var mesh = SkinMeshBuilder.Build(
+            includeOuterLayer: false,
+            textureWidth: 512,
+            textureHeight: 512);
+
+        var head = Single(mesh, SkinPartName.Head).Uv;
+        AssertRectangle(head[SkinFace.Front], 64, 64, 128, 128);
+
+        var body = Single(mesh, SkinPartName.Body).Uv;
+        AssertRectangle(body[SkinFace.Back], 256, 160, 320, 256);
+
+        foreach (var part in mesh.Parts)
+        {
+            foreach (var (face, uv) in part.Uv)
+            {
+                Assert.True(uv.U0 >= 0 && uv.U0 <= 512, $"{part.Name}.{face} U0={uv.U0}");
+                Assert.True(uv.U1 >= 0 && uv.U1 <= 512, $"{part.Name}.{face} U1={uv.U1}");
+                Assert.True(uv.V0 >= 0 && uv.V0 <= 512, $"{part.Name}.{face} V0={uv.V0}");
+                Assert.True(uv.V1 >= 0 && uv.V1 <= 512, $"{part.Name}.{face} V1={uv.V1}");
+                Assert.True(uv.U1 > uv.U0, $"{part.Name}.{face} 的 U 区间必须递增");
+                Assert.True(uv.V1 > uv.V0, $"{part.Name}.{face} 的 V 区间必须递增");
+            }
+        }
+    }
+
+    [Fact]
+    public void SkinVisual构建网格时使用纹理实际尺寸()
+    {
+        var texture = new ArgbSkinTexture(128, 128, new uint[128 * 128]);
+        var visual = new SkinVisual(texture, null, false, false);
+
+        var head = Single(visual.BuildMesh(), SkinPartName.Head).Uv;
+
+        AssertRectangle(head[SkinFace.Front], 16, 16, 32, 32);
+    }
+
+    [Fact]
     public void 左臂用展开图下半区_右臂用上半区()
     {
         var mesh = SkinMeshBuilder.Build(includeOuterLayer: false);

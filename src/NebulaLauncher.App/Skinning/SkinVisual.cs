@@ -41,6 +41,11 @@ public sealed class SkinVisual
 
     public bool HasCape => Cape is not null;
 
-    /// <summary>按这份皮肤构建网格。没有披风就不建披风部件。</summary>
-    public SkinMesh BuildMesh() => SkinMeshBuilder.Build(Slim, HasCape, LegacyLayout);
+    /// <summary>按这份皮肤构建网格。没有披风就不建披风部件；HD 纹理按实际尺寸等比缩放 UV。</summary>
+    public SkinMesh BuildMesh() => SkinMeshBuilder.Build(
+        Slim,
+        HasCape,
+        LegacyLayout,
+        textureWidth: Texture.Width,
+        textureHeight: Texture.Height);
 }

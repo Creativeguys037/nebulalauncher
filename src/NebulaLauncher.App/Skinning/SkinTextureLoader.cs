@@ -165,25 +165,32 @@ public static class SkinTextureLoader
     }
 
     /// <summary>
-    /// 老皮肤是 64×32。有些皮肤站会把上传的老图补齐成 64×64，
-    /// 这时高度看不出区别，但新版独占的区域（左腿正面）必然全透明。
+    /// 老皮肤是 64×32（HD 版是 128×64、256×128 等）。有些皮肤站会把上传的老图
+    /// 补齐成 64×64，这时高度看不出区别，但整张下半区必然全透明；
+    /// 新版皮肤即使左腿正面透明，下半区也还有左腿、左臂与外层，不会整片透明。
     /// </summary>
-    private static bool IsLegacyLayout(ArgbSkinTexture skin)
+    public static bool IsLegacyLayout(ISkinTexture skin)
     {
-        if (skin.Height == SkinMeshBuilder.LegacyTextureHeight)
-        {
-            return true;
-        }
-
-        if (skin.Width != SkinMeshBuilder.TextureWidth || skin.Height != SkinMeshBuilder.TextureHeight)
+        if (skin.Width % SkinMeshBuilder.TextureWidth != 0)
         {
             // 尺寸不认识时按新版渲染，至少脸和上半身是对的。
             return false;
         }
 
-        for (var y = 52; y < 64; y++)
+        var scale = skin.Width / SkinMeshBuilder.TextureWidth;
+        if (skin.Height == SkinMeshBuilder.LegacyTextureHeight * scale)
         {
-            for (var x = 20; x < 24; x++)
+            return true;
+        }
+
+        if (skin.Height != SkinMeshBuilder.TextureHeight * scale)
+        {
+            return false;
+        }
+
+        for (var y = SkinMeshBuilder.LegacyTextureHeight * scale; y < skin.Height; y++)
+        {
+            for (var x = 0; x < skin.Width; x++)
             {
                 if ((skin.GetPixel(x, y) >> 24) != 0)
                 {

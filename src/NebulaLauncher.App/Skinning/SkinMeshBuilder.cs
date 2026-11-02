@@ -4,13 +4,14 @@ using System.Collections.Generic;
 namespace NebulaLauncher.Skinning;
 
 /// <summary>
-/// 把 Minecraft 皮肤的 64×64 展开图切成六个面，并按官方人形尺寸拼成低模。
+/// 把 Minecraft 皮肤的 64×64 基准展开图切成六个面，并按官方人形尺寸拼成低模。
 ///
 /// 坐标约定（与 <see cref="SkinVec3"/> 一致）：脚底 y=0、头顶 y=32，+X 是角色左手、+Z 是角色正面。
 /// 尺寸全部取自官方模型（头 8×8×8、身 8×12×4、四肢 12 高、Steve 臂宽 4 / Alex 臂宽 3、披风 10×16×1）。
 ///
 /// UV 展开规则直接对应皮肤图的排版：以 (u,v) 为起点，先横排三块侧面、再纵排。
 /// 六个面共用同一条公式，因此改一个盒子的尺寸不会漏改某个面。
+/// 128×128、256×256、512×512 等整数倍 HD 皮肤按 <c>textureWidth / 64</c> 等比缩放所有 UV。
 /// </summary>
 public static class SkinMeshBuilder
 {
@@ -36,12 +37,27 @@ public static class SkinMeshBuilder
     /// 是否生成帽子/外套/袖子/裤管这层。产品渲染要它；几何测试与老皮肤不需要。
     /// <paramref name="legacyLayout"/> 为 true 时恒为 false，因为老皮肤纹理里没有外层区域。
     /// </param>
+    /// <param name="textureWidth">实际纹理宽度，必须是 64 的正整数倍。</param>
+    /// <param name="textureHeight">实际纹理高度，必须是 64 或 32 的对应倍数。</param>
     public static SkinMesh Build(
         bool slim = false,
         bool hasCape = false,
         bool legacyLayout = false,
-        bool includeOuterLayer = true)
+        bool includeOuterLayer = true,
+        int textureWidth = TextureWidth,
+        int textureHeight = TextureHeight)
     {
+        if (textureWidth < TextureWidth || textureWidth % TextureWidth != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(textureWidth), "纹理宽度必须是 64 的正整数倍。");
+        }
+
+        var scale = textureWidth / TextureWidth;
+        if (textureHeight != TextureHeight * scale && textureHeight != LegacyTextureHeight * scale)
+        {
+            throw new ArgumentOutOfRangeException(nameof(textureHeight), "纹理高度必须是 64 或 32 的对应倍数。");
+        }
+
         var buildOuterLayer = includeOuterLayer && !legacyLayout;
         var parts = new List<SkinPart>(buildOuterLayer ? 12 : 6);
         var armWidthPx = slim ? 3 : 4;
@@ -52,40 +68,40 @@ public static class SkinMeshBuilder
             SkinPartName.Head,
             new SkinVec3(0, 28, 0),
             new SkinVec3(8, 8, 8),
-            BuildUv(0, 0, 8, 8, 8)));
+            BuildUv(0, 0, 8, 8, 8, scale)));
 
         parts.Add(new SkinPart(
             SkinPartName.Body,
             new SkinVec3(0, 18, 0),
             new SkinVec3(8, 12, 4),
-            BuildUv(16, 16, 8, 12, 4)));
+            BuildUv(16, 16, 8, 12, 4, scale)));
 
         // 观察者的右手边是角色的左手（+X），所以 RightArm 放在 -X 侧。
         parts.Add(new SkinPart(
             SkinPartName.RightArm,
             new SkinVec3(-armCenterX, 18, 0),
             new SkinVec3(armWidth, 12, 4),
-            BuildUv(40, 16, armWidthPx, 12, 4)));
+            BuildUv(40, 16, armWidthPx, 12, 4, scale)));
 
         parts.Add(new SkinPart(
             SkinPartName.LeftArm,
             new SkinVec3(armCenterX, 18, 0),
             new SkinVec3(armWidth, 12, 4),
             legacyLayout
-                ? (IReadOnlyDictionary<SkinFace, SkinUv>)MirrorUv(BuildUv(40, 16, armWidthPx, 12, 4))
-                : BuildUv(32, 48, armWidthPx, 12, 4)));
+                ? (IReadOnlyDictionary<SkinFace, SkinUv>)MirrorUv(BuildUv(40, 16, armWidthPx, 12, 4, scale))
+                : BuildUv(32, 48, armWidthPx, 12, 4, scale)));
 
         parts.Add(new SkinPart(
             SkinPartName.RightLeg,
             new SkinVec3(-2, 6, 0),
             new SkinVec3(4, 12, 4),
-            BuildUv(0, 16, 4, 12, 4)));
+            BuildUv(0, 16, 4, 12, 4, scale)));
 
         parts.Add(new SkinPart(
             SkinPartName.LeftLeg,
             new SkinVec3(2, 6, 0),
             new SkinVec3(4, 12, 4),
-            legacyLayout ? MirrorUv(BuildUv(0, 16, 4, 12, 4)) : BuildUv(16, 48, 4, 12, 4)));
+            legacyLayout ? MirrorUv(BuildUv(0, 16, 4, 12, 4, scale)) : BuildUv(16, 48, 4, 12, 4, scale)));
 
         if (buildOuterLayer)
         {
@@ -95,42 +111,42 @@ public static class SkinMeshBuilder
                 SkinPartName.Head,
                 new SkinVec3(0, 28, 0),
                 new SkinVec3(9, 9, 9),
-                BuildUv(32, 0, 8, 8, 8),
+                BuildUv(32, 0, 8, 8, 8, scale),
                 outerLayer: true));
 
             parts.Add(new SkinPart(
                 SkinPartName.Body,
                 new SkinVec3(0, 18, 0),
                 new SkinVec3(8.5, 12.5, 4.5),
-                BuildUv(16, 32, 8, 12, 4),
+                BuildUv(16, 32, 8, 12, 4, scale),
                 outerLayer: true));
 
             parts.Add(new SkinPart(
                 SkinPartName.RightArm,
                 new SkinVec3(-armCenterX, 18, 0),
                 new SkinVec3(armWidth + 0.5, 12.5, 4.5),
-                BuildUv(40, 32, armWidthPx, 12, 4),
+                BuildUv(40, 32, armWidthPx, 12, 4, scale),
                 outerLayer: true));
 
             parts.Add(new SkinPart(
                 SkinPartName.LeftArm,
                 new SkinVec3(armCenterX, 18, 0),
                 new SkinVec3(armWidth + 0.5, 12.5, 4.5),
-                BuildUv(48, 48, armWidthPx, 12, 4),
+                BuildUv(48, 48, armWidthPx, 12, 4, scale),
                 outerLayer: true));
 
             parts.Add(new SkinPart(
                 SkinPartName.RightLeg,
                 new SkinVec3(-2, 6, 0),
                 new SkinVec3(4.5, 12.5, 4.5),
-                BuildUv(0, 32, 4, 12, 4),
+                BuildUv(0, 32, 4, 12, 4, scale),
                 outerLayer: true));
 
             parts.Add(new SkinPart(
                 SkinPartName.LeftLeg,
                 new SkinVec3(2, 6, 0),
                 new SkinVec3(4.5, 12.5, 4.5),
-                BuildUv(0, 48, 4, 12, 4),
+                BuildUv(0, 48, 4, 12, 4, scale),
                 outerLayer: true));
         }
 
@@ -155,22 +171,38 @@ public static class SkinMeshBuilder
     /// 侧面的宽度取 <paramref name="depth"/> 而不是 <paramref name="width"/>：身体是 8×12×4，
     /// 若把右侧面按 8 宽展开，背面会整体右移 4 像素并采样到手臂纹理 —— 这正是 3D 预览
     /// 纹理错位/错色的根因。公式与 skinview3d 的 <c>setUVs</c> 逐项一致。
+    ///
+    /// <paramref name="scale"/> 用于 HD 皮肤：64×64 为 1，128×128 为 2，512×512 为 8。
     /// </summary>
-    public static IReadOnlyDictionary<SkinFace, SkinUv> BuildUv(int u, int v, int width, int height, int depth)
+    public static IReadOnlyDictionary<SkinFace, SkinUv> BuildUv(
+        int u,
+        int v,
+        int width,
+        int height,
+        int depth,
+        int scale = 1)
     {
         if (width <= 0 || height <= 0 || depth <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(width), "盒子三个轴都必须为正。");
         }
 
+        if (scale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale), "UV 缩放倍数必须为正。");
+        }
+
+        SkinUv Rect(int u0, int v0, int u1, int v1) =>
+            new(u0 * scale, v0 * scale, u1 * scale, v1 * scale);
+
         return new Dictionary<SkinFace, SkinUv>(6)
         {
-            [SkinFace.Top] = new(u + depth, v, u + depth + width, v + depth),
-            [SkinFace.Bottom] = new(u + depth + width, v, u + depth + (2 * width), v + depth),
-            [SkinFace.Left] = new(u, v + depth, u + depth, v + depth + height),
-            [SkinFace.Front] = new(u + depth, v + depth, u + depth + width, v + depth + height),
-            [SkinFace.Right] = new(u + depth + width, v + depth, u + (2 * depth) + width, v + depth + height),
-            [SkinFace.Back] = new(u + (2 * depth) + width, v + depth, u + (2 * depth) + (2 * width), v + depth + height),
+            [SkinFace.Top] = Rect(u + depth, v, u + depth + width, v + depth),
+            [SkinFace.Bottom] = Rect(u + depth + width, v, u + depth + (2 * width), v + depth),
+            [SkinFace.Left] = Rect(u, v + depth, u + depth, v + depth + height),
+            [SkinFace.Front] = Rect(u + depth, v + depth, u + depth + width, v + depth + height),
+            [SkinFace.Right] = Rect(u + depth + width, v + depth, u + (2 * depth) + width, v + depth + height),
+            [SkinFace.Back] = Rect(u + (2 * depth) + width, v + depth, u + (2 * depth) + (2 * width), v + depth + height),
         };
     }
 

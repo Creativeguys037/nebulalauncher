@@ -44,6 +44,70 @@ public class AppSkin_RendererTests
         Assert.True(share > 0.5, $"yaw={yaw}, pitch={pitch} 时期望色 {expected:X8} 只占 {share:P1}");
     }
 
+    [Theory]
+    [InlineData(64)]
+    [InlineData(128)]
+    [InlineData(512)]
+    public void HD纹理的头正面按比例采样(int textureSize)
+    {
+        var scale = textureSize / 64;
+        var pixelData = new uint[textureSize * textureSize];
+        for (var y = 16 * scale; y < 32 * scale; y++)
+        {
+            for (var x = 16 * scale; x < 32 * scale; x++)
+            {
+                pixelData[(y * textureSize) + x] = Red;
+            }
+        }
+
+        var visual = new SkinVisual(
+            new ArgbSkinTexture(textureSize, textureSize, pixelData),
+            null,
+            false,
+            false);
+        var frame = new uint[ViewportWidth * ViewportHeight];
+
+        SkinRenderer.Render(
+            frame,
+            ViewportWidth,
+            ViewportHeight,
+            visual.BuildMesh(),
+            new SkinOrbit(0, 0),
+            visual.Texture,
+            background: 0,
+            cullBackFaces: true);
+
+        Assert.True(
+            CountColor(frame, Red) > 0,
+            $"{textureSize}×{textureSize} 的头正面没有采到缩放后的红色区域");
+    }
+
+    [Fact]
+    public void 新版皮肤左腿正面透明不会被误判为老版()
+    {
+        var pixels = new uint[64 * 64];
+        Array.Fill(pixels, 0xFF00FF00u);
+        for (var y = 52; y < 64; y++)
+        {
+            for (var x = 20; x < 24; x++)
+            {
+                pixels[(y * 64) + x] = 0;
+            }
+        }
+
+        var texture = new ArgbSkinTexture(64, 64, pixels);
+
+        Assert.False(SkinTextureLoader.IsLegacyLayout(texture));
+    }
+
+    [Fact]
+    public void 一百二十八乘六十四的老皮肤按比例识别为老版()
+    {
+        var texture = new ArgbSkinTexture(128, 64, new uint[128 * 64]);
+
+        Assert.True(SkinTextureLoader.IsLegacyLayout(texture));
+    }
+
     [Fact]
     public void 有披风时从背面能看到披风的主色()
     {
