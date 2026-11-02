@@ -337,6 +337,24 @@ public class AppSkin_GeometryTests
     }
 
     [Fact]
+    public void 相机刚高于头顶时顶面不会被提前剔除()
+    {
+        // pitch=15 时相机高度约 18.6，已经高于轨道坐标里的头顶 16；
+        // 世界坐标头顶是 32，旧实现会误判成「相机还在头顶下面」而把顶面剔掉。
+        var mesh = SkinMeshBuilder.Build(includeOuterLayer: false);
+        var projection = SkinProjector.Project(
+            mesh,
+            new SkinOrbit(0, 15),
+            200,
+            260,
+            cullBackFaces: true);
+
+        Assert.Contains(
+            projection.Quads,
+            quad => quad.Part == SkinPartName.Head && quad.Face == SkinFace.Top);
+    }
+
+    [Fact]
     public void 视角下每个面都有投影面积_关闭剔除时面数等于部件数乘六()
     {
         var mesh = SkinMeshBuilder.Build(includeOuterLayer: false);
@@ -359,7 +377,9 @@ public class AppSkin_GeometryTests
         foreach (var quad in projection.Quads)
         {
             var part = mesh.Parts.First(candidate => candidate.Name == quad.Part && candidate.OuterLayer == quad.OuterLayer);
-            var corners = SkinProjector.GetWorldCorners(part, quad.Face);
+            var corners = SkinProjector.GetWorldCorners(part, quad.Face)
+                .Select(corner => new SkinVec3(corner.X, corner.Y - SkinProjector.OrbitCenterY, corner.Z))
+                .ToArray();
             Assert.True(SkinProjector.IsFacingCamera(corners, projection.Eye), $"{quad.Part}.{quad.Face} 不该保留");
         }
     }

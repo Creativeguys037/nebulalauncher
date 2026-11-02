@@ -14,20 +14,34 @@ namespace NebulaLauncher.Skinning;
 /// </summary>
 public static class SkinRasterizer
 {
-    /// <summary>把四边形拆成两个三角形，按三角形逐个填充。</summary>
-    public static void FillQuad(uint[] pixels, int width, int height, SkinScreenQuad quad, ISkinTexture texture)
+    /// <summary>
+    /// 把四边形拆成两个三角形，按三角形逐个填充。
+    /// <paramref name="depthBuffer"/> 可选；传入时用 1/w 做深度测试，避免画家算法在
+    /// 形体互相穿插时把面画错，也避免两个三角形在公共对角线上各混一次半透明像素。
+    /// </summary>
+    public static void FillQuad(
+        uint[] pixels,
+        int width,
+        int height,
+        SkinScreenQuad quad,
+        ISkinTexture texture,
+        float[]? depthBuffer = null)
     {
         ArgumentNullException.ThrowIfNull(pixels);
         ArgumentNullException.ThrowIfNull(quad);
         ArgumentNullException.ThrowIfNull(texture);
+        if (depthBuffer is not null && depthBuffer.Length < width * height)
+        {
+            throw new ArgumentException("深度缓冲小于视口尺寸。", nameof(depthBuffer));
+        }
 
         var bounds = quad.UvBounds;
         var v0 = quad.Vertices[0];
         var v1 = quad.Vertices[1];
         var v2 = quad.Vertices[2];
         var v3 = quad.Vertices[3];
-        FillTriangle(pixels, width, height, v0, v1, v2, bounds, texture);
-        FillTriangle(pixels, width, height, v0, v2, v3, bounds, texture);
+        FillTriangle(pixels, width, height, v0, v1, v2, bounds, texture, depthBuffer);
+        FillTriangle(pixels, width, height, v0, v2, v3, bounds, texture, depthBuffer);
     }
 
     private static void FillTriangle(
@@ -38,7 +52,8 @@ public static class SkinRasterizer
         SkinScreenVertex b,
         SkinScreenVertex c,
         (double MinU, double MaxU, double MinV, double MaxV) uvBounds,
-        ISkinTexture texture)
+        ISkinTexture texture,
+        float[]? depthBuffer)
     {
         var ax = (float)a.X;
         var ay = (float)a.Y;
@@ -96,10 +111,23 @@ public static class SkinRasterizer
         var rowW0 = (((bx - (minX + 0.5f)) * (cy - (minY + 0.5f))) - ((cx - (minX + 0.5f)) * (by - (minY + 0.5f)))) * invArea;
         var rowW1 = (((cx - (minX + 0.5f)) * (ay - (minY + 0.5f))) - ((ax - (minX + 0.5f)) * (cy - (minY + 0.5f)))) * invArea;
 
-        var minU = (float)uvBounds.MinU;
-        var maxU = (float)Math.Max(uvBounds.MinU, uvBounds.MaxU - 1e-3);
-        var minV = (float)uvBounds.MinV;
-        var maxV = (float)Math.Max(uvBounds.MinV, uvBounds.MaxV - 1e-3);
+        // 取每个纹素的中心：UV 矩形的边界落在纹素边界上，直接用边界值会因为插值误差
+        // 采到隔壁的透明/黑色像素，在 HD 皮肤上表现为棱角黑线。矩形至少保留 1 个纹素。
+        var minU = (float)(uvBounds.MinU + 0.5);
+        var maxU = (float)(uvBounds.MaxU - 0.5);
+        if (maxU < minU)
+        {
+            minU = (float)uvBounds.MinU;
+            maxU = (float)Math.Max(uvBounds.MinU, uvBounds.MaxU - 1e-3);
+        }
+
+        var minV = (float)(uvBounds.MinV + 0.5);
+        var maxV = (float)(uvBounds.MaxV - 0.5);
+        if (maxV < minV)
+        {
+            minV = (float)uvBounds.MinV;
+            maxV = (float)Math.Max(uvBounds.MinV, uvBounds.MaxV - 1e-3);
+        }
 
         var aInvW = (float)a.InvW;
         var bInvW = (float)b.InvW;
@@ -119,10 +147,12 @@ public static class SkinRasterizer
 
             for (var x = minX; x <= maxX; x++)
             {
-                if (w0 >= 0 && w1 >= 0)
+                // 允许极小的负权重：两个三角形/相邻面共享边时，浮点误差会让
+                // 两侧都判成外部，留下一条透出背景的缝。深度缓冲会挡住重复写入。
+                if (w0 >= -1e-6f && w1 >= -1e-6f)
                 {
                     var w2 = 1.0f - w0 - w1;
-                    if (w2 >= 0)
+                    if (w2 >= -1e-6f)
                     {
                         // 透视校正：屏幕空间线性插值的是 1/w 与 uv/w，再统一除回去。
                         var invW = (w0 * aInvW) + (w1 * bInvW) + (w2 * cInvW);
@@ -153,13 +183,24 @@ public static class SkinRasterizer
 
                             var texel = texture.GetPixel((int)u, (int)v);
                             var alpha = (byte)(texel >> 24);
-                            if (alpha == 255)
+
+                            // 深度测试：1/w 越大越靠近相机。严格大于同时挡住两个三角形
+                            // 在公共对角线上的第二次写入，半透明像素不会在那里被混两遍。
+                            if (alpha != 0 && (depthBuffer is null || invW > depthBuffer[index]))
                             {
-                                pixels[index] = texel;
-                            }
-                            else if (alpha != 0)
-                            {
-                                Blend(pixels, index, texel, alpha);
+                                if (depthBuffer is not null)
+                                {
+                                    depthBuffer[index] = invW;
+                                }
+
+                                if (alpha == 255)
+                                {
+                                    pixels[index] = texel;
+                                }
+                                else
+                                {
+                                    Blend(pixels, index, texel, alpha);
+                                }
                             }
                         }
                     }
@@ -187,11 +228,23 @@ public static class SkinRasterizer
         }
 
         var sourceAlpha = alpha / 255.0;
+        var destinationAlphaFactor = destinationAlpha / 255.0;
         var inverse = 1.0 - sourceAlpha;
-        var red = (((texel >> 16) & 0xFF) * sourceAlpha) + (((destination >> 16) & 0xFF) * inverse);
-        var green = (((texel >> 8) & 0xFF) * sourceAlpha) + (((destination >> 8) & 0xFF) * inverse);
-        var blue = ((texel & 0xFF) * sourceAlpha) + ((destination & 0xFF) * inverse);
-        var outAlpha = (alpha + (destinationAlpha * inverse)) / 255.0;
+        var outAlpha = sourceAlpha + (destinationAlphaFactor * inverse);
+        if (outAlpha <= 0)
+        {
+            pixels[index] = 0;
+            return;
+        }
+
+        // 直通 alpha 的 source-over：目标色要先乘自己的 alpha，再按输出 alpha 归一。
+        // 少了 destinationAlphaFactor 会让半透明边缘发黑，HD 皮肤棱角处尤其明显。
+        var red = ((((texel >> 16) & 0xFF) * sourceAlpha)
+            + (((destination >> 16) & 0xFF) * destinationAlphaFactor * inverse)) / outAlpha;
+        var green = ((((texel >> 8) & 0xFF) * sourceAlpha)
+            + (((destination >> 8) & 0xFF) * destinationAlphaFactor * inverse)) / outAlpha;
+        var blue = (((texel & 0xFF) * sourceAlpha)
+            + ((destination & 0xFF) * destinationAlphaFactor * inverse)) / outAlpha;
 
         var resultAlpha = (byte)Math.Clamp((int)Math.Round(outAlpha * 255), 0, 255);
         var resultRed = (byte)Math.Clamp((int)Math.Round(red), 0, 255);

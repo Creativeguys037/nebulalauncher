@@ -151,9 +151,25 @@ public static class SkinProjector
                 }
 
                 var corners = GetWorldCorners(part, face);
-                if (cullBackFaces && !IsFacingCamera(corners, eye))
+                if (cullBackFaces)
                 {
-                    continue;
+                    // 顶点在投影前会整体下移 OrbitCenterY（模型以身体中心为原点）。
+                    // 这里必须用同一坐标系判断朝向，否则顶面/底面会被提前剔除：
+                    // 例如头顶 y=32，而相机 pitch=25° 时眼高只有 30.4，世界坐标下会被
+                    // 误判为“在头顶下方”，于是稍微俯视也看不到头顶。
+                    var orbitCorners = new SkinVec3[4];
+                    for (var i = 0; i < orbitCorners.Length; i++)
+                    {
+                        orbitCorners[i] = new SkinVec3(
+                            corners[i].X,
+                            corners[i].Y - OrbitCenterY,
+                            corners[i].Z);
+                    }
+
+                    if (!IsFacingCamera(orbitCorners, eye))
+                    {
+                        continue;
+                    }
                 }
 
                 var quad = ProjectQuad(
@@ -200,6 +216,8 @@ public static class SkinProjector
     /// <summary>
     /// 世界空间背面剔除：面朝外时，面的法线与「从面中心指向相机」的方向同侧。
     /// 与屏幕空间绕向判定互为兜底——两条都判，任何一条的符号错都会立刻暴露。
+    /// <paramref name="corners"/> 与 <paramref name="eye"/> 必须处于同一坐标系；
+    /// <see cref="Project"/> 传入的是已减去 <see cref="OrbitCenterY"/> 的轨道坐标。
     /// </summary>
     public static bool IsFacingCamera(SkinVec3[] corners, SkinVec3 eye)
     {

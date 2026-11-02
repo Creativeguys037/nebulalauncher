@@ -47,6 +47,10 @@ public static class SkinRenderer
 
         Array.Fill(pixels, background, 0, width * height);
 
+        // 画家算法负责排序，深度缓冲负责兜底：形体穿插、同一四边形的两个三角形
+        // 在公共对角线上重复覆盖时，只有更靠近相机的片元能写入。
+        var depthBuffer = new float[width * height];
+
         var projectStart = System.Diagnostics.Stopwatch.GetTimestamp();
         var projection = SkinProjector.Project(mesh, orbit, width, height, cullBackFaces);
         var projectEnd = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -54,7 +58,7 @@ public static class SkinRenderer
         foreach (var quad in projection.Quads)
         {
             var source = quad.Part == SkinPartName.Cape && capeTexture is not null ? capeTexture : texture;
-            SkinRasterizer.FillQuad(pixels, width, height, quad, source);
+            SkinRasterizer.FillQuad(pixels, width, height, quad, source, depthBuffer);
         }
 
         var rasterEnd = System.Diagnostics.Stopwatch.GetTimestamp();
