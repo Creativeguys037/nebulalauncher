@@ -373,23 +373,23 @@ $env:AVALONIA_TELEMETRY_OPTOUT='1'
 # 0) 先打本地 tag：-Publish 会校验 HEAD 上的 tag 与 <Version> 一致（不打就失败）
 git status --short            # 必须为空或只剩已决定的改动
 git log --oneline -1          # HEAD 是定稿提交
-git tag -l v1.2.0             # 必须为空
-git tag -a v1.2.0 -m "Nebula Launcher v1.2.0"
+git tag -l v1.2.1             # 必须为空
+git tag -a v1.2.1 -m "Nebula Launcher v1.2.1"
 
 # 主产物：-OutDir 必须指向最内层目录，build.ps1 会把它整体删掉重建
-New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.2.0 | Out-Null
+New-Item -ItemType Directory -Force D:\agent_workspace\pub\v1.2.1 | Out-Null
 pwsh -NoProfile -File .\build.ps1 -Publish -Mode minimal `
-    -OutDir D:\agent_workspace\pub\v1.2.0\NebulaLauncher-v1.2.0-win-x64
+    -OutDir D:\agent_workspace\pub\v1.2.1\NebulaLauncher-v1.2.1-win-x64
 
 # 备选产物（不加 -SkipVerify；不过关就不发 portable）
-pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.2.0\_portable
-Move-Item D:\agent_workspace\pub\v1.2.0\_portable\NebulaLauncher.exe `
-          D:\agent_workspace\pub\v1.2.0\NebulaLauncher-v1.2.0-win-x64-portable.exe
-Remove-Item D:\agent_workspace\pub\v1.2.0\_portable -Recurse -Force
+pwsh -NoProfile -File .\build.ps1 -Publish -Mode portable -OutDir D:\agent_workspace\pub\v1.2.1\_portable
+Move-Item D:\agent_workspace\pub\v1.2.1\_portable\NebulaLauncher.exe `
+          D:\agent_workspace\pub\v1.2.1\NebulaLauncher-v1.2.1-win-x64-portable.exe
+Remove-Item D:\agent_workspace\pub\v1.2.1\_portable -Recurse -Force
 
 # 打包 → 校验和 → 上传（顺序不能换）
-cd D:\agent_workspace\pub\v1.2.0
-tar -a -c -f NebulaLauncher-v1.2.0-win-x64.zip NebulaLauncher-v1.2.0-win-x64
+cd D:\agent_workspace\pub\v1.2.1
+tar -a -c -f NebulaLauncher-v1.2.1-win-x64.zip NebulaLauncher-v1.2.1-win-x64
 $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
     Get-FileHash -Algorithm SHA256 |
     ForEach-Object { '{0}  {1}' -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) }
@@ -402,14 +402,14 @@ $shaLines = Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } 
 ### 8.7 GitHub Release
 
 ```powershell
-git tag -l v1.2.0             # 必须存在：§8.6 第一步已在本机打过
-git push origin v1.2.0
-gh release create v1.2.0 --title "Nebula Launcher v1.2.0" `
-  --notes-file docs\release-notes\v1.2.0.md `
-  "D:\agent_workspace\pub\v1.2.0\NebulaLauncher-v1.2.0-win-x64.zip" `
-  "D:\agent_workspace\pub\v1.2.0\NebulaLauncher-v1.2.0-win-x64-portable.exe" `
-  "D:\agent_workspace\pub\v1.2.0\SHA256SUMS.txt"
-gh release view v1.2.0 --json isDraft,name,tagName,assets,url
+git tag -l v1.2.1             # 必须存在：§8.6 第一步已在本机打过
+git push origin v1.2.1
+gh release create v1.2.1 --title "Nebula Launcher v1.2.1" `
+  --notes-file docs\release-notes\v1.2.1.md `
+  "D:\agent_workspace\pub\v1.2.1\NebulaLauncher-v1.2.1-win-x64.zip" `
+  "D:\agent_workspace\pub\v1.2.1\NebulaLauncher-v1.2.1-win-x64-portable.exe" `
+  "D:\agent_workspace\pub\v1.2.1\SHA256SUMS.txt"
+gh release view v1.2.1 --json isDraft,name,tagName,assets,url
 ```
 
 附件给绝对路径（文件名即远端 asset 名）；`--notes-file` 要指向工作区里已写好的本版说明。命令**直接创建已发布的 Release**（不带 `--draft`），跑完即对外可见，`gh release view … --json isDraft` 应为 `false`；若某次需要先审阅，自行加 `--draft` 并在网页点「Publish release」。仓库已转 public（2026-10-25），该 Release 匿名访问返回 200、附件可直接下载；若将来转回私有，需在 notes 里同步说明匿名访问返回 404。release notes 必须写明：可执行文件未签名（Windows 可能报「已保护你的电脑」），并贴 SHA256 全文与一行校验命令。
