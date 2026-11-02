@@ -141,6 +141,84 @@ public sealed class AppSkin_CloudClosetClientTests
     }
 
     [Fact]
+    public void 衣柜编号列表支持数组对象与字符串数字()
+    {
+        var result = CloudClosetClient.ParseClosetIds("""[1, 2, "3", {"tid": 4}]""");
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([1, 2, 3, 4], result.Value);
+    }
+
+    [Fact]
+    public void 衣柜编号列表支持data包装()
+    {
+        var result = CloudClosetClient.ParseClosetIds("""{"data": [{"tid": 5}, 6]}""");
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([5, 6], result.Value);
+    }
+
+    [Fact]
+    public void 衣柜编号列表不是数组时给出错误()
+    {
+        var result = CloudClosetClient.ParseClosetIds("""{"foo": 1}""");
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("格式不对", result.ErrorText!);
+    }
+
+    [Fact]
+    public void 衣柜编号列表不是JSON时给出错误()
+    {
+        var result = CloudClosetClient.ParseClosetIds("not-json");
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("无法解析", result.ErrorText!);
+    }
+
+    [Fact]
+    public void 衣柜编号列表为空时返回空列表()
+    {
+        var result = CloudClosetClient.ParseClosetIds("[]");
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.Value!);
+    }
+
+    [Fact]
+    public void 衣柜编号列表全不可识别时给出错误()
+    {
+        var result = CloudClosetClient.ParseClosetIds("""[{"foo": 1}, "bar"]""");
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("无法识别的项目", result.ErrorText!);
+    }
+
+    [Fact]
+    public void 衣柜编号列表部分不可识别时也给出错误()
+    {
+        var result = CloudClosetClient.ParseClosetIds("""[77, {"foo": 1}]""");
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("无法识别的项目", result.ErrorText!);
+    }
+
+    [Fact]
+    public async Task 查询衣柜编号遇到业务错误时透传原因与错误码()
+    {
+        var handler = new CapturingHandler(
+            _ => Json(HttpStatusCode.OK, """{"code":1,"message":"积分不足"}"""));
+        using var client = new CloudClosetClient(new HttpClient(handler), Site);
+
+        var result = await client.GetClosetIdsAsync(CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("积分不足", result.ErrorText);
+        Assert.Equal(1, result.Code);
+        Assert.Equal("/user/closet/ids", Assert.Single(handler.Requests).PathAndQuery);
+    }
+
+    [Fact]
     public async Task 衣柜请求带页码分类每页条数与转义后的关键词()
     {
         var handler = new CapturingHandler(
@@ -245,6 +323,22 @@ public sealed class AppSkin_CloudClosetClientTests
         Assert.Contains("name=type", post.Body);
         Assert.Contains("cape", post.Body);
         Assert.Contains("name=public", post.Body);
+    }
+
+    [Fact]
+    public async Task 上传被拒绝时透传业务错误码()
+    {
+        var handler = new CapturingHandler(request =>
+            request.Method == HttpMethod.Get
+                ? Html("""<meta name="csrf-token" content="tok">""")
+                : Json(HttpStatusCode.OK, """{"code":1,"message":"图片太大了"}"""));
+        using var client = new CloudClosetClient(new HttpClient(handler), Site);
+
+        var result = await client.UploadTextureAsync("skin", [1, 2, 3], "steve", isPublic: false, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("图片太大了", result.ErrorText);
+        Assert.Equal(1, result.Code);
     }
 
     [Fact]

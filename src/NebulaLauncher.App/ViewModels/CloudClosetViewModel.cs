@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -863,6 +864,8 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         }
 
         var textureName = SanitizeTextureName(name);
+        // 放到 try 外：收藏成功后即便应用阶段抛异常或取消，也要能告诉用户材质已入衣柜并扣了积分。
+        var addedToCloset = false;
         IsBusy = true;
         ErrorText = null;
         StatusText = "正在把皮肤应用到皮肤站…";
@@ -878,6 +881,8 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
                 .ConfigureAwait(true);
             if (!upload.Succeeded || upload.Value is null)
             {
+                _log?.Warn(
+                    $"上传材质到皮肤站失败：name={textureName}，code={upload.Code?.ToString(CultureInfo.InvariantCulture) ?? "-"}，{upload.ErrorText}");
                 ErrorText = upload.ErrorText ?? "上传到皮肤站失败。";
                 return CloudClosetApplyResult.Fail(ErrorText, upload.IsAuthError, canRetry: !upload.IsAuthError);
             }
@@ -885,52 +890,228 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
             var tid = upload.Value.Tid;
             if (upload.Value.IsDuplicate)
             {
-                StatusText = $"tid {tid} 没有重复上传，直接应用。";
+                var ensure = await EnsureTextureInClosetForApplyAsync(tid, textureName, cancellationToken).ConfigureAwait(true);
+                if (!ensure.Succeeded)
+                {
+                    return ensure.Failure ?? CloudClosetApplyResult.Fail("无法确认材质是否在衣柜里。");
+                }
+
+                addedToCloset = ensure.AddedToCloset;
             }
             else
             {
                 _ownedTids.Add(tid);
+                // POST /texture 在站点侧会把新材质自动加进衣柜，并可能扣积分。
+                addedToCloset = true;
             }
 
             var apply = await _client.ApplyAsync(player.Pid, "skin", tid, cancellationToken)
                 .ConfigureAwait(true);
             if (!apply.Succeeded)
             {
-                ErrorText = apply.ErrorText ?? "应用到角色失败。";
-                return CloudClosetApplyResult.Fail(ErrorText, apply.IsAuthError, canRetry: !apply.IsAuthError);
+                _log?.Warn(
+                    $"应用材质到角色失败：pid={player.Pid}，tid={tid}，duplicate={upload.Value.IsDuplicate}，code={apply.Code?.ToString(CultureInfo.InvariantCulture) ?? "-"}，{apply.ErrorText}");
+                var applyText = apply.ErrorText ?? "应用到角色失败。";
+                if (addedToCloset)
+                {
+                    applyText += "（材质已加入你的衣柜并扣除站点积分，可在皮肤站网页端管理。）";
+                }
+
+                ErrorText = applyText;
+                StatusText = "没有应用材质。";
+                if (addedToCloset)
+                {
+                    _changes?.Notify("皮肤站云端衣柜加入材质");
+                    await RefreshClosetAfterChangeAsync().ConfigureAwait(true);
+                    if (!_disposed)
+                    {
+                        ErrorText = applyText;
+                        StatusText = "没有应用材质。";
+                    }
+                }
+
+                return CloudClosetApplyResult.Fail(applyText, apply.IsAuthError, canRetry: !apply.IsAuthError);
             }
 
             // 票面要求以 GET /user/player/list 的结果为准。刷新失败不改变「已应用」，
-            // 但要在成功文案里说明还没确认上。
+            // 但要在成功文案里说明还没确认上。这里不因后台确认失败把用户登出。
             ErrorText = null;
-            await LoadPlayersAsync(cancellationToken).ConfigureAwait(true);
+            await LoadPlayersAsync(keepAuthState: true, cancellationToken: cancellationToken).ConfigureAwait(true);
             if (_disposed)
             {
                 return CloudClosetApplyResult.Ok("已应用到皮肤站。", tid, player.Name);
             }
 
-            var confirmed = string.IsNullOrEmpty(ErrorText);
+            var playersError = ErrorText;
+            var confirmed = string.IsNullOrEmpty(playersError);
+            var appliedText = $"已应用到皮肤站：{player.Name} · 皮肤 #{tid}";
+            if (addedToCloset)
+            {
+                appliedText += "（材质已加入衣柜，扣除站点积分）";
+            }
+
             var text = confirmed
-                ? $"已应用到皮肤站：{player.Name} · 皮肤 #{tid}"
-                : $"已应用到皮肤站：{player.Name} · 皮肤 #{tid}（角色列表还没刷新，重进页面可确认）";
+                ? appliedText
+                : $"{appliedText}（角色列表还没刷新，重进页面可确认）";
             StatusText = text;
+
+            // 应用成功后让云端衣柜也能立刻看到这件材质。只在当前视图就是第一页皮肤、
+            // 且没有搜索过滤时刷新，避免把用户从第 N 页/披风分类/搜索结果里拽走。
+            await RefreshClosetAfterChangeAsync().ConfigureAwait(true);
+            if (!_disposed)
+            {
+                ErrorText = playersError;
+                StatusText = text;
+            }
+
             _changes?.Notify("皮肤站云端衣柜换肤");
             return CloudClosetApplyResult.Ok(text, tid, player.Name);
         }
         catch (OperationCanceledException)
         {
-            return CloudClosetApplyResult.Fail("操作已取消，请重试。", canRetry: true);
+            var text = addedToCloset
+                ? "操作已取消，重试即可；材质已经加入你的衣柜并扣除站点积分。"
+                : "操作已取消，请重试。";
+            if (addedToCloset)
+            {
+                _changes?.Notify("皮肤站云端衣柜加入材质");
+                await RefreshClosetAfterChangeAsync().ConfigureAwait(true);
+            }
+
+            if (!_disposed)
+            {
+                ErrorText = text;
+                StatusText = "没有应用材质。";
+            }
+
+            return CloudClosetApplyResult.Fail(text, canRetry: true);
         }
         catch (Exception ex)
         {
             _log?.Warn("从皮肤页上传并应用失败", ex);
-            ErrorText = $"应用到皮肤站失败：{ex.Message}";
-            return CloudClosetApplyResult.Fail(ErrorText, canRetry: true);
+            var text = addedToCloset
+                ? $"应用到皮肤站失败：{ex.Message}（材质已加入你的衣柜并扣除站点积分，可在皮肤站网页端管理。）"
+                : $"应用到皮肤站失败：{ex.Message}";
+            if (addedToCloset)
+            {
+                _changes?.Notify("皮肤站云端衣柜加入材质");
+                await RefreshClosetAfterChangeAsync().ConfigureAwait(true);
+            }
+
+            if (!_disposed)
+            {
+                ErrorText = text;
+                StatusText = "没有应用材质。";
+            }
+
+            return CloudClosetApplyResult.Fail(text, canRetry: true);
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// 换肤或收藏之后尝试刷新当前衣柜页。只在用户停留在第一页皮肤且没有搜索时做，
+    /// 避免把用户从第 N 页、披风分类或搜索结果里拽走。刷新失败只记日志，不改变调用方的结论。
+    /// </summary>
+    private async Task RefreshClosetAfterChangeAsync()
+    {
+        if (!_hasLoaded || IsCapeCategory || !string.IsNullOrEmpty(Keyword) || Page != 1)
+        {
+            return;
+        }
+
+        var selectedTid = SelectedItem?.Tid;
+        await LoadClosetAsync(1, keepAuthState: true).ConfigureAwait(true);
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(ErrorText))
+        {
+            _log?.Warn($"云端衣柜刷新失败：{ErrorText}");
+        }
+
+        if (selectedTid is { } keepTid)
+        {
+            SelectedItem = Items.FirstOrDefault(item => item.Tid == keepTid);
+        }
+    }
+
+    /// <summary>
+    /// 上传返回重复 tid 时，确认这件材质是否已在本账号衣柜里；不在时会调用
+    /// <c>POST /user/closet</c> 收藏（站点会扣积分），因此这是一个有副作用的写操作。
+    ///
+    /// <para>
+    /// 重复只说明 PNG 在站点皮肤库里，不代表在当前账号的衣柜里；不在衣柜时直接
+    /// PUT 会被站点拒绝（user.closet.remove.non-existent）。这里按站点网页语义先收藏，
+    /// 收藏会扣站点积分，所以只在确认不存在时调用一次。
+    /// </para>
+    ///
+    /// <para>
+    /// 返回值：<c>Succeeded=false</c> 时 <c>Failure</c> 是应原样返回给调用方的失败结果；
+    /// <c>Succeeded=true</c> 时 <c>AddedToCloset</c> 表示是否刚刚收藏（会扣积分），
+    /// 调用方据此在后续 PUT 失败时说明半完成状态。
+    /// </para>
+    /// </summary>
+    private async Task<(bool Succeeded, bool AddedToCloset, CloudClosetApplyResult? Failure)> EnsureTextureInClosetForApplyAsync(
+        int tid,
+        string textureName,
+        CancellationToken cancellationToken)
+    {
+        StatusText = $"材质 #{tid} 已在皮肤库，正在确认衣柜归属…";
+        var ids = await _client.GetClosetIdsAsync(cancellationToken).ConfigureAwait(true);
+        if (!ids.Succeeded || ids.Value is null)
+        {
+            var text = ids.ErrorText ?? "无法确认材质是否在衣柜里。";
+            _log?.Warn($"查询衣柜归属失败：tid={tid}，code={ids.Code?.ToString(CultureInfo.InvariantCulture) ?? "-"}，{text}");
+            ErrorText = text;
+            StatusText = "没有应用材质。";
+            return (false, false, CloudClosetApplyResult.Fail(text, ids.IsAuthError, canRetry: !ids.IsAuthError));
+        }
+
+        if (ids.Value.Contains(tid))
+        {
+            StatusText = $"材质 #{tid} 已在衣柜里，直接应用。";
+            return (true, false, null);
+        }
+
+        StatusText = $"材质 #{tid} 不在衣柜里，正在加入衣柜（站点会扣积分）…";
+        var add = await _client.AddToClosetAsync(tid, textureName, cancellationToken).ConfigureAwait(true);
+        if (!add.Succeeded)
+        {
+            // ids 与 add 不是原子操作：另一会话可能刚好把它加入衣柜。
+            // 失败后重查一次，已存在就继续应用，避免把竞态误报成失败。
+            var recheck = await _client.GetClosetIdsAsync(cancellationToken).ConfigureAwait(true);
+            if (recheck.Succeeded && recheck.Value?.Contains(tid) == true)
+            {
+                _log?.Warn(
+                    $"加入衣柜返回失败，但材质已在衣柜里，按已加入继续：tid={tid}，code={add.Code?.ToString(CultureInfo.InvariantCulture) ?? "-"}，{add.ErrorText}");
+                // 衣柜已经变化，但无法确认是不是本次操作写入的，不能声称扣了本次积分；
+                // 仍要刷新列表，避免后续应用失败时用户点「去云端衣柜」看到旧数据。
+                await RefreshClosetAfterChangeAsync().ConfigureAwait(true);
+                if (!_disposed)
+                {
+                    StatusText = $"材质 #{tid} 已在衣柜里，继续应用。";
+                }
+
+                return (true, false, null);
+            }
+
+            var reason = (add.ErrorText ?? "站点没有说明原因。").TrimEnd('。', '！', '!', '.');
+            _log?.Warn($"把重复材质加入衣柜失败：tid={tid}，code={add.Code?.ToString(CultureInfo.InvariantCulture) ?? "-"}，{reason}");
+            var text = $"材质 #{tid} 已在皮肤库，但不在你的衣柜里，自动加入失败：{reason}。"
+                       + "请先在皮肤站网页端把它加入衣柜，再重试。";
+            ErrorText = text;
+            StatusText = "没有应用材质。";
+            return (false, false, CloudClosetApplyResult.Fail(text, add.IsAuthError, canRetry: !add.IsAuthError));
+        }
+
+        StatusText = $"材质 #{tid} 已加入衣柜（扣了站点积分），正在应用…";
+        return (true, true, null);
     }
 
     public void Dispose()
@@ -1101,7 +1282,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task LoadPlayersAsync(CancellationToken cancellationToken = default)
+    private async Task LoadPlayersAsync(bool keepAuthState = false, CancellationToken cancellationToken = default)
     {
         if (!IsLoggedIn)
         {
@@ -1112,7 +1293,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         if (!result.Succeeded || result.Value is null)
         {
             ErrorText = result.ErrorText ?? "读取角色列表失败。";
-            if (result.IsAuthError)
+            if (result.IsAuthError && !keepAuthState)
             {
                 IsLoggedIn = false;
             }
@@ -1157,7 +1338,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         await LoadClosetAsync(1).ConfigureAwait(true);
     }
 
-    private async Task LoadClosetAsync(int page)
+    private async Task LoadClosetAsync(int page, bool keepAuthState = false)
     {
         if (!IsLoggedIn || _disposed)
         {
@@ -1185,7 +1366,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
             if (!result.Succeeded || result.Value is null)
             {
                 ErrorText = result.ErrorText ?? "读取衣柜失败。";
-                if (result.IsAuthError)
+                if (result.IsAuthError && !keepAuthState)
                 {
                     IsLoggedIn = false;
                     ErrorText = IsOAuthSession

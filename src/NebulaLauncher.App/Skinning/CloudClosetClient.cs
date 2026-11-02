@@ -44,12 +44,13 @@ public sealed record CloudOperationResult(bool Ok);
 public sealed class CloudClosetResult<T>
     where T : class
 {
-    private CloudClosetResult(T? value, string? errorText, bool isNetworkError, bool isAuthError)
+    private CloudClosetResult(T? value, string? errorText, bool isNetworkError, bool isAuthError, int? code)
     {
         Value = value;
         ErrorText = errorText;
         IsNetworkError = isNetworkError;
         IsAuthError = isAuthError;
+        Code = code;
     }
 
     public T? Value { get; }
@@ -60,17 +61,21 @@ public sealed class CloudClosetResult<T>
 
     public bool IsAuthError { get; }
 
+    /// <summary>站点返回的业务 code；没有 JSON 响应或不是业务响应时为 null，日志靠它定位拒绝原因。</summary>
+    public int? Code { get; }
+
     public bool Succeeded => ErrorText is null;
 
     // CA1000：与 SkinLibraryResult 保持一致，调用点才读得懂。
     [SuppressMessage("Design", "CA1000:不要在泛型类型中声明静态成员", Justification = "结果对象的工厂带 T，调用点才读得懂。")]
-    public static CloudClosetResult<T> Ok(T value) => new(value, null, false, false);
+    public static CloudClosetResult<T> Ok(T value) => new(value, null, false, false, null);
 
     [SuppressMessage("Design", "CA1000:不要在泛型类型中声明静态成员", Justification = "结果对象的工厂带 T，调用点才读得懂。")]
     public static CloudClosetResult<T> Fail(
         string errorText,
         bool isNetworkError = false,
-        bool isAuthError = false) => new(null, errorText, isNetworkError, isAuthError);
+        bool isAuthError = false,
+        int? code = null) => new(null, errorText, isNetworkError, isAuthError, code);
 }
 
 /// <summary>
@@ -294,6 +299,117 @@ public sealed partial class CloudClosetClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// 当前账号衣柜里的全部材质编号。上传返回重复 tid 时，用它判断这件材质是否已经属于本账号。
+    ///
+    /// <para>
+    /// <c>/user/closet/ids</c> 是 Blessing Skin 6.0.2 的轻量路由（ClosetController@allIds），
+    /// 一次返回所有 tid，不必翻完整个分页衣柜。
+    /// </para>
+    /// </summary>
+    public async Task<CloudClosetResult<IReadOnlyList<int>>> GetClosetIdsAsync(CancellationToken cancellationToken)
+    {
+        if (IsOAuthSession)
+        {
+            return CloudClosetResult<IReadOnlyList<int>>.Fail(
+                "免密登录不能查询衣柜归属。要修改云端衣柜，请用账号密码网页会话登录。");
+        }
+
+        var result = await GetJsonAsync("/user/closet/ids", cancellationToken).ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            return CloudClosetResult<IReadOnlyList<int>>.Fail(
+                result.ErrorText!, result.IsNetworkError, result.IsAuthError);
+        }
+
+        var response = result.Value!;
+        if (!response.IsSuccess)
+        {
+            return CloudClosetResult<IReadOnlyList<int>>.Fail(response.ErrorText);
+        }
+
+        // 站点有时用 200 + {"code":1,"message":...} 拒绝；先按业务响应读，别当成格式错误。
+        try
+        {
+            using var document = JsonDocument.Parse(response.Body);
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && ReadCode(document.RootElement) is { } code
+                && code != 0)
+            {
+                return CloudClosetResult<IReadOnlyList<int>>.Fail(
+                    ReadMessage(document.RootElement) ?? "读取衣柜编号失败。",
+                    code: code);
+            }
+        }
+        catch (JsonException)
+        {
+            // 交给 ParseClosetIds 统一报格式错误。
+        }
+
+        return ParseClosetIds(response.Body);
+    }
+
+    /// <summary>解析 <c>/user/closet/ids</c>：顶层数组，或包在 data 里的数组。</summary>
+    public static CloudClosetResult<IReadOnlyList<int>> ParseClosetIds(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return CloudClosetResult<IReadOnlyList<int>>.Fail("衣柜编号列表返回了空响应。");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data))
+            {
+                root = data;
+            }
+
+            if (root.ValueKind != JsonValueKind.Array)
+            {
+                return CloudClosetResult<IReadOnlyList<int>>.Fail("皮肤站返回的衣柜编号格式不对，请稍后重试。");
+            }
+
+            var ids = new List<int>();
+            var unrecognized = 0;
+            foreach (var entry in root.EnumerateArray())
+            {
+                if (entry.ValueKind == JsonValueKind.Object && ReadInt(entry, "tid") is { } nested)
+                {
+                    ids.Add(nested);
+                }
+                else if (entry.ValueKind == JsonValueKind.Number && entry.TryGetInt32(out var number))
+                {
+                    ids.Add(number);
+                }
+                else if (entry.ValueKind == JsonValueKind.String
+                         && int.TryParse(entry.GetString(), CultureInfo.InvariantCulture, out var parsed))
+                {
+                    ids.Add(parsed);
+                }
+                else
+                {
+                    unrecognized++;
+                }
+            }
+
+            // 只要有一项认不出，就不能把这份列表当成「衣柜全集」：漏掉一个 tid 就可能
+            // 把已在衣柜的材质误判为不在，进而 POST /user/closet 白扣站点积分。
+            if (unrecognized > 0)
+            {
+                return CloudClosetResult<IReadOnlyList<int>>.Fail(
+                    "皮肤站返回的衣柜编号里有无法识别的项目，请稍后重试。");
+            }
+
+            return CloudClosetResult<IReadOnlyList<int>>.Ok(ids);
+        }
+        catch (JsonException)
+        {
+            return CloudClosetResult<IReadOnlyList<int>>.Fail("皮肤站返回的衣柜编号无法解析，请稍后重试。");
+        }
+    }
+
     /// <summary>衣柜一页。<paramref name="category"/> 只接受 skin 或 cape。</summary>
     public async Task<CloudClosetResult<CloudClosetPage>> GetClosetAsync(
         int page,
@@ -461,13 +577,14 @@ public sealed partial class CloudClosetClient : IDisposable
                 var duplicateTid = ReadNestedTid(root);
                 return duplicateTid is { } tid
                     ? CloudClosetResult<CloudUploadResult>.Ok(new CloudUploadResult(tid, true, message))
-                    : CloudClosetResult<CloudUploadResult>.Fail("这张图已经存在，但站点没有返回已有材质编号。");
+                    : CloudClosetResult<CloudUploadResult>.Fail("这张图已经存在，但站点没有返回已有材质编号。", code: 2);
             }
 
             if (code is not null && code != 0)
             {
                 return CloudClosetResult<CloudUploadResult>.Fail(
-                    message.Length > 0 ? message : "皮肤站拒绝了上传请求。");
+                    message.Length > 0 ? message : "皮肤站拒绝了上传请求。",
+                    code: code);
             }
 
             var uploadedTid = ReadNestedTid(root);
@@ -545,6 +662,44 @@ public sealed partial class CloudClosetClient : IDisposable
     /// <summary>下载站点生成的预览图，列表缩略图与 3D 预览都用它。</summary>
     public Task<CloudClosetResult<byte[]>> DownloadPreviewAsync(int tid, CancellationToken cancellationToken)
         => DownloadUrlAsync($"{_baseAddress}/preview/{tid}", cancellationToken);
+
+    /// <summary>
+    /// 把皮肤库中已有的材质加入当前账号衣柜（网页会话的「添加至衣柜」，站点会扣积分）。
+    ///
+    /// <para>
+    /// 只用于上传返回重复 tid 的补收藏：启动器自己上传的新材质由 <c>POST /texture</c>
+    /// 在站点侧自动加入衣柜，不能重复收藏。
+    /// </para>
+    /// </summary>
+    public async Task<CloudClosetResult<CloudOperationResult>> AddToClosetAsync(
+        int tid,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        if (IsOAuthSession)
+        {
+            return CloudClosetResult<CloudOperationResult>.Fail(
+                "免密登录不能修改云端衣柜。要收藏材质，请用账号密码网页会话登录。");
+        }
+
+        if (tid <= 0)
+        {
+            return CloudClosetResult<CloudOperationResult>.Fail("材质编号无效。");
+        }
+
+        var itemName = string.IsNullOrWhiteSpace(name) ? $"材质 #{tid}" : name.Trim();
+        var body = JsonSerializer.Serialize(
+            new AddToClosetRequest(tid, itemName),
+            CloudClosetRequestJsonContext.Default.AddToClosetRequest);
+        var result = await SendWithCsrfAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, $"{_baseAddress}/user/closet")
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            },
+            ReadJsonAsync,
+            cancellationToken).ConfigureAwait(false);
+        return ToBooleanResult(result, "加入衣柜");
+    }
 
     /// <summary>把材质应用到角色。<paramref name="kind"/> 是 skin 或 cape。</summary>
     public async Task<CloudClosetResult<CloudOperationResult>> ApplyAsync(
@@ -647,7 +802,8 @@ public sealed partial class CloudClosetClient : IDisposable
             if (ReadCode(root) is { } code && code != 0)
             {
                 return CloudClosetResult<CloudOperationResult>.Fail(
-                    ReadMessage(root) ?? $"{action}被皮肤站拒绝。");
+                    ReadMessage(root) ?? $"{action}被皮肤站拒绝。",
+                    code: code);
             }
 
             return CloudClosetResult<CloudOperationResult>.Ok(new CloudOperationResult(true));
@@ -1017,6 +1173,11 @@ internal sealed record LoginRequest(
 /// <summary>DELETE /user/player/{pid}/textures 的请求体：type 是 skin 或 cape 的单元素数组。</summary>
 internal sealed record ClearTextureRequest([property: JsonPropertyName("type")] string[] Type);
 
+/// <summary>POST /user/closet 的请求体：把皮肤库中已有材质收藏进衣柜。</summary>
+internal sealed record AddToClosetRequest(
+    [property: JsonPropertyName("tid")] int Tid,
+    [property: JsonPropertyName("name")] string Name);
+
 /// <summary>
 /// 皮肤站写请求的 Source Generator 上下文。
 ///
@@ -1026,6 +1187,7 @@ internal sealed record ClearTextureRequest([property: JsonPropertyName("type")] 
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(Dictionary<string, int>))]
 [JsonSerializable(typeof(ClearTextureRequest))]
+[JsonSerializable(typeof(AddToClosetRequest))]
 internal sealed partial class CloudClosetRequestJsonContext : JsonSerializerContext
 {
 }

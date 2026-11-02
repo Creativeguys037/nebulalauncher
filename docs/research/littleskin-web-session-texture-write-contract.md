@@ -4,7 +4,7 @@
 
 > 一句话结论：littleskin 上唯一能完成「上传本地 PNG → 应用到角色 → 清除 → 删除材质」的通道是网页会话（密码登录 + CSRF + 站点 JSON 路由）；OAuth JSON API 只能应用衣柜里已有的 tid，不能上传 PNG，且设备码流仍被应用白名单阻塞。
 
-- 依据：2026-11-01 对 littleskin.cn 的真实账号实测（登录、上传、应用、清除、删除全链路），结合站点前端 chunk `app.6d836bf.js` / `627.2ca8103.js` 的路由与上传表单字段、Blessing Skin Server 6.0.2 源码。
+- 依据：2026-11-01 对 littleskin.cn 的真实账号实测（登录、上传、应用、清除、删除全链路），结合站点前端 chunk `app.6d836bf.js` / `627.2ca8103.js` 的路由与上传表单字段、Blessing Skin Server 6.0.2 源码。`GET /user/closet/ids`、`POST /user/closet` 由 6.0.2 源码 `routes/web.php:80-87`、`ClosetController@allIds/@add` 核实，本次未发真实请求实测。
 - 范围：网页会话登录、CSRF、`POST /texture` 上传、`PUT/DELETE /user/player/{pid}/textures` 应用/清除、`DELETE /texture/{tid}` 删除；以及它与 OAuth JSON API 的边界。
 - 未做：长期会话有效期、验证码/二次验证变体、其他 Blessing Skin 站点复现、积分余额变化的精确核对（扣费公式已从 6.0.2 源码抄录，实际余额未逐次核对）。
 - 与既有笔记的关系：`docs/research/littleskin-texture-write-contract.md` 只覆盖 OAuth JSON API，且把路由参数写成 `{uuid}`（实测为 `{pid}`）、把上传字段写成 `name/file/type/public`（实测还需 `source`/`link`/`ignoreSimCheck`）；本篇补网页会话链路并给出勘误。官方（Mojang）一侧的换肤请求与响应契约见 `docs/research/mojang-skin-api.md`；两套端点部署在不同域名、没有交集，排查时先确认走的是哪一侧。
@@ -32,7 +32,7 @@
 
 **CSRF**：所有改状态的网页请求都要带 `X-CSRF-TOKEN`（从当前页面 `meta` 或 `XSRF-TOKEN` cookie 取）。不带时 `POST /texture` 返回 `419 Page Expired`；实现里遇到 419 应刷新页面取新 token，仍失败再重新登录。
 
-## 2. 网页 JSON 路由（实测）
+## 2. 网页 JSON 路由（实测 + 源码明写）
 
 | 方法 | 路径 | 作用 | 关键请求/响应 |
 | --- | --- | --- | --- |
@@ -40,6 +40,8 @@
 | PUT | `/user/player/{pid}/textures` | 应用材质 | JSON `{"skin": <tid>}` 或 `{"cape": <tid>}`；200 `{"code":0,"message":"材质已成功应用至角色 …","data":{…,"tid_skin":…}}` |
 | DELETE | `/user/player/{pid}/textures` | 清除材质 | JSON `{"type":["skin"]}`（披风用 `["cape"]`，推断）；200 `{"code":0,"message":"角色 … 的材质已被成功重置"}` |
 | GET | `/user/closet/list` | 当前账号衣柜 | 200，分页 JSON；每项含材质 `tid`、名称、类型、公开状态等 |
+| GET | `/user/closet/ids` | 当前账号衣柜里的全部 tid | 200，纯 JSON 数组（`ClosetController@allIds` 返回 `pluck('texture_tid')`）；源码明写（`routes/web.php:80-87`），本次未实测 |
+| POST | `/user/closet` | 把皮肤库已有材质收藏进衣柜 | JSON `{"tid": <tid>, "name": "<衣柜内名称>"}`；200 `{"code":0,"message":"…"}`；与 `POST /api/closet` 共用 `ClosetController@add`；源码明写（`routes/web.php:80-87`），本次未实测 |
 | POST | `/texture` | 上传 PNG | multipart，字段见 §3；200 `{"code":0,"message":"材质 … 上传成功","data":{"data":{"tid":…}}}` |
 | DELETE | `/texture/{tid}` | 删除材质 | 200 `{"code":0,"message":"材质已被成功删除"}`；再 GET 同 tid → 404 `{"message":"材质不存在"}` |
 | GET | `/texture/{tid}` | 读取材质 | 200；已删除则 404 |
@@ -49,7 +51,8 @@
 - `POST /user/player/{pid}/textures` 不存在，返回 405，`Allow: PUT, DELETE`。
 - 网页路由的 `{pid}` 是角色列表里的 `pid`（整数），不是 `uuid`。把 uuid 塞进 `/api/players/{player}/textures` 会在参数绑定阶段报 500（见 §4）。
 - 网页 `PUT /user/player/{pid}/textures` 与 OAuth 的 `PUT /api/players/{pid}/textures` 共用 `PlayerController@setTexture`（`routes/web.php:74`、`routes/api.php`），所以同样要求材质在衣柜里（`PlayerController.php:193-230`）；网页 `POST /texture` 上传成功会在同一次请求里 `$user->closet()->attach(...)`（`SkinlibController.php:307`），上传后即可应用。
-- `/user/closet/list` 是分页的；不要把它当成一次性全量列表。
+- `/user/closet/list` 是分页的；不要把它当成一次性全量列表。判断某件材质是否已在衣柜时用 `/user/closet/ids`，不要翻页拼全量。
+- `POST /texture` 返回 `code:2` 只说明 PNG 已在站点皮肤库，不代表它在本账号衣柜里。此时直接 `PUT /user/player/{pid}/textures` 会被 `setTexture` 拒绝（`user.closet.remove.non-existent`）。正确顺序是：`GET /user/closet/ids` 查归属 → 不在则 `POST /user/closet` 收藏 → 再 `PUT`。`ClosetController@add` 会校验积分（`score_per_closet_item`）并扣费，失败时返回 `code:1` 和站点原文，客户端不能假装成功。
 
 ## 3. 上传 PNG：`POST /texture`（实测 + 前端源码）
 
