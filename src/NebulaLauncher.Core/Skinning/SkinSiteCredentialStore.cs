@@ -14,13 +14,19 @@ public sealed class SkinSiteCredential
         string username,
         string password,
         IReadOnlyList<int> ownedTextureTids,
-        DateTimeOffset savedAt)
+        DateTimeOffset savedAt,
+        string accessToken = "",
+        string refreshToken = "",
+        DateTimeOffset? accessTokenExpiresAt = null)
     {
         BaseAddress = baseAddress;
         Username = username;
         Password = password;
         OwnedTextureTids = ownedTextureTids;
         SavedAt = savedAt;
+        AccessToken = accessToken;
+        RefreshToken = refreshToken;
+        AccessTokenExpiresAt = accessTokenExpiresAt;
     }
 
     public string BaseAddress { get; }
@@ -29,6 +35,18 @@ public sealed class SkinSiteCredential
 
     /// <summary>明文密码，只在本次进程内用于自动登录，不写日志、不回显到界面。</summary>
     public string Password { get; }
+
+    /// <summary>OAuth 免密登录的访问令牌；没有授权过时为空。</summary>
+    public string AccessToken { get; }
+
+    /// <summary>OAuth 刷新令牌。刷新后旧令牌立即作废，必须整组替换。</summary>
+    public string RefreshToken { get; }
+
+    /// <summary>访问令牌到期时间，用于提前刷新。</summary>
+    public DateTimeOffset? AccessTokenExpiresAt { get; }
+
+    /// <summary>这条凭据有没有可用的 OAuth 令牌（密码可能为空）。</summary>
+    public bool HasOAuthToken => !string.IsNullOrEmpty(AccessToken);
 
     /// <summary>启动器自己上传成功的纹理 tid，用于「只删除自己创建过的云端纹理」。</summary>
     public IReadOnlyList<int> OwnedTextureTids { get; }
@@ -132,6 +150,50 @@ public sealed class SkinSiteCredentialStore
             },
             cancellationToken);
 
+    /// <summary>
+    /// 保存或更新一条 OAuth 免密授权。令牌和密码一样经 <see cref="TokenProtector"/> 加密；
+    /// 同一个站点的账号记录里有密码时保留密码，两种登录方式可以共存。
+    /// </summary>
+    public Task<bool> SaveOAuthAsync(
+        string baseAddress,
+        string username,
+        string accessToken,
+        string refreshToken,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+        => Task.Run(
+            () =>
+            {
+                if (string.IsNullOrWhiteSpace(baseAddress)
+                    || string.IsNullOrWhiteSpace(username)
+                    || string.IsNullOrWhiteSpace(accessToken))
+                {
+                    return false;
+                }
+
+                lock (_gate)
+                {
+                    var file = ReadFile();
+                    var record = FindRecord(file, baseAddress, username);
+                    if (record is null)
+                    {
+                        record = new SkinSiteCredentialRecord
+                        {
+                            BaseAddress = baseAddress.Trim(),
+                            Username = username.Trim(),
+                        };
+                        file.Accounts.Add(record);
+                    }
+
+                    record.ProtectedAccessToken = TokenProtector.Protect(accessToken, _platform) ?? string.Empty;
+                    record.ProtectedRefreshToken = TokenProtector.Protect(refreshToken, _platform) ?? string.Empty;
+                    record.AccessTokenExpiresAt = expiresAt;
+                    record.SavedAt = DateTimeOffset.Now;
+                    return WriteFile(file);
+                }
+            },
+            cancellationToken);
+
     /// <summary>删除该站点的用户名、密码和「自己上传过」记录。文件不存在也算成功。</summary>
     public Task ForgetAsync(
         string baseAddress,
@@ -227,15 +289,20 @@ public sealed class SkinSiteCredentialStore
         }
 
         var password = TokenProtector.Unprotect(record.ProtectedPassword, _platform);
+        var accessToken = TokenProtector.Unprotect(record.ProtectedAccessToken, _platform) ?? string.Empty;
+        var refreshToken = TokenProtector.Unprotect(record.ProtectedRefreshToken, _platform) ?? string.Empty;
         if (string.IsNullOrEmpty(password))
         {
-            // 加密数据换了机器/用户解不开：当作没有保存密码，但保留用户名与 tid 账本。
+            // 加密数据换了机器/用户解不开：当作没有保存密码，但保留用户名、tid 账本与 OAuth 令牌。
             return new SkinSiteCredential(
                 record.BaseAddress,
                 record.Username,
                 string.Empty,
                 record.OwnedTextureTids.ToList(),
-                record.SavedAt);
+                record.SavedAt,
+                accessToken,
+                refreshToken,
+                record.AccessTokenExpiresAt);
         }
 
         return new SkinSiteCredential(
@@ -243,7 +310,10 @@ public sealed class SkinSiteCredentialStore
             record.Username,
             password,
             record.OwnedTextureTids.ToList(),
-            record.SavedAt);
+            record.SavedAt,
+            accessToken,
+            refreshToken,
+            record.AccessTokenExpiresAt);
     }
 
     private SkinSiteCredentialFile ReadFile()
@@ -297,6 +367,12 @@ internal sealed class SkinSiteCredentialRecord
     public string Username { get; set; } = string.Empty;
 
     public string ProtectedPassword { get; set; } = string.Empty;
+
+    public string ProtectedAccessToken { get; set; } = string.Empty;
+
+    public string ProtectedRefreshToken { get; set; } = string.Empty;
+
+    public DateTimeOffset? AccessTokenExpiresAt { get; set; }
 
     public List<int> OwnedTextureTids { get; set; } = [];
 

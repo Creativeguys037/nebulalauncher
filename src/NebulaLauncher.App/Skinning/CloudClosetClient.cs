@@ -84,7 +84,7 @@ public sealed class CloudClosetResult<T>
 /// 不静默重试到触发风控。失败响应可能有副作用（尤其 POST /texture 500 仍可能已建 texture 行），
 /// 所以上传失败由 ViewModel 按名称/衣柜核对，删除只删启动器记录过的 tid。
 /// </summary>
-public sealed class CloudClosetClient : IDisposable
+public sealed partial class CloudClosetClient : IDisposable
 {
     public const string DefaultBaseAddress = "https://littleskin.cn";
 
@@ -153,6 +153,7 @@ public sealed class CloudClosetClient : IDisposable
 
         _csrfToken = null;
         _authenticated = false;
+        ClearOAuthSession();
     }
 
     /// <summary>把用户填的站址补成合法的 https 根地址；不合法时原样返回，登录前会再校验。</summary>
@@ -224,6 +225,7 @@ public sealed class CloudClosetClient : IDisposable
         }
 
         _authenticated = true;
+        ClearOAuthSession();
         _log?.Info($"皮肤站登录成功：{_baseAddress} / {username.Trim()}");
         return CloudClosetResult<CloudOperationResult>.Ok(new CloudOperationResult(true));
     }
@@ -232,6 +234,11 @@ public sealed class CloudClosetClient : IDisposable
     public async Task<CloudClosetResult<IReadOnlyList<CloudPlayer>>> GetPlayersAsync(
         CancellationToken cancellationToken)
     {
+        if (IsOAuthSession)
+        {
+            return await GetPlayersOAuthAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         var result = await GetJsonAsync("/user/player/list", cancellationToken).ConfigureAwait(false);
         if (!result.Succeeded)
         {
@@ -294,6 +301,11 @@ public sealed class CloudClosetClient : IDisposable
         string? keyword,
         CancellationToken cancellationToken)
     {
+        if (IsOAuthSession)
+        {
+            return await GetClosetOAuthAsync(page, category, cancellationToken).ConfigureAwait(false);
+        }
+
         var normalizedCategory = string.Equals(category, "cape", StringComparison.OrdinalIgnoreCase)
             ? "cape"
             : "skin";
@@ -395,6 +407,13 @@ public sealed class CloudClosetClient : IDisposable
         if (png.Length == 0)
         {
             return CloudClosetResult<CloudUploadResult>.Fail("选的 PNG 是空文件。");
+        }
+
+        if (IsOAuthSession)
+        {
+            // OAuth 的 JSON API 没有新建材质端点；免密模式只能应用衣柜里已有的 tid。
+            return CloudClosetResult<CloudUploadResult>.Fail(
+                "免密登录不能上传新材质。要上传 PNG，请用账号密码网页会话登录。");
         }
 
         var normalizedType = type is "alex" or "cape" ? type : "steve";
@@ -534,6 +553,11 @@ public sealed class CloudClosetClient : IDisposable
         int tid,
         CancellationToken cancellationToken)
     {
+        if (IsOAuthSession)
+        {
+            return await ApplyOAuthAsync(pid, kind, tid, cancellationToken).ConfigureAwait(false);
+        }
+
         var normalizedKind = string.Equals(kind, "cape", StringComparison.OrdinalIgnoreCase) ? "cape" : "skin";
         var body = JsonSerializer.Serialize(
             new Dictionary<string, int> { [normalizedKind] = tid },
@@ -554,6 +578,11 @@ public sealed class CloudClosetClient : IDisposable
         string kind,
         CancellationToken cancellationToken)
     {
+        if (IsOAuthSession)
+        {
+            return await ClearOAuthAsync(pid, kind, cancellationToken).ConfigureAwait(false);
+        }
+
         var normalizedKind = string.Equals(kind, "cape", StringComparison.OrdinalIgnoreCase) ? "cape" : "skin";
         var body = JsonSerializer.Serialize(
             new ClearTextureRequest([normalizedKind]),
@@ -571,6 +600,12 @@ public sealed class CloudClosetClient : IDisposable
     /// <summary>删除衣柜材质。调用方必须先确认这个 tid 是启动器自己上传并记录过的。</summary>
     public async Task<CloudClosetResult<CloudOperationResult>> DeleteTextureAsync(int tid, CancellationToken cancellationToken)
     {
+        if (IsOAuthSession)
+        {
+            return CloudClosetResult<CloudOperationResult>.Fail(
+                "免密登录不能删除云端材质。要删除，请用账号密码网页会话登录。");
+        }
+
         var result = await SendWithCsrfAsync(
             () => new HttpRequestMessage(HttpMethod.Delete, $"{_baseAddress}/texture/{tid}"),
             ReadJsonAsync,

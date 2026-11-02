@@ -141,6 +141,44 @@ public sealed class CoreSkinning_SkinSiteCredentialStoreTests
         Assert.Null(await store.FindAsync(Site, "Me", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task 免密令牌加密落盘且换实例能读回()
+    {
+        using var temp = new TempDirectory();
+        var store = NewStore(temp);
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(72);
+
+        Assert.True(await store.SaveOAuthAsync(
+            Site, "Me", "access-1", "refresh-1", expiresAt, CancellationToken.None));
+
+        var json = await File.ReadAllTextAsync(store.FilePath);
+        Assert.DoesNotContain("access-1", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("refresh-1", json, StringComparison.Ordinal);
+
+        var credential = await NewStore(temp).FindAsync(Site, "Me", CancellationToken.None);
+        Assert.NotNull(credential);
+        Assert.True(credential!.HasOAuthToken);
+        Assert.Equal("access-1", credential.AccessToken);
+        Assert.Equal("refresh-1", credential.RefreshToken);
+        Assert.Equal(expiresAt, credential.AccessTokenExpiresAt);
+        Assert.Equal(string.Empty, credential.Password);
+    }
+
+    [Fact]
+    public async Task 保存免密令牌不会清掉已保存的密码()
+    {
+        using var temp = new TempDirectory();
+        var store = NewStore(temp);
+        await store.SaveAsync(Site, "Me", "hunter2", CancellationToken.None);
+
+        await store.SaveOAuthAsync(
+            Site, "Me", "access-1", "refresh-1", DateTimeOffset.UtcNow.AddHours(1), CancellationToken.None);
+
+        var credential = await store.FindAsync(Site, "Me", CancellationToken.None);
+        Assert.Equal("hunter2", credential!.Password);
+        Assert.Equal("access-1", credential.AccessToken);
+    }
+
     private static SkinSiteCredentialStore NewStore(TempDirectory temp)
     {
         var paths = new FakeLauncherPaths(temp.Path);

@@ -38,6 +38,8 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
 
     private readonly IAppLog? _log;
 
+    private readonly IPlatformService _platform;
+
     private readonly HashSet<int> _ownedTids = new();
 
     private readonly Dictionary<int, Bitmap> _thumbnailCache = new();
@@ -49,6 +51,8 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _thumbnailCancellation;
 
     private CancellationTokenSource? _previewCancellation;
+
+    private CancellationTokenSource? _oauthCancellation;
 
     private bool _activated;
 
@@ -67,11 +71,13 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(platform);
 
         _log = log;
+        _platform = platform;
         _changes = changes;
         _credentials = new SkinSiteCredentialStore(paths, platform, log);
         _skins = new LocalSkinStore(paths, log);
         _capes = new LocalCapeStore(paths, log);
         _client = client ?? new CloudClosetClient(log: log);
+        _client.OAuthTokenRefreshed += OnOAuthTokenRefreshed;
         SiteAddress = _client.BaseAddress;
 
         Items.CollectionChanged += (_, _) => NotifyListState();
@@ -122,6 +128,18 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _isRestoring;
+
+    /// <summary>正在等用户在浏览器里完成设备码授权。</summary>
+    [ObservableProperty]
+    private bool _isOAuthPending;
+
+    /// <summary>设备码流给用户抄的短码；为空表示当前没有待授权请求。</summary>
+    [ObservableProperty]
+    private string? _oAuthUserCode;
+
+    /// <summary>授权页地址（带 user_code 的完整链接），展示出来方便用户手动打开。</summary>
+    [ObservableProperty]
+    private string? _oAuthVerificationUri;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -237,6 +255,15 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
 
     public bool IsSignedOut => !IsLoggedIn;
 
+    /// <summary>当前是 OAuth 免密会话：能应用/清除已有材质，不能上传 PNG、不能删除云端材质。</summary>
+    public bool IsOAuthSession => _client.IsOAuthSession;
+
+    /// <summary>没有待授权请求时才能再发起一次，避免同时开两个轮询。</summary>
+    public bool CanStartOAuth => !IsBusy && !IsOAuthPending;
+
+    /// <summary>上传 PNG 只有网页会话能做；OAuth 的 JSON API 没有新建材质端点。</summary>
+    public bool CanUpload => IsLoggedIn && !IsBusy && !IsOAuthSession;
+
     public bool CanLogin => !IsBusy
                             && !string.IsNullOrWhiteSpace(Username)
                             && !string.IsNullOrWhiteSpace(Password);
@@ -282,7 +309,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
 
     public bool CanDownload => IsLoggedIn && !IsBusy && SelectedItem is not null;
 
-    public bool CanDelete => CanDownload && SelectedItem is not null && _ownedTids.Contains(SelectedItem.Tid);
+    public bool CanDelete => CanDownload && SelectedItem is not null && _ownedTids.Contains(SelectedItem.Tid) && !IsOAuthSession;
 
     public bool CanGoPrev => IsLoggedIn && !IsBusy && Page > 1;
 
@@ -302,17 +329,35 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         try
         {
             var credentials = await _credentials.ListAsync().ConfigureAwait(true);
-            var saved = credentials.FirstOrDefault(static item => !string.IsNullOrEmpty(item.Password));
+            var saved = credentials.FirstOrDefault(static item => item.HasOAuthToken)
+                        ?? credentials.FirstOrDefault(static item => !string.IsNullOrEmpty(item.Password));
             if (saved is null)
             {
-                StatusText = "第一次使用：用皮肤站账号登录一次，之后会尽量自动登录。";
+                StatusText = "第一次使用：用皮肤站账号登录，或点「用设备码免密登录」，之后会尽量自动登录。";
                 return;
             }
 
             SiteAddress = saved.BaseAddress;
             Username = saved.Username;
-            Password = saved.Password;
             RecreateClientIfNeeded();
+            if (saved.HasOAuthToken)
+            {
+                // 免密凭据优先：密码可能早就没存或已经改了。过期了也让第一次请求去刷新，
+                // 刷新失败会走 auth 错误提示重新授权，比在这里猜令牌状态简单。
+                Password = string.Empty;
+                _client.UseOAuthToken(
+                    saved.AccessToken,
+                    saved.RefreshToken,
+                    saved.AccessTokenExpiresAt ?? DateTimeOffset.MinValue);
+                IsLoggedIn = true;
+                StatusText = "已恢复免密登录。";
+                await LoadOwnedAsync().ConfigureAwait(true);
+                await LoadPlayersAsync().ConfigureAwait(true);
+                await LoadClosetAsync(1).ConfigureAwait(true);
+                return;
+            }
+
+            Password = saved.Password;
             await LoginCoreAsync(saved.Password, isAutomatic: true).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -339,6 +384,122 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private async Task StartOAuthLoginAsync()
+    {
+        if (!CanStartOAuth || _disposed)
+        {
+            return;
+        }
+
+        RecreateClientIfNeeded();
+
+        _oauthCancellation?.Cancel();
+        _oauthCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _oauthCancellation = cancellation;
+
+        IsOAuthPending = true;
+        ErrorText = null;
+        OAuthUserCode = null;
+        OAuthVerificationUri = null;
+        StatusText = "正在向 LittleSkin 申请设备代码…";
+        try
+        {
+            var start = await _client.StartDeviceLoginAsync(cancellation.Token).ConfigureAwait(true);
+            if (!start.Succeeded || start.Value is null)
+            {
+                ErrorText = start.ErrorText ?? "申请设备代码失败。";
+                return;
+            }
+
+            var code = start.Value;
+            OAuthUserCode = code.UserCode;
+            OAuthVerificationUri = code.VerificationUriComplete;
+            StatusText = $"在浏览器里确认代码 {code.UserCode}；授权完成这里会自动登录。";
+            try
+            {
+                await _platform.OpenUrlAsync(code.VerificationUriComplete).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                // 打不开浏览器不该让整次授权白费：链接已经显示在界面上，用户可以手动打开。
+                _log?.Warn("打开 LittleSkin 授权页失败", ex);
+                StatusText = $"请手动打开 {code.VerificationUriComplete} 并确认代码 {code.UserCode}；授权完成这里会自动登录。";
+            }
+
+            var token = await _client.WaitForDeviceLoginAsync(code, cancellation.Token).ConfigureAwait(true);
+            if (cancellation.IsCancellationRequested || _disposed)
+            {
+                return;
+            }
+
+            if (!token.Succeeded || token.Value is null)
+            {
+                ErrorText = token.ErrorText ?? "设备码登录没有完成。";
+                StatusText = "免密登录没有完成，可以重试或改用账号密码登录。";
+                return;
+            }
+
+            var user = await _client.GetOAuthUserAsync(cancellation.Token).ConfigureAwait(true);
+            var nickname = user.Succeeded && user.Value is not null
+                ? user.Value.Nickname
+                : "LittleSkin 账号";
+            Username = nickname;
+            Password = string.Empty;
+            IsLoggedIn = true;
+            await _credentials
+                .SaveOAuthAsync(
+                    _client.BaseAddress,
+                    nickname,
+                    token.Value.AccessToken,
+                    token.Value.RefreshToken,
+                    token.Value.ExpiresAt)
+                .ConfigureAwait(true);
+            await LoadOwnedAsync().ConfigureAwait(true);
+            StatusText = $"已用设备码登录：{nickname}（免密）。";
+            await LoadPlayersAsync().ConfigureAwait(true);
+            await LoadClosetAsync(1).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "已取消免密登录。";
+        }
+        catch (Exception ex)
+        {
+            // 和密码登录一样兜底：设备码链路里的任何异常都不能穿透命令把进程带走。
+            ErrorText = "免密登录过程出错：" + ex.Message;
+            _log?.Warn("设备码登录异常", ex);
+        }
+        finally
+        {
+            if (ReferenceEquals(_oauthCancellation, cancellation))
+            {
+                IsOAuthPending = false;
+                OAuthUserCode = null;
+                OAuthVerificationUri = null;
+                _oauthCancellation = null;
+            }
+
+            cancellation.Dispose();
+            OnPropertyChanged(nameof(IsOAuthSession));
+            OnPropertyChanged(nameof(CanUpload));
+            OnPropertyChanged(nameof(CanDelete));
+        }
+    }
+
+    [RelayCommand]
+    private void CancelOAuthLogin()
+    {
+        if (!IsOAuthPending)
+        {
+            return;
+        }
+
+        _oauthCancellation?.Cancel();
+        StatusText = "正在取消免密登录…";
+    }
+
+    [RelayCommand]
     private async Task LogoutAsync()
     {
         _client.ResetSession();
@@ -354,7 +515,7 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         PreviewVisual = SkinVisual.Default;
         PreviewName = "云端衣柜";
         PreviewDetail = "登录后选中一件材质，这里会显示 3D 预览。";
-        StatusText = "已退出登录。本机保存的密码还在，下次进来可以继续自动登录。";
+        StatusText = "已退出登录。本机保存的登录信息还在，下次进来可以继续自动登录。";
         await Task.CompletedTask.ConfigureAwait(true);
     }
 
@@ -560,6 +721,12 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (IsOAuthSession)
+        {
+            ErrorText = "免密登录不能上传新材质。要上传 PNG，请用账号密码网页会话登录。";
+            return;
+        }
+
         byte[] bytes;
         try
         {
@@ -656,6 +823,11 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         if (!IsLoggedIn)
         {
             return CloudClosetApplyResult.LoginRequired("先登录皮肤站，再把这套皮肤应用到角色。");
+        }
+
+        if (IsOAuthSession)
+        {
+            return CloudClosetApplyResult.Fail("免密登录不能上传新材质。要应用本地 PNG，请用账号密码网页会话登录。");
         }
 
         if (IsBusy)
@@ -771,9 +943,12 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         _loadCancellation?.Cancel();
         _thumbnailCancellation?.Cancel();
         _previewCancellation?.Cancel();
+        _oauthCancellation?.Cancel();
         _loadCancellation?.Dispose();
         _thumbnailCancellation?.Dispose();
         _previewCancellation?.Dispose();
+        _oauthCancellation?.Dispose();
+        _client.OAuthTokenRefreshed -= OnOAuthTokenRefreshed;
         _client.Dispose();
 
         foreach (var bitmap in _thumbnailCache.Values)
@@ -799,6 +974,8 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(CanLogin));
+        OnPropertyChanged(nameof(CanStartOAuth));
+        OnPropertyChanged(nameof(CanUpload));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanClear));
         OnPropertyChanged(nameof(CanDownload));
@@ -807,9 +984,13 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanGoNext));
     }
 
+    partial void OnIsOAuthPendingChanged(bool value) => OnPropertyChanged(nameof(CanStartOAuth));
+
     partial void OnIsLoggedInChanged(bool value)
     {
         OnPropertyChanged(nameof(IsSignedOut));
+        OnPropertyChanged(nameof(IsOAuthSession));
+        OnPropertyChanged(nameof(CanUpload));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanClear));
         OnPropertyChanged(nameof(CanDownload));
@@ -1007,7 +1188,9 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
                 if (result.IsAuthError)
                 {
                     IsLoggedIn = false;
-                    ErrorText = "登录已失效，请重新登录皮肤站。";
+                    ErrorText = IsOAuthSession
+                        ? "免密登录已失效，请重新点「用设备码免密登录」。"
+                        : "登录已失效，请重新登录皮肤站。";
                 }
 
                 return;
@@ -1212,9 +1395,41 @@ public sealed partial class CloudClosetViewModel : ObservableObject, IDisposable
         }
 
         var previous = _client;
+        previous.OAuthTokenRefreshed -= OnOAuthTokenRefreshed;
         _client = new CloudClosetClient(baseAddress: normalized, log: _log);
+        _client.OAuthTokenRefreshed += OnOAuthTokenRefreshed;
         previous.Dispose();
         OnPropertyChanged(nameof(SiteLabel));
+        OnPropertyChanged(nameof(IsOAuthSession));
+        OnPropertyChanged(nameof(CanUpload));
+    }
+
+    /// <summary>
+    /// 客户端悄悄刷新了令牌，这里把新的一整组写回本机凭据。
+    /// 刷新后旧 refresh token 立即失效，不写回去下次启动就得重新授权。
+    /// </summary>
+    private void OnOAuthTokenRefreshed(object? sender, CloudOAuthToken token)
+    {
+        _ = PersistOAuthTokenAsync(token);
+    }
+
+    private async Task PersistOAuthTokenAsync(CloudOAuthToken token)
+    {
+        if (string.IsNullOrWhiteSpace(Username) || _disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await _credentials
+                .SaveOAuthAsync(_client.BaseAddress, Username, token.AccessToken, token.RefreshToken, token.ExpiresAt)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _log?.Warn("保存刷新后的 OAuth 令牌失败", ex);
+        }
     }
 
     private void NotifyListState()

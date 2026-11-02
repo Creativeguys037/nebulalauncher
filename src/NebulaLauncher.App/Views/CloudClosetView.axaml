@@ -75,6 +75,37 @@
                        Classes="caption" Margin="12,0,0,0" VerticalAlignment="Center"
                        TextWrapping="Wrap" />
           </Grid>
+
+          <!-- 免密登录：LittleSkin OAuth 设备代码流。令牌比密码好撤销；
+               代价是 OAuth 的 JSON API 没有新建材质端点，上传 PNG / 删除云端仍然要网页会话。 -->
+          <Border BorderBrush="{DynamicResource Stroke.Subtle}" BorderThickness="0,1,0,0"
+                  Padding="0,12,0,0">
+            <StackPanel Spacing="8">
+              <TextBlock Text="不想在本机存密码？" Classes="caption" />
+              <TextBlock Text="用设备码免密登录：在浏览器里点一次授权，启动器只保存可撤销的令牌。免密模式可以应用、清除衣柜里已有的材质，不能上传 PNG 或删除云端材质。"
+                         Classes="muted" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="Auto,Auto,*">
+                <Button Classes="pill" Content="用设备码免密登录"
+                        Command="{Binding StartOAuthLoginCommand}"
+                        IsEnabled="{Binding CanStartOAuth}" />
+                <Button Grid.Column="1" Classes="pill" Content="取消"
+                        Command="{Binding CancelOAuthLoginCommand}"
+                        IsVisible="{Binding IsOAuthPending}"
+                        Margin="8,0,0,0" />
+              </Grid>
+              <Border Classes="feedback" Padding="12,10"
+                      IsVisible="{Binding IsOAuthPending}">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="在浏览器里确认这个代码：" Classes="caption" />
+                  <TextBlock Text="{Binding OAuthUserCode}" FontSize="22" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding OAuthVerificationUri}" Classes="caption"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="授权完成后这里会自动登录；没有打开浏览器就手动复制上面的链接。"
+                             Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Border>
           <ProgressBar IsIndeterminate="True" Height="3"
                        IsVisible="{Binding IsRestoring}" />
           <!-- 未登录时也把信息线放在卡内：提示「第一次使用」不必占掉列表的高度。 -->
@@ -143,7 +174,8 @@
              它们在宽窗口下正好排成两行，窄窗口下继续往下折，不会多出一条空白行。 -->
         <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,6">
           <Button Classes="accent" Content="{Binding UploadLabel}"
-                  Click="OnUploadClick" IsEnabled="{Binding IsIdle}"
+                  Click="OnUploadClick" IsEnabled="{Binding CanUpload}"
+                  ToolTip.Tip="免密登录不能上传新材质；需要上传时请改用账号密码登录"
                   Margin="0,0,8,6" />
           <CheckBox Content="细手臂（Alex）" IsChecked="{Binding UploadIsSlim}"
                     IsVisible="{Binding IsSkinCategory}" Margin="0,0,12,6"
