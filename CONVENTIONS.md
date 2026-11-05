@@ -35,6 +35,8 @@ src/NebulaLauncher.Core/     纯业务层，零 UI 依赖，可单元测试
   Accounts|Versions|Installing|Launching|Java|Mods|Instances|Downloads|Settings|Servers|Backups|Logging
 src/NebulaLauncher.App/      Avalonia UI
   Themes/                    设计令牌（深 / 浅双字典）与控件样式
+    Controls.axaml           A/B 档样式（只改属性、改模板内部件）
+    ControlThemes/           C 档控件主题（整体换模板的控件）
   Controls/                  自绘控件
   Views/ + ViewModels/       页面
   Services/                  导航、对话框、Toast、动效开关
@@ -97,25 +99,29 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 写页面前读完本节。本节自足，不需要再翻别的文档。
 
-### 7.1 设计语言：深空 / 玻璃 / 微光
+### 7.1 设计语言：黑主色 / 玻璃 / 强调色
 
-- **深空**：主视觉背景是深色，接近黑但带蓝调（`#0A0E17` → `#05070C`），不用纯黑；内容浮在背景之上。
-- **玻璃**：卡片与面板半透明、细描边、弱阴影。不堆厚重投影，靠 1px 亮描边区分层次。
-- **微光**：强调色只用在需要引导视线的位置（主操作、当前选中、进度）。大面积彩色是错的。
+- **深色的主色是黑，不是红**：窗口底是近黑带红（`#0A0205` → `#1A0810`），侧栏、卡片、正文全落在黑 / 近黑上。红色是**强调副色**，只出现在主行动、当前选中、进度与关键数字，占屏面积不超过约 5%。
+- **浅色的主色是白承载 + 黑文字**：窗口底是淡雾蓝渐变（`#E8F0FF` → `#8FB4FF`），卡片是白 + 冷描边。蓝色同样是**强调副色**，不是主色。
+- **玻璃**：卡片与面板半透明、1px 亮边、`inset` 顶亮线与底内阴影。靠层次区分，不堆厚重投影。
+- **强调色只用在引导视线处**：主操作、当前选中、进度。大面积彩色是错的。
+- 两套主题的结构完全一致：**承载层（黑 / 白）→ 玻璃层 → 强调色点缀**。两套只是承载色不同，不是两套「主色」。
 
-**禁止**：纯黑 `#000000` 背景、纯白 `#FFFFFF` 大面积文字块；高饱和色块铺满卡片；圆角小于 8px 的卡片（标签 pill 除外）；一屏出现多于两种强调色。
+**禁止**：纯黑 `#000000` 背景、纯白 `#FFFFFF` 大面积文字块；高饱和色块铺满卡片；圆角小于 8px 的卡片（标签 pill 除外）；一屏出现多于两种强调色；把红色当背景或大面积填充。
 
 ### 7.2 两套主题
 
 同一套设计语言有深色与浅色两个实现，键名完全一致（`src/NebulaLauncher.App/Themes/Tokens.axaml` 的 `ThemeDictionaries`）。浅色不是反色，而是同一份层次关系的另一种表达：
 
-| 层 | 深色 | 浅色 |
+| 层 | 深色（黑红玻璃） | 浅色（蓝白玻璃） |
 |---|---|---|
-| 窗口底 | 近黑带蓝 `#080B12` | 淡雾蓝 `#F4F6FB`（不是纯白） |
-| 卡片 | 半透明白 6% | 纯白 + 1px 冷描边 |
-| 侧栏 | 玻璃层 | `#E9EFF9` |
-| 正文 | 近白 `#F2F6FC` | 墨蓝 `#0F1724` |
-| 强调 | 亮蓝紫 | 更深一档的蓝紫（保证白底对比度 ≥ 4.5:1） |
+| 窗口底 | 近黑带红 `#0A0205` → `#1A0810` | 淡雾蓝 `#E8F0FF` → `#8FB4FF` |
+| 卡片 | 黑底 + 红 6% 玻璃 | 白 70% + 冷描边 |
+| 侧栏 | 黑玻璃层 `#12050A` | `#EDF3FF` |
+| 正文 | 近白 `#FFFAFA` | 墨蓝 `#0A0D14` |
+| **主色** | **黑（Surface 家族）** | **白承载 + 黑文字** |
+| **强调色（副色）** | 红 `#E80018` | 蓝 `#1668FF` |
+| 形象色 | `#B53131` | `#B53131` |
 | 光斑 | alpha 0.15–0.3 | alpha 0.07–0.11 |
 
 写页面**不需要处理主题差异**——只要不写颜色字面量，两套自动生效。例外只有自绘控件与内嵌数据（星云背景、环形进度、服务器 MOTD 协议色）。
@@ -126,47 +132,70 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 | 令牌 | 用途 |
 |---|---|
-| `Surface.Base` / `Surface.Canvas` | 窗口底 / 内容区底 |
+| `Surface.Base` / `Surface.Canvas` | 窗口底 / 内容区底（**深色主题的主色在这一组**） |
 | `Surface.CardSolid` | 卡片底（配 `Border.card`） |
 | `Surface.Raised` | 悬浮层、次级按钮 |
 | `Surface.Hover` / `Surface.Pressed` | 交互态 |
-| `Surface.Sunken` | 输入框、进度槽 |
+| `Surface.Sunken` | 输入框、进度槽、页签底槽 |
 | `Surface.Glass` / `Surface.Sidebar` | 玻璃层 / 侧栏底 |
 | `Stroke.Subtle` / `.Default` / `.Strong` | 描边三档 |
+| `Stroke.Focus` | 键盘焦点环（深色红 / 浅色蓝） |
 | `Text.Primary` / `.Secondary` / `.Tertiary` / `.Muted` | 文字四档（`Muted` 只做装饰，浅色下对比度 2.65:1，不可用于正文） |
-| `Text.OnAccent` | 压在主强调色 / 渐变上的文字 |
-| `Accent.Primary` (`#4C6FFF`) | 主强调 |
-| `Accent.Secondary` (`#A855F7`) | 次强调，只做渐变搭档 |
-| `Accent.Soft` | 选中底色（8% alpha） |
-| `Status.Success` / `.Warning` / `.Danger` | 状态色，配 `.Soft` 做底 |
-| `Status.Danger.Edge` | 危险按钮悬停描边 |
-| `Scrollbar.Thumb` | 滚动条滑块 |
-| `Window.CloseHover` | 关闭按钮悬停底（两主题都用红，叉号用 `Text.OnAccent`） |
+| `Text.OnAccent` / `OnBrand` | 压在主强调色 / 品牌色上的文字 |
+| `Accent.Primary` (`#E80018` / 浅色 `#1668FF`) | **主要强调色**，不是主题主色；只用于主行动、选中与进度 |
+| `Accent.Brand` (`#B53131`) | 品牌形象色兼危险色，只做装饰与渐变尾 |
+| `Accent.Secondary` / `.Tertiary` | 次强调 / 第三强调，只做渐变搭档 |
+| `Accent.Soft` / `Accent.Glow` | 选中底色 / 辉光 |
+| `Status.Success` / `.Warning` / `.Danger` / `.Info` | 状态色，配 `.Soft` 做底 |
+| `Glass.*` | 玻璃层的 tint / edge / topLight / innerShadow / shadow 五个角色 |
+| `Shadow.*` | 卡片、悬停、浮层、辉光；平面分组不用重阴影 |
 
-渐变：`Gradient.Accent`（蓝→紫，主按钮 / 进度）、`Gradient.Aurora`（蓝→紫→青，装饰）。
+渐变：`Gradient.Accent`（深色红→品牌红 / 浅色蓝→深蓝，用于主按钮与进度）、`Gradient.Canvas`（窗口底）。
 
 **新增令牌**：`Dark` 与 `Light` 两个字典各加一次。只加一边编译能过、切到另一主题才在运行期抛，所以两种主题都要截图。
 
 ### 7.4 排版
 
-| 样式类 | 字号 | 用途 |
-|---|---|---|
-| `TextBlock.h1` | 34 | 页面主标题（少用） |
-| `TextBlock.h2` | 26 | 区块大标题 |
-| `TextBlock.h3` | 20 | 卡片标题 |
-| 默认 | 14 | 正文 |
-| `.secondary` | 14 | 次要正文（降色） |
-| `.muted` | 12 | 说明、元信息 |
-| `.caption` | 11 | 极小标签 |
-| `.mono` | 12 | 路径、日志、UUID |
+字号九档，与 `Tokens.axaml` 的 `FontSize.*` 一一对应：**11 / 12 / 13 / 15 / 17 / 20 / 26 / 29 / 38**。
 
-字重只有 `Normal` / `Medium` / `SemiBold` / `Bold` 四档，**不要用 Light**（深色底上发虚）。多行段落用 `TextWrapping="Wrap"` + `LineHeight="20"`。
+| 样式类 | 字号 | 令牌 | 用途 |
+|---|---|---|---|
+| `.caption` | 11 | `FontSize.Caption` | 极小标签、徽标 |
+| `.muted` | 12 | `FontSize.Small` | 说明、元信息 |
+| — | 13 | `FontSize.Body` | 紧凑正文（列表副行、密集表格） |
+| 默认 / `.secondary` | 15 | `FontSize.BodyLg` | 正文（页面默认） |
+| — | 17 | `FontSize.Subtitle` | 区块副标题 |
+| `.h3` | 20 | `FontSize.Title` | 卡片标题 |
+| `.h2` | 26 | `FontSize.Headline` | 区块大标题 |
+| — | 29 | `FontSize.Display` | 页面标题（少用） |
+| `.h1` | 38 | `FontSize.DisplayLg` | 首屏主标题（极少用） |
+
+字重只有 `Normal` / `Medium` / `SemiBold` / `Bold` 四档，**不要用 Light**（深色底上发虚）。多行段落用 `TextWrapping="Wrap"` + `LineHeight="20"`。数字（版本号、大小、进度、时间戳）用等宽（`.mono`），右对齐。
 
 ### 7.5 间距与圆角
 
-间距取 4 的倍数：`4 / 8 / 12 / 16 / 20 / 24 / 32 / 40`。卡片内边距 `18`（`Border.card` 已设）；卡片之间 `12`～`16`；页面左右边距 `30`（MainWindow 已提供）；区块标题与内容之间 `12`。
+间距取 4 的倍数：`4 / 8 / 12 / 16 / 20 / 24 / 32 / 40`。卡片内边距 `20`（`Border.card` 已设；hero 卡 `28`）；卡片之间 `12`～`16`；页面左右边距 `30`（MainWindow 已提供）；区块标题与内容之间 `12`。
 
-圆角：`Radius.Xs(4)` 标签 · `Radius.Sm(8)` 按钮 / 输入框 · `Radius.Md(12)` 列表项 / 导航 · `Radius.Lg(16)` 卡片 · `Radius.Pill(999)` 胶囊 / 进度条。
+圆角八档，与 `Radius.*` 令牌一一对应：
+
+| 令牌 | 值 | 用途 |
+|---|---|---|
+| `Radius.Xs` | 4 | 标签、复选框框体 |
+| `Radius.Sm` | 8 | ToolTip、小徽标 |
+| `Radius.Md` | 12 | 输入框、下拉框、列表行 |
+| `Radius.Lg` | 16 | 按钮、页签 |
+| `Radius.Xl` | 20 | 卡片、玻璃面板 |
+| `Radius.X2l` | 24 | 浮层、Dialog |
+| `Radius.X3l` | 28 | hero 大卡 |
+| `Radius.Pill` | 999 | 胶囊、进度条、开关 |
+
+控件高度三档：**32 紧凑 / 36 常规 / 44 主行动**。嵌套圆角递减：外层 28 时内层 20，外层 20 时内层 12。
+
+**控件层分工（票 #84 起）**：
+
+- A/B 档（只改属性、改模板内部件）写在 `src/NebulaLauncher.App/Themes/Controls.axaml`。
+- C 档（必须整体换模板的控件）写在 `src/NebulaLauncher.App/Themes/ControlThemes/` 下的一个文件，用 `<ControlTheme x:Key="{x:Type X}">` 定义，经 `ControlThemes.axaml` 聚合后由 `Controls.axaml` 的 `<Styles.Resources>` 挂入。**页面里禁止 `Style Selector="^ /template/"` 侵入模板**。
+- 控件示例页 `src/NebulaLauncher.App/Views/ControlsGalleryView.axaml`（`--page controls`）用于逐项复核六态；`.demo-hover` / `.demo-pressed` / `.demo-disabled` / `.loading` 这些演示态类**只属于该页**，生产页面不得使用。
 
 ### 7.6 控件用法
 
