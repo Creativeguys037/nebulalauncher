@@ -263,8 +263,7 @@ powershell -File build.ps1 -Clean
 - **规避**：首帧前读设置（截图参数 `--size` 优先），只在 `WindowState == Normal` 时更新；关闭记忆时两端都不写。判定 `src/NebulaLauncher.Core/Platforms/WindowMemory.cs WindowMemory.ShouldPersist（:21）`。
 
 ### 4.7 换肤改了服务端材质，3D 预览却还是旧皮肤
-- **症状**：在皮肤页把某套皮肤应用到当前账户，服务端确实换了（重进游戏能看到），但 3D 预览继续显示旧皮肤，要等切一次账户或重启启动器才更新。
-- **成因**：预览的刷新挂在 `IAccountService.AccountsChanged` 上，而换肤改的是**服务端材质**，`Account` 的字段一个都没动，那条事件根本不会发。让 `IAccountService` 假装账户变了是错的方向——账户没变，谎报一次会让账户页、首页、启动链全都白刷一遍。
+- **症状**：在皮肤页把某套皮肤应用到当前账户，服务端确实换了（重进游戏能看到），但 3D 预览继续显示旧皮肤，要等切一次账户或重启启动器才更新。**成因**：预览的刷新挂在 `IAccountService.AccountsChanged` 上，而换肤改的是**服务端材质**，`Account` 的字段一个都没动，那条事件根本不会发；让 `IAccountService` 假装账户变了是错的方向——账户没变，谎报一次会让账户页、首页、启动链全都白刷一遍。
 - **规避**：换肤成功的一方广播一条独立事件，展示皮肤的一方订阅并自己重取。落点是 `src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs SkinChangeNotifier`（进程内默认实例在 `SkinChangeBus`，容器里注册了就优先用注册的那个）：换肤侧 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` 在成功后调 `Notify`，展示侧 `src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync` 订阅 `SkinChanged` 并切回 UI 线程再改 `Visual`，退订同样要走离开与释放两条路。回归用例 `tests/NebulaLauncher.Tests/AppSkin_ChangeNotifierTests.cs AppSkin_ChangeNotifierTests`。
 
 ### 4.8 页面级的「唯一入口」被写成两份（含 4.9）

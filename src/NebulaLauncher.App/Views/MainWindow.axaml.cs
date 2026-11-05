@@ -151,7 +151,10 @@ public partial class MainWindow : Window
         ScheduleAdaptiveMinimumSize();
     }
 
-    /// <summary>窗口宽度跨过 1120 时切换紧凑档：侧栏 176、图标 18、项高 40、三键 29×25。</summary>
+    /// <summary>
+    /// 窗口宽度跨过 1120 时切换紧凑档：侧栏 68（栏内项 46×40、图标 17）、三键 29×25、标题 26。
+    /// 栏宽跟着走的是 Stage 的第一列，不是整高侧栏。
+    /// </summary>
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyDensityClass();
 
     private void ApplyDensityClass()
@@ -159,25 +162,28 @@ public partial class MainWindow : Window
         var compact = Bounds.Width > 0 && Bounds.Width < 1120;
         Classes.Set("compact", compact);
 
-        if (BodyGrid.ColumnDefinitions.Count == 0)
+        if (Stage.ColumnDefinitions.Count == 0)
         {
             return;
         }
 
-        var width = compact ? 176 : 200;
-        if (Math.Abs(BodyGrid.ColumnDefinitions[0].Width.Value - width) > 0.5)
+        // 82 / 68 来自已定版样张 glass.css 的 .rail 两档宽度。
+        var width = compact ? 68 : 82;
+        if (Math.Abs(Stage.ColumnDefinitions[0].Width.Value - width) > 0.5)
         {
-            BodyGrid.ColumnDefinitions[0].Width = new GridLength(width);
+            Stage.ColumnDefinitions[0].Width = new GridLength(width);
         }
     }
 
     /// <summary>
-    /// 把「按侧边栏内容算最小尺寸」挂到会改变侧边栏高度的来源：导航项。
-    /// 侧栏不再放皮肤卡与页脚项（票 #85），所以只订阅这一处。
+    /// 把「按侧边栏内容算最小尺寸」挂到会改变侧栏高度的来源：三个导航分组的项数变化。
+    /// 侧栏不再放皮肤卡（票 #85），设置贴栏底，所以三组都要订阅。
     /// </summary>
     private void AttachAdaptiveMinimumSizeTriggers(MainWindowViewModel shell)
     {
         shell.NavigationItems.CollectionChanged += OnSidebarContentChanged;
+        shell.SecondaryNavigationItems.CollectionChanged += OnSidebarContentChanged;
+        shell.FooterNavigationItems.CollectionChanged += OnSidebarContentChanged;
     }
 
     private void OnSidebarContentChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -233,24 +239,30 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 量侧边栏三个竖直分段与列宽。
+    /// 量左侧竖栏与主列标题栏，算出窗口最小尺寸。
     ///
-    /// 宽度取侧边栏的实际列宽而不是无限宽：导航文案在这条宽度下会不会折行是真实结果，
-    /// 给无限宽会量出一个比实际矮的自然高。
+    /// 宽度取 Stage 的第一列（浮动竖栏）而不是整个侧栏：它决定窗口最窄能到多少，
+    /// 而导航标签在这条宽度下会不会折行是真实结果，给无限宽会量出一个比实际矮的自然高。
+    /// 高度 = 主列标题栏 + 导航项总高（栏上下各有 18 的外边距）。
     /// </summary>
     private SidebarMeasurements MeasureSidebar()
     {
-        var width = Sidebar.Bounds.Width > 0
-            ? Sidebar.Bounds.Width
-            : AdaptiveWindowSize.SidebarMinWidth;
+        var width = Stage.ColumnDefinitions.Count > 0
+            ? Stage.ColumnDefinitions[0].ActualWidth
+            : 0;
 
-        // 标题栏在 <c>RowDefinitions="46,*"</c> 的固定行里，占位高由行定义决定，
-        // 内容自然高（一个 20px 的 Logo）不是它对窗口高度的贡献，所以取 Bounds。
+        if (width <= 0)
+        {
+            width = AdaptiveWindowSize.SidebarMinWidth;
+        }
+
+        // 主列标题栏是固定 46 的行，占位高由行定义决定，内容自然高不是它对窗口高度的贡献。
         var titleBarHeight = TitleBar.Bounds.Height > 0
             ? TitleBar.Bounds.Height
             : NaturalHeight(TitleBar, width);
 
-        // 侧栏已无页脚项（票 #85），footer 高度传 0：Compute 会按「测不出」回落到 660 地板。
+        // 导航竖栏高度 = 三组项总高；footer 传 0 表示栏内没有独立工具区，
+        // Compute 会把 0 当合法高度参与求和（票 #85）。
         return new SidebarMeasurements(
             titleBarHeight,
             NaturalHeight(NavigationList, width),

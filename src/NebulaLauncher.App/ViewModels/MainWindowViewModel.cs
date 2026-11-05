@@ -37,15 +37,16 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         NavigationKeys.Controls,
     ];
 
-    private static readonly Dictionary<string, (string Title, string Description)> PlaceholderMeta = new(StringComparer.Ordinal)
+    /// <summary>占位页的一句话说明。标题不在这里重复：它取自 <see cref="NavigationRoutes.Items"/>。</summary>
+    private static readonly Dictionary<string, string> PlaceholderDescriptions = new(StringComparer.Ordinal)
     {
-        [NavigationKeys.Home] = ("启动", "继续游戏大卡与实例库：一次点击回到上次玩的版本。"),
-        [NavigationKeys.Versions] = ("版本", "已安装版本、实例详情、世界与整合包的管理入口。"),
-        [NavigationKeys.Content] = ("内容", "模组、资源包、光影包、数据包与皮肤的合并入口。"),
-        [NavigationKeys.Download] = ("下载", "版本下载：原版 + Fabric/Quilt/Forge/NeoForge，实时速度与文件级进度。"),
-        [NavigationKeys.Accounts] = ("账户", "微软设备码、离线与第三方验证账户管理。"),
-        [NavigationKeys.Servers] = ("服务器", "服务器收藏与实时状态、MOTD、在线人数、延迟。"),
-        [NavigationKeys.Settings] = ("设置", "常规、Java、游戏、下载、外观、存储与关于。"),
+        [NavigationKeys.Home] = "继续游戏大卡与实例库：一次点击回到上次玩的版本。",
+        [NavigationKeys.Versions] = "已安装版本、实例详情、世界与整合包的管理入口。",
+        [NavigationKeys.Content] = "模组、资源包、光影包、数据包与皮肤的合并入口。",
+        [NavigationKeys.Download] = "版本下载：原版 + Fabric/Quilt/Forge/NeoForge，实时速度与文件级进度。",
+        [NavigationKeys.Accounts] = "微软设备码、离线与第三方验证账户管理。",
+        [NavigationKeys.Servers] = "服务器收藏与实时状态、MOTD、在线人数、延迟。",
+        [NavigationKeys.Settings] = "常规、Java、游戏、下载、外观、存储与关于。",
     };
 
     /// <summary>DI 容器，供 partial 注册文件解析页面 ViewModel。</summary>
@@ -157,7 +158,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         }
 
         _pageCache.Clear();
-        _pageCache[current.Key] = current;
+        _pageCache[NavigationRoutes.Resolve(current.Key)] = current;
     }
 
     private void ApplyUi(AppSettings current)
@@ -333,8 +334,18 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         Navigate(key);
     }
 
-    /// <summary>主导航项（7 个一级入口，顺序由 <see cref="NavigationRoutes.Primary"/> 固定）。</summary>
+    /// <summary>侧栏主组（启动 / 版本 / 内容 / 下载），顺序由 <see cref="NavigationRoutes.Items"/> 固定。</summary>
     public ObservableCollection<NavigationItem> NavigationItems { get; } = new();
+
+    /// <summary>分隔线之后的账户与服务器。</summary>
+    public ObservableCollection<NavigationItem> SecondaryNavigationItems { get; } = new();
+
+    /// <summary>贴栏底的设置。</summary>
+    public ObservableCollection<NavigationItem> FooterNavigationItems { get; } = new();
+
+    /// <summary>全部 7 个一级项，供高亮与自适应尺寸遍历；顺序同 <see cref="NavigationRoutes.Items"/>。</summary>
+    private IEnumerable<NavigationItem> AllNavigationItems =>
+        NavigationItems.Concat(SecondaryNavigationItems).Concat(FooterNavigationItems);
 
     [ObservableProperty]
     private PageViewModelBase? _currentPage;
@@ -401,7 +412,13 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
             _ = RunPageLifecycleAsync(previous, page);
         }
 
-        foreach (var item in NavigationItems)
+        // 旧键「日志 / 帮助」并入设置的关于区；分区键与旧键→一级键的映射放在同一张表里。
+        if (page is SettingsViewModel settings && NavigationRoutes.SectionFor(key) is { } section)
+        {
+            settings.SelectedSectionKey = section;
+        }
+
+        foreach (var item in AllNavigationItems)
         {
             item.IsActive = string.Equals(item.Key, primary, StringComparison.Ordinal);
         }
@@ -452,7 +469,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         }
     }
 
-    /// <summary>Ctrl+L：跳到日志页。</summary>
+    /// <summary>Ctrl+L：跳到设置页（日志 / 关于区由 #98 接管，当前先落到设置首页）。</summary>
     [RelayCommand]
     private void NavigateLogs() => Navigate(NavigationKeys.Logs);
 
@@ -688,9 +705,10 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
                 continue;
             }
 
-            var (title, description) = PlaceholderMeta.TryGetValue(key, out var meta)
-                ? meta
-                : (key, "尚未实现。");
+            var title = NavigationRoutes.Items
+                .FirstOrDefault(route => string.Equals(route.Key, key, StringComparison.Ordinal))
+                .Title ?? key;
+            var description = PlaceholderDescriptions.TryGetValue(key, out var text) ? text : "尚未实现。";
             _factories[key] = () => new PlaceholderPageViewModel(key, title, description);
         }
     }
@@ -721,12 +739,17 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
 
     private void BuildNavigation()
     {
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Home, "启动", "Icon.Home"));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Versions, "版本", "Icon.Versions"));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Content, "内容", "Icon.Content"));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Download, "下载", "Icon.Download"));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Accounts, "账户", "Icon.Account"));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Servers, "服务器", "Icon.Server"));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Settings, "设置", "Icon.Settings"));
+        // 键、标题、图标与分组只在 NavigationRoutes.Items 里写一份；这里只负责按分组生成可观察项。
+        foreach (var route in NavigationRoutes.Items)
+        {
+            var item = new NavigationItem(route.Key, route.Title, route.IconKey);
+            var target = route.Placement switch
+            {
+                NavigationPlacement.Main => NavigationItems,
+                NavigationPlacement.Secondary => SecondaryNavigationItems,
+                _ => FooterNavigationItems,
+            };
+            target.Add(item);
+        }
     }
 }

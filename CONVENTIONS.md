@@ -176,6 +176,8 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 间距取 4 的倍数：`4 / 8 / 12 / 16 / 20 / 24 / 32 / 40`。卡片内边距 `20`（`Border.card` 已设；hero 卡 `28`）；卡片之间 `12`～`16`；页面左右边距 `30`（MainWindow 已提供）；区块标题与内容之间 `12`。
 
+**外壳形态（票 #85，取自已定版样张 `.oil-ui/nebula-2/explore/home-glass.html`）**：左侧是**浮动的玻璃竖栏**，不是整高实心侧栏——`Border.glass` + 圆角 24、宽 82（1024 下 68）、舞台外边距 18；导航项宽 52 高 46（1024 下 46×40）、圆角 12、**图标在上文字在下**（`TextBlock.nav-label`，11px），选中是主色实心块 + `Shadow.Glow`；栏内顺序为「启动 / 版本 / 内容 / 下载 → 分隔线 → 账户 / 服务器 → 撑开 → 设置贴栏底」，分组写在 `src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.Items`。窗口三键 33×29（1024 下 29×25）、图标 10px。
+
 圆角八档，与 `Radius.*` 令牌一一对应：
 
 | 令牌 | 值 | 用途 |
@@ -238,7 +240,9 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 ### 7.8 动效
 
-- 过渡时长一律从 `src/NebulaLauncher.App/Services/Motion.cs` 的 `Motion.Dur(...)` 取，**不硬编码**；动效开关关闭时它返回 `TimeSpan.Zero`。
+- 过渡时长一律从 `src/NebulaLauncher.App/Services/Motion.cs` 取，**不硬编码**。两种取法各有边界：
+  - **C# 侧**（`Transitions` 由代码重建，如 `src/NebulaLauncher.App/Controls/PageHost.cs PageHost`）用 `Motion.Dur(...)`，开关关闭时它返回 `TimeSpan.Zero`。
+  - **XAML 侧**（`Duration="{x:Static services:Motion.Fast}"`）只能取静态词表、不经过 `Dur()`；这类转场在关闭动效时靠消费方重设 `Transitions = null` 归零，不能单靠改时长。新增 XAML 转场前先确认有归零路径。
 - 可动画的属性只用 `Opacity`、`Background`、`BorderBrush`、`RenderTransform`、`Width/Height`（小范围）。
 - **不要**动画 `Margin`、`Padding` 或大范围 `Width/Height`——触发完整重排，60fps 掉帧。
 - 悬停反馈 140–160ms，页面转场 200–280ms；300ms 以上只用于进度条。
@@ -246,14 +250,16 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 ### 7.9 图标
 
-用 SVG path data（24×24 视口）。仓库已有 `NavigationItem.Icon*` 常量；新增图标追加到 `src/NebulaLauncher.App/ViewModels/NavigationItem.cs` 或页面自己的静态类，**不要**引图标字体（跨平台字体不一致）。
+用 SVG path data（24×24 视口）。**几何体的唯一来源是 `src/NebulaLauncher.App/Themes/Icons.axaml`**（票 #83 起，键名 `Icon.<语义>`）：ViewModel 只存资源键（如 `Icon.Home`），由 `src/NebulaLauncher.App/Converters/Converters.cs Converters.IconKeyToGeometry` 查表转成 `StreamGeometry`。新增图标追加到该字典，**不要**再往 `NavigationItem` 或页面静态类里抄 path data，也**不要**引图标字体（跨平台字体不一致）。
 
 ```xml
-<Path Data="{StaticResource SomeIconData}"
+<Path Data="{StaticResource Icon.Home}"
       Stroke="{DynamicResource Text.Tertiary}"
-      StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round"
-      Stretch="Uniform" Width="18" Height="18" />
+      StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+      Stretch="Uniform" Width="20" Height="20" />
 ```
+
+描边色一律交给样式（`Button.window-btn Path`、`Button.nav Path` 这类），**不要**在 `Path` 上写内联 `Stroke`：本地值会压过 `:pointerover` 的样式 setter，hover 换色静默失效（PITFALLS 4.2）。
 
 ### 7.10 多选与批量操作
 

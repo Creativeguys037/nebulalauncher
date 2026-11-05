@@ -3,14 +3,15 @@
 
      这里故意不写 MinWidth/MinHeight：最小尺寸由 MainWindow.axaml.cs 在首帧后按侧边栏实测的
      自然尺寸算出来（见 Core 的 AdaptiveWindowSize）。写死常量会让「往侧边栏加内容」的改动
-     在窄屏上裁掉内容而不是把窗口撑高 —— 票 #51。 -->
+     在窄屏上裁掉内容而不是把窗口撑高 —— 票 #51。
+
+     布局取自已定版样张 .oil-ui/nebula-2/explore/home-glass.html：左侧是浮动的玻璃竖栏
+     （宽 82 / 1024 下 68），不是整高实心侧栏；导航项图标在上、文字在下，设置贴栏底。 -->
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NebulaLauncher.ViewModels"
         xmlns:controls="using:NebulaLauncher.Controls"
         xmlns:conv="using:NebulaLauncher.Converters"
-        xmlns:services="using:NebulaLauncher.Services"
-        xmlns:primitives="using:Avalonia.Controls.Primitives"
         x:Class="NebulaLauncher.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Nebula Launcher"
@@ -22,126 +23,13 @@
         ExtendClientAreaChromeHints="NoChrome"
         ExtendClientAreaTitleBarHeightHint="-1">
 
-  <Window.Styles>
-    <!--
-      一级导航项（票 #85）：44 高 / 胶囊选中；1024 下 40 高、图标 18。
-      这里不写颜色或时长字面量：全部取令牌，动效时长取 Motion 静态词表。
-    -->
-    <Style Selector="Button.nav">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
-      <Setter Property="Padding" Value="12,0" />
-      <Setter Property="Margin" Value="12,2" />
-      <Setter Property="Height" Value="44" />
-      <Setter Property="MinHeight" Value="44" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Left" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
-      <Setter Property="FontWeight" Value="Normal" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="FocusAdorner">
-        <FocusAdornerTemplate>
-          <Border primitives:AdornerLayer.IsClipEnabled="False"
-                  Margin="-3"
-                  BorderBrush="{DynamicResource Stroke.Focus}"
-                  BorderThickness="2"
-                  CornerRadius="{DynamicResource Radius.Pill}"
-                  IsHitTestVisible="False" />
-        </FocusAdornerTemplate>
-      </Setter>
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
-          <BrushTransition Property="Foreground" Duration="{x:Static services:Motion.Fast}" />
-          <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Instant}" />
-        </Transitions>
-      </Setter>
-    </Style>
-
-    <Style Selector="Button.nav Path">
-      <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
-      <Setter Property="StrokeThickness" Value="1.8" />
-      <Setter Property="StrokeLineCap" Value="Round" />
-      <Setter Property="StrokeJoin" Value="Round" />
-      <Setter Property="Stretch" Value="Uniform" />
-      <Setter Property="Width" Value="20" />
-      <Setter Property="Height" Value="20" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-
-    <Style Selector="Button.nav:pointerover">
-      <Setter Property="Background" Value="{DynamicResource Surface.NavHover}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-    </Style>
-
-    <Style Selector="Button.nav:pointerover Path">
-      <Setter Property="Stroke" Value="{DynamicResource Text.Primary}" />
-    </Style>
-
-    <Style Selector="Button.nav.active">
-      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
-      <Setter Property="FontWeight" Value="Medium" />
-    </Style>
-
-    <Style Selector="Button.nav.active Path">
-      <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
-    </Style>
-
-    <Style Selector="Button.nav.active:pointerover">
-      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
-      <Setter Property="Opacity" Value="0.92" />
-    </Style>
-
-    <!-- 选中态辉光落在模板内的底板上；导航胶囊是唯一需要 glow 的导航元素。 -->
-    <Style Selector="Button.nav.active /template/ Border#PART_Root">
-      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
-    </Style>
-
-    <!-- 页面抬头：字号在样式里给，1024 下由 compact 覆盖；不要写成内联值，否则样式优先级压不过。 -->
-    <Style Selector="TextBlock.page-title">
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.Display}" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-    </Style>
-
-    <Style Selector="TextBlock.page-subtitle">
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
-    </Style>
-
-    <!-- 1024×660：侧栏 176、项高 40、图标 18、窗口三键 29×25、标题 26。 -->
-    <Style Selector="Window.compact Button.nav">
-      <Setter Property="Height" Value="40" />
-      <Setter Property="MinHeight" Value="40" />
-      <Setter Property="Margin" Value="12,1" />
-    </Style>
-
-    <Style Selector="Window.compact Button.nav Path">
-      <Setter Property="Width" Value="18" />
-      <Setter Property="Height" Value="18" />
-    </Style>
-
-    <Style Selector="Window.compact Button.window-btn">
-      <Setter Property="Width" Value="29" />
-      <Setter Property="Height" Value="25" />
-      <Setter Property="MinHeight" Value="25" />
-    </Style>
-
-    <Style Selector="Window.compact TextBlock.page-title">
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.Headline}" />
-    </Style>
-  </Window.Styles>
-
   <Panel>
     <!--
       背景层（票 #85）：主题渐变 + 三个硬边圆形色块，也是玻璃卡片的同源副本源。
       用户背景图与遮罩作为这一层的子元素，玻璃卡片复制整棵子树后仍然对齐。
       整个控件 IsHitTestVisible=false，不影响内容区点击。
     -->
-    <Panel x:Name="BackdropRoot">
+    <Panel x:Name="BackdropRoot" IsHitTestVisible="False">
       <controls:GlassBackdrop Background="{DynamicResource Gradient.Canvas}"
                               Blob1="{DynamicResource Surface.BackdropBlob1}"
                               Blob2="{DynamicResource Surface.BackdropBlob2}"
@@ -160,89 +48,81 @@
               Opacity="{Binding BackgroundImageOverlay}" />
     </Panel>
 
-    <Grid RowDefinitions="46,*">
+    <!-- ==================== 舞台：左浮动竖栏 + 右主列 ==================== -->
+    <Grid x:Name="Stage" ColumnDefinitions="82,*" Margin="18">
 
-      <!-- ==================== 标题栏 ==================== -->
-      <Grid Grid.Row="0"
-            Name="TitleBar"
-            Background="Transparent"
-            PointerPressed="OnTitleBarPointerPressed">
-        <StackPanel Orientation="Horizontal"
-                    Margin="18,0,0,0"
-                    Spacing="9"
-                    VerticalAlignment="Center">
-          <Border Width="20" Height="20"
-                  CornerRadius="{DynamicResource Radius.Sm}"
-                  Background="{DynamicResource Gradient.Accent}">
+      <!-- ==================== 左侧玻璃竖栏 ====================
+           样张 .rail：浮动玻璃底板、圆角 22（1024 档）、内容居中、设置贴栏底。 -->
+      <Border Grid.Column="0"
+              Name="Sidebar"
+              Classes="glass"
+              CornerRadius="{DynamicResource Radius.X2l}"
+              Margin="0"
+              AutomationProperties.Name="主导航"
+              AutomationProperties.AutomationId="Navigation">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="0,16">
+
+          <!-- 品牌块：样张里它是栏顶的实心渐变方块 -->
+          <Border Grid.Row="0"
+                  Width="40" Height="40"
+                  Margin="0,0,0,12"
+                  HorizontalAlignment="Center"
+                  CornerRadius="{DynamicResource Radius.Md}"
+                  Background="{DynamicResource Gradient.Accent}"
+                  BoxShadow="{DynamicResource Shadow.Glow}">
             <TextBlock Text="N"
-                       FontSize="{DynamicResource FontSize.Caption}"
+                       FontSize="{DynamicResource FontSize.Subtitle}"
                        FontWeight="Bold"
                        Foreground="{DynamicResource Text.OnAccent}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center" />
           </Border>
-          <TextBlock Text="Nebula Launcher"
-                     FontSize="{DynamicResource FontSize.Small}"
-                     Foreground="{DynamicResource Text.Tertiary}"
-                     VerticalAlignment="Center" />
-        </StackPanel>
 
-        <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="0,0,6,0"
-                    Spacing="2">
-          <Button Classes="window-btn"
-                  Click="OnMinimizeClick"
-                  ToolTip.Tip="最小化"
-                  AutomationProperties.Name="最小化">
-            <Path Data="{StaticResource Icon.WindowMinimize}"
-                  Stroke="{DynamicResource Text.Secondary}"
-                  StrokeThickness="1.1"
-                  StrokeLineCap="Round"
-                  StrokeJoin="Round"
-                  Width="10" Height="10" />
-          </Button>
-          <Button Classes="window-btn"
-                  Click="OnMaximizeClick"
-                  ToolTip.Tip="最大化"
-                  AutomationProperties.Name="最大化">
-            <Path Data="{StaticResource Icon.WindowMaximize}"
-                  Stroke="{DynamicResource Text.Secondary}"
-                  StrokeThickness="1.1"
-                  StrokeLineCap="Round"
-                  StrokeJoin="Round"
-                  Width="10" Height="10" />
-          </Button>
-          <Button Classes="window-btn close"
-                  Click="OnCloseClick"
-                  ToolTip.Tip="关闭"
-                  AutomationProperties.Name="关闭">
-            <Path Data="{StaticResource Icon.WindowClose}"
-                  Stroke="{DynamicResource Text.Secondary}"
-                  StrokeThickness="1.1"
-                  StrokeLineCap="Round"
-                  StrokeJoin="Round"
-                  Width="10" Height="10" />
-          </Button>
-        </StackPanel>
-      </Grid>
+          <!-- 导航：上组（启动/版本/内容/下载）→ 分隔线 → 账户 / 服务器 -->
+          <StackPanel Grid.Row="1" Name="NavigationList" Spacing="2">
+            <ItemsControl ItemsSource="{Binding NavigationItems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NavigationItem">
+                  <Button Classes="nav"
+                          Classes.active="{Binding IsActive}"
+                          AutomationProperties.Name="{Binding Title}"
+                          Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
+                          CommandParameter="{Binding Key}">
+                    <StackPanel Spacing="2">
+                      <Path Data="{Binding IconKey, Converter={x:Static conv:Converters.IconKeyToGeometry}}" />
+                      <TextBlock Text="{Binding Title}" Classes="nav-label" HorizontalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-      <!-- ==================== 主体 ==================== -->
-      <Grid Grid.Row="1" Name="BodyGrid" ColumnDefinitions="200,*">
+            <Border Height="1"
+                    Width="30"
+                    Margin="0,4"
+                    HorizontalAlignment="Center"
+                    Background="{DynamicResource Stroke.Subtle}" />
 
-        <!-- 侧边栏：7 个一级入口；不放皮肤卡、统计块或滚动区。 -->
-        <Border Grid.Column="0"
-                Name="Sidebar"
-                AutomationProperties.Name="主导航"
-                AutomationProperties.AutomationId="Navigation"
-                Background="{DynamicResource Surface.Sidebar}"
-                BorderBrush="{DynamicResource Stroke.Subtle}"
-                BorderThickness="0,1,1,0">
-          <ItemsControl Name="NavigationList"
-                        ItemsSource="{Binding NavigationItems}"
-                        Margin="0,10,0,0"
-                        VerticalAlignment="Top">
+            <ItemsControl ItemsSource="{Binding SecondaryNavigationItems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NavigationItem">
+                  <Button Classes="nav"
+                          Classes.active="{Binding IsActive}"
+                          AutomationProperties.Name="{Binding Title}"
+                          Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
+                          CommandParameter="{Binding Key}">
+                    <StackPanel Spacing="2">
+                      <Path Data="{Binding IconKey, Converter={x:Static conv:Converters.IconKeyToGeometry}}" />
+                      <TextBlock Text="{Binding Title}" Classes="nav-label" HorizontalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!-- 设置贴栏底 -->
+          <ItemsControl Grid.Row="2" ItemsSource="{Binding FooterNavigationItems}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:NavigationItem">
                 <Button Classes="nav"
@@ -250,44 +130,96 @@
                         AutomationProperties.Name="{Binding Title}"
                         Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
                         CommandParameter="{Binding Key}">
-                  <StackPanel Orientation="Horizontal" Spacing="12">
+                  <StackPanel Spacing="2">
                     <Path Data="{Binding IconKey, Converter={x:Static conv:Converters.IconKeyToGeometry}}" />
-                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Title}" Classes="nav-label" HorizontalAlignment="Center" />
                   </StackPanel>
                 </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-        </Border>
+        </Grid>
+      </Border>
 
-        <!-- 内容区 -->
-        <Grid Grid.Column="1"
-              RowDefinitions="Auto,*,Auto"
+      <!-- ==================== 右侧主列 ==================== -->
+      <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="18,0,0,0">
+
+        <!-- 标题栏：窗口三键与页面抬头同在这一条上，拖动区随整条走 -->
+        <Grid Grid.Row="0"
+              Name="TitleBar"
+              Height="46"
+              Background="Transparent"
+              PointerPressed="OnTitleBarPointerPressed">
+          <StackPanel Orientation="Horizontal"
+                      Spacing="12"
+                      VerticalAlignment="Center"
+                      Margin="4,0,140,0">
+            <TextBlock Text="{Binding CurrentPage.Title}"
+                       Classes="page-title"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding CurrentPage.Subtitle}"
+                       Classes="page-subtitle muted"
+                       VerticalAlignment="Center"
+                       Margin="0,4,0,0"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+
+          <!--
+            窗口三键。图标尺寸 10px、键 33×29（1024 下 29×25），关闭键 hover 转危险色 + 白图标。
+            Path 上不写内联 Stroke：本地值会压过 :pointerover 的样式 setter（PITFALLS 4.2）。
+          -->
+          <StackPanel Orientation="Horizontal"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      Spacing="4">
+            <Button Classes="window-btn"
+                    Click="OnMinimizeClick"
+                    ToolTip.Tip="最小化"
+                    AutomationProperties.Name="最小化">
+              <Path Data="{StaticResource Icon.WindowMinimize}"
+                    StrokeThickness="1.1"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="10" Height="10" />
+            </Button>
+            <Button Classes="window-btn"
+                    Click="OnMaximizeClick"
+                    ToolTip.Tip="最大化"
+                    AutomationProperties.Name="最大化">
+              <Path Data="{StaticResource Icon.WindowMaximize}"
+                    StrokeThickness="1.1"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="10" Height="10" />
+            </Button>
+            <Button Classes="window-btn close"
+                    Click="OnCloseClick"
+                    ToolTip.Tip="关闭"
+                    AutomationProperties.Name="关闭">
+              <Path Data="{StaticResource Icon.WindowClose}"
+                    StrokeThickness="1.1"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Stretch="Uniform"
+                    Width="10" Height="10" />
+            </Button>
+          </StackPanel>
+        </Grid>
+
+        <!-- 内容区：Main 地标 -->
+        <Grid Grid.Row="1"
+              RowDefinitions="*,Auto"
               AutomationProperties.Name="主内容"
               AutomationProperties.AutomationId="Main">
 
-          <!-- 页面抬头：标题与副标题由外壳统一渲染，页面内不重复画。 -->
-          <Grid Grid.Row="0" Margin="30,20,30,4" ColumnDefinitions="Auto,*">
-            <TextBlock Grid.Column="0"
-                       Text="{Binding CurrentPage.Title}"
-                       Classes="page-title"
-                       VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1"
-                       Text="{Binding CurrentPage.Subtitle}"
-                       Classes="page-subtitle muted"
-                       VerticalAlignment="Center"
-                       Margin="12,4,0,0"
-                       TextTrimming="CharacterEllipsis" />
-          </Grid>
-
-          <!-- 页面宿主：切换内容时只做 220ms 淡入，不做整页位移。 -->
-          <controls:PageHost Grid.Row="1"
+          <controls:PageHost Grid.Row="0"
                              Content="{Binding CurrentPage}"
-                             Margin="30,10,30,0" />
+                             Margin="4,0,0,0" />
 
-          <!-- 状态栏 -->
-          <Border Grid.Row="2"
-                  Margin="30,0,30,14"
+          <Border Grid.Row="1"
+                  Margin="4,0,0,12"
                   Padding="0,8,0,0"
                   BorderBrush="{DynamicResource Stroke.Subtle}"
                   BorderThickness="0,1,0,0">

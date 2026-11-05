@@ -53,7 +53,7 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 - `tests/NebulaLauncher.Tests/`：xUnit 测试，覆盖 Core 的纯逻辑与 App 的若干源码守护断言。
 - `tools/`：开发期工具。`tools/TestRunner` 是本机跑测试的入口，原因见「测试规模」。
 
-导航固定 7 项：启动、版本、内容、下载、账户、服务器、设置（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.BuildNavigation（:722）`）。旧 12 个页面键由 `src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.Resolve` 归一化到 7 个一级入口：模组 / 资源 / 皮肤归内容，世界归版本的实例详情，日志 / 帮助归设置的关于区。「关于」不是独立页，是设置页里的一个分区（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
+导航固定 7 项：启动、版本、内容、下载、账户、服务器、设置（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.BuildNavigation（:722）`）。6 个旧页面键（模组 / 资源 / 皮肤 / 世界 / 日志 / 帮助）由 `src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.Resolve` 归一化到对应一级入口：模组 / 资源 / 皮肤归内容，世界归版本的实例详情，日志 / 帮助归设置的关于区；另外 6 个键本身就是一级入口。「关于」不是独立页，是设置页里的一个分区（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
 
 ## 用户数据落在哪
 

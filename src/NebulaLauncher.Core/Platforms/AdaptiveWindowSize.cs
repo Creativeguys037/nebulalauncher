@@ -39,18 +39,19 @@ public readonly record struct LauncherMinimumWindowSize(int Width, int Height);
 /// </summary>
 public static class AdaptiveWindowSize
 {
-    /// <summary>侧边栏宽度的地板：1024 窗口下是 176（票 #85），再窄导航文字会挤成折行。</summary>
-    public const int SidebarMinWidth = 176;
+    /// <summary>左侧浮动竖栏的宽度地板：与已定版样张的 1024 档同为 68。</summary>
+    public const int SidebarMinWidth = 68;
 
-    /// <summary>主内容区的最小宽度；200 + 824 = 1024，正好是设计稿的最小窗口（176 + 824 时由常量地板兜住）。</summary>
-    public const int ContentMinWidth = 824;
+    /// <summary>主内容区的最小宽度；68 + 956 = 1024，正好是设计稿的最小窗口。</summary>
+    public const int ContentMinWidth = 956;
 
     /// <summary>按实测的自然尺寸算出最小尺寸；任何一项不可用时退回兜底下限。</summary>
     public static LauncherMinimumWindowSize Compute(SidebarMeasurements measurements)
     {
+        // FooterHeight 允许为 0（票 #85 起侧栏没有页脚）：0 是合法高度，不是「测不出」。
         var height = IsUsable(measurements.TitleBarHeight)
             && IsUsable(measurements.NavigationHeight)
-            && IsUsable(measurements.FooterHeight)
+            && IsMeasured(measurements.FooterHeight)
                 ? measurements.TitleBarHeight + measurements.NavigationHeight + measurements.FooterHeight
                 : double.NaN;
 
@@ -64,6 +65,9 @@ public static class AdaptiveWindowSize
     }
 
     private static bool IsUsable(double value) => double.IsFinite(value) && value > 0;
+
+    /// <summary>0 是合法高度（没有页脚），只有负数与非有限值才算测不出。</summary>
+    private static bool IsMeasured(double value) => double.IsFinite(value) && value >= 0;
 
     /// <summary>
     /// 取整是向上取整：测量值常带小数，向下取整会算出比内容矮一点点的最小尺寸，

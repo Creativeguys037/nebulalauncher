@@ -37,7 +37,6 @@ public class GlassPanel : ContentControl
         AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 18d);
 
     private Rectangle? _copy;
-    private Panel? _copyLayer;
     private Visual? _lastBackdrop;
     private Control? _resolvedBackdrop;
 
@@ -45,6 +44,12 @@ public class GlassPanel : ContentControl
     {
         AffectsRender<GlassPanel>(BackdropProperty, TintProperty, BlurRadiusProperty);
         BlurRadiusProperty.Changed.AddClassHandler<GlassPanel>((panel, _) => panel.UpdateBlur());
+        BackdropProperty.Changed.AddClassHandler<GlassPanel>((panel, _) =>
+        {
+            // 显式 Backdrop 换了以后，之前自动解析的缓存不能留着。
+            panel._resolvedBackdrop = null;
+            panel._lastBackdrop = null;
+        });
     }
 
     public GlassPanel()
@@ -76,7 +81,6 @@ public class GlassPanel : ContentControl
     {
         base.OnApplyTemplate(e);
         _copy = e.NameScope.Find<Rectangle>("PART_Copy");
-        _copyLayer = e.NameScope.Find<Panel>("PART_CopyLayer");
         _lastBackdrop = null;
         UpdateBlur();
         UpdateCopy();
@@ -89,12 +93,12 @@ public class GlassPanel : ContentControl
     /// </summary>
     private void UpdateBlur()
     {
-        if (_copyLayer is null)
+        if (_copy is null)
         {
             return;
         }
 
-        _copyLayer.Effect = new BlurEffect { Radius = BlurRadius };
+        _copy.Effect = new BlurEffect { Radius = BlurRadius };
     }
 
     /// <summary>
@@ -156,7 +160,17 @@ public class GlassPanel : ContentControl
 
         var top = TopLevel.GetTopLevel(this);
         var glass = top?.GetVisualDescendants().OfType<GlassBackdrop>().FirstOrDefault();
-        _resolvedBackdrop = glass?.Parent as Control ?? glass;
+        var host = glass?.Parent as Control;
+
+        // 如果玻璃背景被错误地放在卡片自己的祖先链上，引用它会形成自引用副本；
+        // 这种情况直接退回 Background，宁可少一层玻璃也不递归。
+        if (host is not null && !this.GetVisualAncestors().Contains(host))
+        {
+            _resolvedBackdrop = host;
+            return _resolvedBackdrop;
+        }
+
+        _resolvedBackdrop = glass is not null && !this.GetVisualAncestors().Contains(glass) ? glass : null;
         return _resolvedBackdrop;
     }
 }

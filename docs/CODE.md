@@ -39,7 +39,7 @@
 
 | 目录 | 职责（一句话） | 关键类型 |
 | --- | --- | --- |
-| ViewModels | 页面状态与命令；`MainWindowViewModel` 是导航与页面工厂的根 | `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RegisterPages（:670）`、`src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel.LaunchAsync（:912）` |
+| ViewModels | 页面状态与命令；`MainWindowViewModel` 是导航与页面工厂的根，路由表在 `NavigationRoutes` | `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RegisterPages（:670）`、`src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.Resolve`、`src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel.LaunchAsync（:912）` |
 | Views | Avalonia 视图，与 ViewModels 一一对应 | `src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow（:21）` |
 | Services | App 层服务：导航/窗口动作代理、启动参数合成、外壳进度 | `src/NebulaLauncher.App/Services/LaunchOptionsFactory.cs LaunchOptionsFactory.Build（:41）`、`src/NebulaLauncher.App/Services/NavigationServiceProxy.cs NavigationServiceProxy（:13）` |
 | Controls | 自定义控件（页面宿主、玻璃背景、折叠容器、环形进度、3D 皮肤模型） | `src/NebulaLauncher.App/Controls/PageHost.cs PageHost（:19）`、`src/NebulaLauncher.App/Controls/GlassBackdrop.cs GlassBackdrop`、`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` |
@@ -152,7 +152,11 @@
 17. 进程与会话：`src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.LaunchAsync（:442）` `new GameWatcher()`，`:460` → `:1845 GameLauncher.PrepareProcess`（输出事件绑在会话上，进程一启动就可能吐日志），`:465` `_running.TryRegister(session)`，`:482` `process.Start()`。
 18. 退出：`src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.LaunchAsync（:603）` → `src/NebulaLauncher.Core/Launching/GameLauncher.cs GameLauncher.CompleteExitAsync（:683）`（崩溃分析、自动世界备份、游玩时长、释放实例锁）；用户取消等待走 `DetachRunningGame`，返回 `Detached = true`，锁交给后台会话。
 
-### 4.3 内容下载（资源页 → mods/ 目录）
+### 4.3 导航（侧栏点击 / 深链 → 页面实例）
+
+侧栏按钮绑 `GoToCommand`，参数是导航键，入口是 `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.Navigate`。旧键（模组 / 资源 / 皮肤 / 世界 / 日志 / 帮助）先经 `src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.Resolve` 折成 7 个一级键，`_factories` / `_pageCache` 都按一级键存取（缓存重建写回时也一样，否则旧键成死项），三个内容键因此共享同一个页面实例；日志与帮助再由 `src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.SectionFor` 落到设置的「关于」区。切页后跑 `OnNavigatedFromAsync` / `OnNavigatedToAsync`，并重求一次抬头绑定（`Subtitle` 通常加载后才有值）。
+
+### 4.4 内容下载（资源页 → mods/ 目录）
 
 1. 搜索：`src/NebulaLauncher.App/ViewModels/LibraryViewModel.cs LibraryViewModel.SearchAsync（:1431）` → `src/NebulaLauncher.App/ViewModels/LibraryViewModel.cs LibraryViewModel.SearchCoreAsync（:2680）`，按来源分派 Modrinth / CurseForge。
 2. Modrinth 搜索：`src/NebulaLauncher.Core/Mods/ModrinthService.cs ModrinthService.SearchSortedAsync（:146）`；API 基址 `src/NebulaLauncher.Core/Mods/ModrinthService.cs ModrinthService.ApiBase（:33）`。
@@ -171,12 +175,12 @@
 票 #85 起侧边栏不再常驻 3D 皮肤卡；`SkinCardViewModel` 保留为内容页皮肤分类（#92）的预览模型，当前没有壳层入口。
 
 1. 预览模型：`src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync`，订阅 `IAccountService.AccountsChanged`，每次变更 `ApplyAsync`（用 `Interlocked.Exchange` 取消上一次在途请求）。
-3. 取皮肤地址：规则只在 `src/NebulaLauncher.Core/Skinning/SkinProfileUrls.cs SkinProfileUrls.BuildProfileUrl` 写一份，预览（`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.BuildProfileUrl`）与头像服务都转发过来——微软账户走 `sessionserver.mojang.com`，第三方账户在 `AuthServerUrl`（API 根，**保留**末尾 `/yggdrasil`）后接 `/sessionserver/session/minecraft/profile/{uuid}?unsigned=false`；`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseProfile` 解 `properties[]` 里 `name=textures` 的 base64 载荷，得到 `SKIN.url` / `CAPE.url` / `metadata.model`。
-4. 下载与解码：`src/NebulaLauncher.App/Skinning/SkinTextureLoader.cs SkinTextureLoader.LoadAsync` → `DownloadTextureAsync` → `DecodePng`（`WriteableBitmap.Decode` + `Lock` + `Marshal.Copy`，只认 `Bgra8888` / `Rgba8888`，统一成 `0xAARRGGBB` 数组）。任何一步失败都退 `SkinVisual.Default` 并 `IAppLog.Warn`，**卡片永不空白**。
-5. 几何：`src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs Build` 按 MC 像素建 6 个部件（Steve 臂宽 4 / Alex 3，脚底 y=0 头顶 y=32），有皮肤时再叠 6 个外层（各边 +0.5 单位即纹理上的 +0.25）。UV 用 `BuildUv` 的 mojang 展开公式；纹理尺寸按 64 的整数倍传入，128/256/512 的 HD 皮肤按 `textureWidth / 64` 等比缩放全部 UV。**披风例外**，走 `BuildCapeUv`——披风图整块只有 22 宽，等宽公式会把背面推到 31 列而取到透明像素。
-6. 投影与剔除：`src/NebulaLauncher.App/Skinning/SkinProjector.cs Project`。矩阵顺序 `projection * view * model`，屏幕绕向叉积为负才算正面，最后按深度从远到近排序（画家算法）。背面剔除必须用减去 `OrbitCenterY` 后的轨道坐标做 `IsFacingCamera`——直接用未平移的世界坐标会把「相机刚高于头顶」的顶面提前剔掉。
-7. 光栅：`src/NebulaLauncher.App/Skinning/SkinRasterizer.cs FillQuad` 用增量式边缘函数填三角形，`invArea` 保留符号，透视校正插值 `uv/w`；采样取纹素中心（`+0.5` 内缩）防止 HD 皮肤棱角渗到隔壁透明像素；边缘判定留 `1e-6` 容差避免相邻面共享边出现缝。另有 `1/w` 浮点深度缓冲兜底，半透明按直通 alpha 的 source-over 正确归一（目标色乘自己的 alpha），避免画家算法互穿和三角形公共边重复混合。
-8. 上屏：`src/NebulaLauncher.App/Controls/SkinModelView.cs` 继承 `Control`，按 `IRenderRoot.RenderScaling` 建 `WriteableBitmap`（`Bgra8888` + `Premul`），逐帧 `SkinRenderer.Render` → 转 BGRA 预乘 → `Marshal.Copy` → `context.DrawImage`。33ms 定时器自转；`Motion.Enabled=false` 时停表（真静止）；左键拖动改 yaw/pitch。
+2. 取皮肤地址：规则只在 `src/NebulaLauncher.Core/Skinning/SkinProfileUrls.cs SkinProfileUrls.BuildProfileUrl` 写一份，预览（`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.BuildProfileUrl`）与头像服务都转发过来——微软账户走 `sessionserver.mojang.com`，第三方账户在 `AuthServerUrl`（API 根，**保留**末尾 `/yggdrasil`）后接 `/sessionserver/session/minecraft/profile/{uuid}?unsigned=false`；`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseProfile` 解 `properties[]` 里 `name=textures` 的 base64 载荷，得到 `SKIN.url` / `CAPE.url` / `metadata.model`。
+3. 下载与解码：`src/NebulaLauncher.App/Skinning/SkinTextureLoader.cs SkinTextureLoader.LoadAsync` → `DownloadTextureAsync` → `DecodePng`（`WriteableBitmap.Decode` + `Lock` + `Marshal.Copy`，只认 `Bgra8888` / `Rgba8888`，统一成 `0xAARRGGBB` 数组）。任何一步失败都退 `SkinVisual.Default` 并 `IAppLog.Warn`，**卡片永不空白**。
+4. 几何：`src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs Build` 按 MC 像素建 6 个部件（Steve 臂宽 4 / Alex 3，脚底 y=0 头顶 y=32），有皮肤时再叠 6 个外层（各边 +0.5 单位即纹理上的 +0.25）。UV 用 `BuildUv` 的 mojang 展开公式；纹理尺寸按 64 的整数倍传入，128/256/512 的 HD 皮肤按 `textureWidth / 64` 等比缩放全部 UV。**披风例外**，走 `BuildCapeUv`——披风图整块只有 22 宽，等宽公式会把背面推到 31 列而取到透明像素。
+5. 投影与剔除：`src/NebulaLauncher.App/Skinning/SkinProjector.cs Project`。矩阵顺序 `projection * view * model`，屏幕绕向叉积为负才算正面，最后按深度从远到近排序（画家算法）。背面剔除必须用减去 `OrbitCenterY` 后的轨道坐标做 `IsFacingCamera`——直接用未平移的世界坐标会把「相机刚高于头顶」的顶面提前剔掉。
+6. 光栅：`src/NebulaLauncher.App/Skinning/SkinRasterizer.cs FillQuad` 用增量式边缘函数填三角形，`invArea` 保留符号，透视校正插值 `uv/w`；采样取纹素中心（`+0.5` 内缩）防止 HD 皮肤棱角渗到隔壁透明像素；边缘判定留 `1e-6` 容差避免相邻面共享边出现缝。另有 `1/w` 浮点深度缓冲兜底，半透明按直通 alpha 的 source-over 正确归一（目标色乘自己的 alpha），避免画家算法互穿和三角形公共边重复混合。
+7. 上屏：`src/NebulaLauncher.App/Controls/SkinModelView.cs` 继承 `Control`，按 `IRenderRoot.RenderScaling` 建 `WriteableBitmap`（`Bgra8888` + `Premul`），逐帧 `SkinRenderer.Render` → 转 BGRA 预乘 → `Marshal.Copy` → `context.DrawImage`。33ms 定时器自转；`Motion.Enabled=false` 时停表（真静止）；左键拖动改 yaw/pitch。
 
 **与原票实现的偏离**：票面写的是「几何算出屏幕多边形 → `PushTransform` + clip 贴三角形」，实际改成**纯 CPU 软光栅到 `WriteableBitmap`**。理由：① 测试禁止触碰 Avalonia 类型（CONVENTIONS §8.2），像素级断言（六方向主色占比）只有纯 C# 光栅器能喂；② 同一份光栅代码给产品用，测试才真的证明了产品正确；③ 单帧 220×280 实测中位 6.2ms，60fps 预算 16.7ms 有余量，且避开了 68 个 geometry 的 tessellation 性能未知与相邻三角形接缝。
 

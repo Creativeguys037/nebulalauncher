@@ -16,7 +16,10 @@ namespace NebulaLauncher.Tests;
 public class AppShell_NavigationContractTests
 {
     private const string MainWindowPath = "src/NebulaLauncher.App/Views/MainWindow.axaml";
+    private const string MainWindowCodePath = "src/NebulaLauncher.App/Views/MainWindow.axaml.cs";
     private const string PageHostPath = "src/NebulaLauncher.App/Controls/PageHost.cs";
+    private const string IconsPath = "src/NebulaLauncher.App/Themes/Icons.axaml";
+    private const string ControlsPath = "src/NebulaLauncher.App/Themes/Controls.axaml";
 
     private static readonly string[] ExpectedPrimary =
     [
@@ -67,6 +70,83 @@ public class AppShell_NavigationContractTests
     }
 
     [Fact]
+    public void Navigation_IsGroupedLikeTheApprovedSample()
+    {
+        // 形态取自已定版样张 home-glass.html 的 rail：
+        // 启动/版本/内容/下载 → 分隔 → 账户/服务器 → 撑开 → 设置贴栏底。
+        var main = NavigationRoutes.InGroup(NavigationPlacement.Main).Select(r => r.Key).ToArray();
+        var secondary = NavigationRoutes.InGroup(NavigationPlacement.Secondary).Select(r => r.Key).ToArray();
+        var footer = NavigationRoutes.InGroup(NavigationPlacement.Footer).Select(r => r.Key).ToArray();
+
+        Assert.Equal(
+            [NavigationKeys.Home, NavigationKeys.Versions, NavigationKeys.Content, NavigationKeys.Download],
+            main);
+        Assert.Equal([NavigationKeys.Accounts, NavigationKeys.Servers], secondary);
+        Assert.Equal([NavigationKeys.Settings], footer);
+    }
+
+    [Fact]
+    public void MainWindow_MirrorsTheSampleRailShape()
+    {
+        // 样张的竖栏是浮动玻璃底板（Border.glass），不是整高实心侧栏；
+        // 导航项图标在上、文字在下；设置由独立的贴底容器承载。
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowPath));
+
+        Assert.Contains("Classes=\"glass\"", window);
+        Assert.Contains("ItemsSource=\"{Binding NavigationItems}\"", window);
+        Assert.Contains("ItemsSource=\"{Binding SecondaryNavigationItems}\"", window);
+        Assert.Contains("ItemsSource=\"{Binding FooterNavigationItems}\"", window);
+        Assert.Contains("Classes=\"nav-label\"", window);
+
+        // 竖栏宽度两档来自样张 glass.css 的 .rail：82 / 68。
+        Assert.Contains("ColumnDefinitions=\"82,*\"", window);
+
+        var code = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowCodePath));
+        Assert.Contains("compact ? 68 : 82", code);
+    }
+
+    [Fact]
+    public void EveryNavigationIconKey_ExistsInIconDictionary()
+    {
+        // 图标键拼错不会编译失败，只会在界面上静默空白；这里把它变成硬失败。
+        var doc = XDocument.Load(Path.Combine(RepoRoot(), IconsPath));
+        var declared = doc.Descendants()
+            .Select(e => (string?)e.Attribute(XamlNamespace + "Key"))
+            .Where(key => key is not null)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var missing = NavigationRoutes.Items
+            .Where(route => !declared.Contains(route.IconKey))
+            .Select(route => $"{route.Key} → {route.IconKey}")
+            .ToList();
+
+        Assert.True(missing.Count == 0,
+            "这些一级入口的图标键在 Icons.axaml 里没有定义：" + string.Join(", ", missing));
+    }
+
+    [Fact]
+    public void EveryPrimaryRoute_HasATitleAndUniqueKey()
+    {
+        var keys = NavigationRoutes.Items.Select(route => route.Key).ToList();
+
+        Assert.Equal(keys.Count, keys.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(NavigationRoutes.Items, route =>
+            Assert.False(string.IsNullOrWhiteSpace(route.Title), $"{route.Key} 没有中文标题"));
+    }
+
+    [Fact]
+    public void LogsAndHelp_LandOnSettingsAboutSection()
+    {
+        // 「旧键要有唯一落点」不只是落到一级页：日志与帮助要落在设置的关于区。
+        Assert.Equal("about", NavigationRoutes.SectionFor(NavigationKeys.Logs));
+        Assert.Equal("about", NavigationRoutes.SectionFor(NavigationKeys.Help));
+
+        // 其它键不指定分区，避免把设置页固定在某个分区里。
+        Assert.Null(NavigationRoutes.SectionFor(NavigationKeys.Mods));
+        Assert.Null(NavigationRoutes.SectionFor(NavigationKeys.Settings));
+    }
+
+    [Fact]
     public void MainWindow_UsesSevenItemNavigationAndNoSidebarSkinCard()
     {
         var text = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowPath));
@@ -101,6 +181,38 @@ public class AppShell_NavigationContractTests
         Assert.Contains("Icon.WindowMinimize", text);
         Assert.Contains("Icon.WindowMaximize", text);
         Assert.Contains("Icon.WindowClose", text);
+    }
+
+    [Fact]
+    public void WindowButtons_TakeStrokeFromStyleNotInline()
+    {
+        // PITFALLS 4.2：Path 上的内联 Stroke 是本地值，会压过 :pointerover 的样式 setter，
+        // 关闭键 hover 就只变底色、叉号不变白。这里钉住「内联不写 Stroke、样式给默认色」。
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowPath));
+        var controls = File.ReadAllText(Path.Combine(RepoRoot(), ControlsPath));
+
+        foreach (var key in new[] { "Icon.WindowMinimize", "Icon.WindowMaximize", "Icon.WindowClose" })
+        {
+            var block = Regex.Match(window, $"Data=\"\\{{StaticResource {Regex.Escape(key)}\\}}\"(?<body>[^>]*)>");
+            Assert.True(block.Success, $"MainWindow.axaml 里找不到 {key} 的 Path");
+            Assert.DoesNotContain("Stroke=", block.Groups["body"].Value);
+        }
+
+        Assert.Contains("Selector=\"Button.window-btn Path\"", controls);
+        Assert.Contains("Selector=\"Button.window-btn.close:pointerover Path\"", controls);
+    }
+
+    [Fact]
+    public void ShellChromeStyles_LiveInThemesNotInTheWindow()
+    {
+        // §7.5：A/B 档控件样式集中在 Themes/Controls.axaml，窗口只负责摆放。
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowPath));
+        var controls = File.ReadAllText(Path.Combine(RepoRoot(), ControlsPath));
+
+        Assert.DoesNotContain("<Window.Styles>", window);
+        Assert.Contains("Selector=\"Button.nav\"", controls);
+        Assert.Contains("Selector=\"Button.nav.active\"", controls);
+        Assert.Contains("Selector=\"TextBlock.page-title\"", controls);
     }
 
     [Fact]

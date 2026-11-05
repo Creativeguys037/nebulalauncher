@@ -558,6 +558,131 @@
     <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
   </Style>
 
+  <!-- ================= 一级导航（票 #85） ================= -->
+  <!--
+    左侧玻璃竖栏里的导航项，形态取自已定版样张 home-glass.html 的 .navb：
+    宽 52、高 46、圆角 14，图标在上、文字在下，选中是主色实心块 + 辉光。
+    样式放在控件层而不是 MainWindow.Styles：§7.5 要求 A/B 档样式集中在 Themes/Controls.axaml。
+  -->
+  <Style Selector="Button.nav">
+    <Setter Property="Width" Value="52" />
+    <Setter Property="Height" Value="46" />
+    <Setter Property="MinHeight" Value="46" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,1" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border primitives:AdornerLayer.IsClipEnabled="False"
+                Margin="-3"
+                BorderBrush="{DynamicResource Stroke.Focus}"
+                BorderThickness="2"
+                CornerRadius="{DynamicResource Radius.Md}"
+                IsHitTestVisible="False" />
+      </FocusAdornerTemplate>
+    </Setter>
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="Foreground" Duration="{x:Static services:Motion.Fast}" />
+        <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Instant}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.nav Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
+    <Setter Property="StrokeThickness" Value="1.7" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="Width" Value="19" />
+    <Setter Property="Height" Value="19" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+
+  <!-- 栏宽只有 82，导航文字用 11（FontSize.Caption）；再大就折行。 -->
+  <Style Selector="TextBlock.nav-label">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+  </Style>
+
+  <Style Selector="Button.nav:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.NavHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="Button.nav:pointerover Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="Button.nav:pointerover TextBlock.nav-label">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="Button.nav.active">
+    <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+  </Style>
+
+  <Style Selector="Button.nav.active Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
+  </Style>
+
+  <Style Selector="Button.nav.active TextBlock.nav-label">
+    <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+  </Style>
+
+  <Style Selector="Button.nav.active:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="Opacity" Value="0.92" />
+  </Style>
+
+  <!-- 选中态辉光落在模板内的底板上；这是控件层样式，不是页面级模板侵入。 -->
+  <Style Selector="Button.nav.active /template/ Border#PART_Root">
+    <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+  </Style>
+
+  <!-- 1024×660：栏宽 68、项 46×40、图标 17、标题 26、窗口三键 29×25。 -->
+  <Style Selector="Window.compact Button.nav">
+    <Setter Property="Width" Value="46" />
+    <Setter Property="Height" Value="40" />
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+  </Style>
+
+  <Style Selector="Window.compact Button.nav Path">
+    <Setter Property="Width" Value="17" />
+    <Setter Property="Height" Value="17" />
+  </Style>
+
+  <Style Selector="Window.compact Button.window-btn">
+    <Setter Property="Width" Value="29" />
+    <Setter Property="Height" Value="25" />
+    <Setter Property="MinHeight" Value="25" />
+  </Style>
+
+  <Style Selector="TextBlock.page-title">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Display}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="TextBlock.page-subtitle">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+  </Style>
+
+  <Style Selector="Window.compact TextBlock.page-title">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Headline}" />
+  </Style>
   <!-- ================= 窗口三键 ================= -->
   <!-- 33×29、8 圆角；关闭 hover 用危险色。图标尺寸由使用方的 Path / Rectangle 设（10px）。 -->
   <Style Selector="Button.window-btn">
@@ -570,6 +695,11 @@
     <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- 图标默认描边必须在样式里：Path 上的本地值会压过 :pointerover 的样式 setter。 -->
+  <Style Selector="Button.window-btn Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.Secondary}" />
   </Style>
 
   <Style Selector="Button.window-btn:pointerover">

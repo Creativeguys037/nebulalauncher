@@ -21,11 +21,7 @@
               <!-- 模糊半径由 GlassPanel.UpdateBlur() 在代码里设（TemplateBinding 到 BlurEffect 不生效）。 -->
               <Rectangle x:Name="PART_Copy"
                          Fill="{TemplateBinding Background}"
-                         IsHitTestVisible="False">
-                <Rectangle.Effect>
-                  <BlurEffect Radius="24" />
-                </Rectangle.Effect>
-              </Rectangle>
+                         IsHitTestVisible="False" />
               <Border Background="{TemplateBinding Tint}" IsHitTestVisible="False" />
             </Panel>
           </Border>

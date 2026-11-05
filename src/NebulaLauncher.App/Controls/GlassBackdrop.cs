@@ -39,6 +39,13 @@ public class GlassBackdrop : Control
     private readonly DispatcherTimer _timer;
     private double _phase;
 
+    static GlassBackdrop()
+    {
+        // DynamicResource 换主题时只改 Brush 实例，不重画就仍留着旧主题的色块；
+        // IsAnimated 参与漂移计算，切换时也要重画到 0 偏移。
+        AffectsRender<GlassBackdrop>(BackgroundProperty, Blob1Property, Blob2Property, Blob3Property, IsAnimatedProperty);
+    }
+
     public GlassBackdrop()
     {
         ClipToBounds = true;
