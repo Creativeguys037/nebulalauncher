@@ -34,6 +34,12 @@
       <SolidColorBrush x:Key="Surface.Sunken" Color="#140305" />
       <SolidColorBrush x:Key="Surface.Glass" Color="#14E80018" />
       <SolidColorBrush x:Key="Surface.Sidebar" Color="#12050A" />
+      <!-- 导航 hover：深色是白 8%，浅色是白 70%（票 #85） -->
+      <SolidColorBrush x:Key="Surface.NavHover" Color="#14FFFAFA" />
+      <!-- 背景层色块：硬边圆形，深色红黑、浅色蓝白（票 #85） -->
+      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#1FE80018" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#14B53131" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#0FFFFAFA" />
 
       <!-- 玻璃组：tint 底、edge 亮边、topLight 顶亮线、innerShadow 底内阴影、shadow 外投影 -->
       <SolidColorBrush x:Key="Glass.Tint" Color="#0FE80018" />
@@ -148,6 +154,10 @@
       <SolidColorBrush x:Key="Surface.Sunken" Color="#E9EFFC" />
       <SolidColorBrush x:Key="Surface.Glass" Color="#57FFFFFF" />
       <SolidColorBrush x:Key="Surface.Sidebar" Color="#EDF3FF" />
+      <SolidColorBrush x:Key="Surface.NavHover" Color="#B3FFFFFF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#1A1668FF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#4DFFFFFF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#241668FF" />
 
       <!-- 玻璃组 -->
       <SolidColorBrush x:Key="Glass.Tint" Color="#57FFFFFF" />

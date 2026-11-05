@@ -1,6 +1,9 @@
 using System;
 using System.Globalization;
+using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Data.Converters;
+using Avalonia.Media;
 
 namespace NebulaLauncher.Converters;
 
@@ -10,6 +13,22 @@ namespace NebulaLauncher.Converters;
 /// </summary>
 public static class Converters
 {
+    /// <summary>
+    /// 图标资源键 → <c>StreamGeometry</c>。导航项只存 <c>Icon.Home</c> 这类键，
+    /// 几何本体留在 <c>Themes/Icons.axaml</c>，避免 VM 里再抄一份 path data。
+    /// </summary>
+    public static readonly IValueConverter IconKeyToGeometry = new FuncValueConverter<string, Geometry?>(key =>
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        return Application.Current?.TryFindResource(key, out var resource) == true
+            ? resource as Geometry
+            : null;
+    });
+
     /// <summary>字节数 → <c>1.4 GB</c> / <c>820 MB</c>。</summary>
     public static readonly IValueConverter BytesToSize = new FuncValueConverter<long, string>(
         bytes => FormatSize(bytes));

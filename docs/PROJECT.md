@@ -53,7 +53,7 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 - `tests/NebulaLauncher.Tests/`：xUnit 测试，覆盖 Core 的纯逻辑与 App 的若干源码守护断言。
 - `tools/`：开发期工具。`tools/TestRunner` 是本机跑测试的入口，原因见「测试规模」。
 
-导航固定 11 项：首页、版本、下载、模组、资源、账户、服务器、世界、日志、帮助、设置（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.BuildNavigation（:731）`）。「关于」不是独立页，是设置页里的一个分区（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
+导航固定 7 项：启动、版本、内容、下载、账户、服务器、设置（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.BuildNavigation（:722）`）。旧 12 个页面键由 `src/NebulaLauncher.App/ViewModels/NavigationRoutes.cs NavigationRoutes.Resolve` 归一化到 7 个一级入口：模组 / 资源 / 皮肤归内容，世界归版本的实例详情，日志 / 帮助归设置的关于区。「关于」不是独立页，是设置页里的一个分区（`src/NebulaLauncher.App/ViewModels/SettingsViewModel.cs SettingsViewModel.AppVersion（:2114）`）。
 
 ## 用户数据落在哪
 
@@ -105,7 +105,7 @@ CommunityToolkit.Mvvm 8.4.2 提供 `[ObservableProperty]` / `[RelayCommand]` 源
 
 账户支持离线、微软设备码、第三方 authlib 验证；版本安装覆盖原版、Fabric、Quilt、Forge、NeoForge；下载有三档源（自动 / 官方 / 镜像）与会话级降级；内容侧覆盖模组、资源包、光影包、数据包的扫描、启停、冲突与前置检查；整合包支持 `.mrpack` 与 CurseForge `.zip` 导入、`.mrpack` 导出；服务器支持收藏、Server List Ping、`servers.dat` 导入；世界支持备份与轮转；日志中心覆盖启动器日志、游戏日志与崩溃报告；系统集成有托盘、关闭到托盘、窗口尺寸记忆、任务栏进度；外观有深色、浅色、跟随系统与背景图。
 
-这些能力的具体入口以导航 11 页为准，不在本文逐项展开。
+这些能力的具体入口以导航 7 页为准，不在本文逐项展开。
 
 ### 测试规模
 
@@ -166,7 +166,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 原声明「不做」已不成立：本地皮肤库、皮肤站换肤、官方账户换肤三条链路与云端衣柜都已落地。下面写清实际能力边界。
 
-**已做的四件事。** ① 本地皮肤库：`<data>/skins/` 下的 PNG 可导入、删除、应用到预览，尺寸按游戏规则校验（宽必须是 64 的倍数、高 32 的倍数，`slim` 只能恰好 64×64，`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinFormat.Validate`）；② 皮肤站换肤：浏览 littleskin 皮肤库、上传皮肤与披风、删除材质；上传与删除要求站点实现了 Yggdrasil 上传路由，littleskin 自己没实现（2026-11-01 复核），会提示去网页上传（`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadCapeAsync`）；③ 官方账户换肤：微软账户上传皮肤与重置默认皮肤，并可读取档案、切换或隐藏已经拥有的披风（`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.ResetSkinAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.GetProfileAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.SetActiveCapeAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.HideCapeAsync`）；④ 云端衣柜：用皮肤站账号登录后浏览自己衣柜里的皮肤与披风、上传、应用到角色、清除角色材质、下载到本地、删除自己传过的条目（`src/NebulaLauncher.App/Skinning/CloudClosetClient.cs CloudClosetClient`、`src/NebulaLauncher.App/ViewModels/CloudClosetViewModel.cs CloudClosetViewModel`），走的是皮肤站的网页会话接口而不是 Yggdrasil 上传路由——登录取 CSRF 令牌、`CookieContainer` 存会话；密码只在本机，与 `accounts.json` 同一套保护（`src/NebulaLauncher.Core/Skinning/SkinSiteCredentialStore.cs SkinSiteCredentialStore`，落 `<data>/skin-site-credentials.json`）。入口是皮肤页第三个页签（`src/NebulaLauncher.App/Views/CloudClosetView.axaml CloudClosetView`）与侧边栏 3D 皮肤卡。
+**已做的四件事。** ① 本地皮肤库：`<data>/skins/` 下的 PNG 可导入、删除、应用到预览，尺寸按游戏规则校验（宽必须是 64 的倍数、高 32 的倍数，`slim` 只能恰好 64×64，`src/NebulaLauncher.Core/Skinning/LocalSkinStore.cs LocalSkinFormat.Validate`）；② 皮肤站换肤：浏览 littleskin 皮肤库、上传皮肤与披风、删除材质；上传与删除要求站点实现了 Yggdrasil 上传路由，littleskin 自己没实现（2026-11-01 复核），会提示去网页上传（`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient.UploadCapeAsync`）；③ 官方账户换肤：微软账户上传皮肤与重置默认皮肤，并可读取档案、切换或隐藏已经拥有的披风（`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.ResetSkinAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.GetProfileAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.SetActiveCapeAsync`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.HideCapeAsync`）；④ 云端衣柜：用皮肤站账号登录后浏览自己衣柜里的皮肤与披风、上传、应用到角色、清除角色材质、下载到本地、删除自己传过的条目（`src/NebulaLauncher.App/Skinning/CloudClosetClient.cs CloudClosetClient`、`src/NebulaLauncher.App/ViewModels/CloudClosetViewModel.cs CloudClosetViewModel`），走的是皮肤站的网页会话接口而不是 Yggdrasil 上传路由——登录取 CSRF 令牌、`CookieContainer` 存会话；密码只在本机，与 `accounts.json` 同一套保护（`src/NebulaLauncher.Core/Skinning/SkinSiteCredentialStore.cs SkinSiteCredentialStore`，落 `<data>/skin-site-credentials.json`）。入口是皮肤页第三个页签（`src/NebulaLauncher.App/Views/CloudClosetView.axaml CloudClosetView`）；票 #85 起侧边栏不再常驻 3D 皮肤卡，皮肤页由内容入口承载（#92）。
 
 **缓存。** 两层。进程内是三个字典：缩略图、预览纹理与本地缩略图，页面释放即清空。跨进程复用靠纹理落盘 `<data>/cache/skins/`，读写统一走 `src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore（:32）`：根上放内嵌默认皮肤 `default-v2-steve.png` / `default-v2-alex.png`（Mojang 官方纹理，不跟着账户重复），账户自有纹理落 `<uuid>/<hash>.png` 配一份 `current.json`，公开皮肤库落 `<站点主机名>/<hash>.png` 配 `<tid>.json`（`src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.SaveTidAsync（:94）`）。文件名里的 hash 取纹理地址末段（≥32 位十六进制），取不到就退回地址的 sha256，站点换哈希规则也不会把旧文件读成新纹理（`src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.HashOf（:187）`）；落盘先写 `.tmp` 再 `File.Move` 覆盖，元数据最后落地当提交标记，半截 PNG 不会被当成有效缓存（`src/NebulaLauncher.Core/Skinning/SkinTextureStore.cs SkinTextureStore.SaveAsync（:83）`）。断网启动时先前取过的账户皮肤与皮肤站纹理仍能 3D 预览，靠的就是这层：账户线命中即不请求 profile，公开库线命中即不请求详情（`src/NebulaLauncher.App/Skinning/SkinTextureLoader.cs SkinTextureLoader.LoadAsync`、`src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel`）。这层缓存按可重建物对待：归入「下载缓存」清理类别，清掉后下次打开页面自动重建，`<data>/skins/` 用户皮肤库不在这一类里；旧的 `<data>/cache/skin/` 布局不写迁移代码，随一次「下载缓存」清理消失。
 
@@ -212,7 +212,7 @@ dotnet run --project tools/DocsCheck/DocsCheck.csproj -c Release --
 
 ### 10. 自定义主页声明式事件体系 —— 不做
 
-导航是固定的 11 项，页面在 `MainWindowViewModel` 里直接注册，没有 `ModEvent`、`EventBus` 或自定义主页加载入口（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.BuildNavigation（:731）`）。页面扩展走 MVVM 的 `ICommand`，不是 PCL 那套声明式事件格式。
+导航是固定的 7 项，页面在 `MainWindowViewModel` 里直接注册，没有 `ModEvent`、`EventBus` 或自定义主页加载入口（`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.BuildNavigation（:722）`）。页面扩展走 MVVM 的 `ICommand`，不是 PCL 那套声明式事件格式。
 
 ### 11. 内置中文搜索词表、本地模组完整更新日志入口 —— 改判
 

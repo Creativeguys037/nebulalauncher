@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -61,6 +60,8 @@ public partial class MainWindow : Window
         AttachDragDrop();
         RestoreWindowState();
         RegisterShortcuts();
+        SizeChanged += OnSizeChanged;
+        ApplyDensityClass();
     }
 
     public MainWindow(IServiceProvider services)
@@ -80,6 +81,8 @@ public partial class MainWindow : Window
         RestoreWindowState();
         RegisterShortcuts();
         AttachAdaptiveMinimumSizeTriggers(shell);
+        SizeChanged += OnSizeChanged;
+        ApplyDensityClass();
 
         // 截图模式档位：覆盖层只在真实下载 + 点关闭时出现，没有这个入口截不到。
         if (string.Equals(ScreenshotMode.SectionKey, "exit-guard", StringComparison.OrdinalIgnoreCase))
@@ -144,30 +147,41 @@ public partial class MainWindow : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         _log?.Info($"启动器窗口已打开：{Bounds.Width:0}x{Bounds.Height:0}，状态={WindowState}");
+        ApplyDensityClass();
         ScheduleAdaptiveMinimumSize();
     }
 
+    /// <summary>窗口宽度跨过 1120 时切换紧凑档：侧栏 176、图标 18、项高 40、三键 29×25。</summary>
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyDensityClass();
+
+    private void ApplyDensityClass()
+    {
+        var compact = Bounds.Width > 0 && Bounds.Width < 1120;
+        Classes.Set("compact", compact);
+
+        if (BodyGrid.ColumnDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        var width = compact ? 176 : 200;
+        if (Math.Abs(BodyGrid.ColumnDefinitions[0].Width.Value - width) > 0.5)
+        {
+            BodyGrid.ColumnDefinitions[0].Width = new GridLength(width);
+        }
+    }
+
     /// <summary>
-    /// 把「按侧边栏内容算最小尺寸」挂到会改变侧边栏高度的三处：导航项、页脚项、皮肤卡的
-    /// 玩家名与副标题。没有这层订阅，运行时换皮肤把卡里的字撑高，窗口最小高度仍是旧的 —— 票 #51。
+    /// 把「按侧边栏内容算最小尺寸」挂到会改变侧边栏高度的来源：导航项。
+    /// 侧栏不再放皮肤卡与页脚项（票 #85），所以只订阅这一处。
     /// </summary>
     private void AttachAdaptiveMinimumSizeTriggers(MainWindowViewModel shell)
     {
         shell.NavigationItems.CollectionChanged += OnSidebarContentChanged;
-        shell.FooterItems.CollectionChanged += OnSidebarContentChanged;
-        shell.SkinCard.PropertyChanged += OnSkinCardChanged;
     }
 
     private void OnSidebarContentChanged(object? sender, NotifyCollectionChangedEventArgs e)
         => ScheduleAdaptiveMinimumSize();
-
-    private void OnSkinCardChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(SkinCardViewModel.PlayerName) or nameof(SkinCardViewModel.Detail))
-        {
-            ScheduleAdaptiveMinimumSize();
-        }
-    }
 
     /// <summary>
     /// 排到布局轮次之后再量：<see cref="Layoutable.Measure"/> 要等首帧布局跑完才有可信的自然尺寸，
@@ -236,10 +250,11 @@ public partial class MainWindow : Window
             ? TitleBar.Bounds.Height
             : NaturalHeight(TitleBar, width);
 
+        // 侧栏已无页脚项（票 #85），footer 高度传 0：Compute 会按「测不出」回落到 660 地板。
         return new SidebarMeasurements(
             titleBarHeight,
             NaturalHeight(NavigationList, width),
-            NaturalHeight(SidebarFooter, width),
+            0,
             width);
     }
 
@@ -432,11 +447,8 @@ public partial class MainWindow : Window
 
         try
         {
-            // 窗口只剩最后这一条命：先把皮肤卡的账户订阅与在途请求拆掉，再真关。
-            (DataContext as MainWindowViewModel)?.ReleaseSkinCard();
-
-            // await 回到 UI 线程（Closing 在 UI 线程触发，这里没有 ConfigureAwait(false)），
-            // Close 再次进入 Closing；_closeFlushStarted 已置位，那一次直接放行。
+            // 窗口只剩最后这一条命：先释放页面与窗口级资源，再真关。
+            // 侧栏皮肤卡已移除（票 #85）；皮肤页由内容入口承载（#92）。
             Close();
         }
         catch (Exception ex)

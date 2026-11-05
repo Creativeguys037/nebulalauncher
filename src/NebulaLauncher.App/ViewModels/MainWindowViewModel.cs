@@ -33,25 +33,19 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     /// <summary>所有导航键。未注册真实页面的键由 <see cref="FillPlaceholders"/> 兜底。</summary>
     private static readonly string[] AllKeys =
     [
-        NavigationKeys.Home, NavigationKeys.Versions, NavigationKeys.Download,
-        NavigationKeys.Mods, NavigationKeys.Library, NavigationKeys.Accounts, NavigationKeys.Servers,
-        NavigationKeys.Worlds, NavigationKeys.Skins, NavigationKeys.Logs, NavigationKeys.Help, NavigationKeys.Settings,
+        .. NavigationRoutes.Primary,
+        NavigationKeys.Controls,
     ];
 
     private static readonly Dictionary<string, (string Title, string Description)> PlaceholderMeta = new(StringComparer.Ordinal)
     {
-        [NavigationKeys.Home] = ("首页", "仪表盘：当前账户、最近版本、一键启动、磁盘用量、服务器状态。"),
-        [NavigationKeys.Versions] = ("版本", "已安装版本列表：启动、修复、删除、打开目录、安装模组加载器。"),
+        [NavigationKeys.Home] = ("启动", "继续游戏大卡与实例库：一次点击回到上次玩的版本。"),
+        [NavigationKeys.Versions] = ("版本", "已安装版本、实例详情、世界与整合包的管理入口。"),
+        [NavigationKeys.Content] = ("内容", "模组、资源包、光影包、数据包与皮肤的合并入口。"),
         [NavigationKeys.Download] = ("下载", "版本下载：原版 + Fabric/Quilt/Forge/NeoForge，实时速度与文件级进度。"),
-        [NavigationKeys.Mods] = ("模组", "模组/资源包/光影包管理：启用禁用、冲突检测、拖入安装。"),
-        [NavigationKeys.Library] = ("资源", "在线资源库：按版本与加载器搜索 Modrinth，一键安装到当前游戏目录。"),
-        [NavigationKeys.Accounts] = ("账户", "微软账户登录与离线账户管理。"),
+        [NavigationKeys.Accounts] = ("账户", "微软设备码、离线与第三方验证账户管理。"),
         [NavigationKeys.Servers] = ("服务器", "服务器收藏与实时状态、MOTD、在线人数、延迟。"),
-        [NavigationKeys.Worlds] = ("世界", "世界存档、备份与还原、整合包导入与导出。"),
-        [NavigationKeys.Skins] = ("皮肤", "皮肤库：浏览网络皮肤、拖动旋转 3D 预览、管理本地皮肤。"),
-        [NavigationKeys.Logs] = ("日志", "日志中心：启动器日志与游戏日志的查看、按级别与关键字过滤。"),
-        [NavigationKeys.Help] = ("帮助", "内置离线帮助：功能说明、常见问题与故障排查。"),
-        [NavigationKeys.Settings] = ("设置", "游戏目录、Java 路径、内存、下载源、主题与动效、窗口材质。"),
+        [NavigationKeys.Settings] = ("设置", "常规、Java、游戏、下载、外观、存储与关于。"),
     };
 
     /// <summary>DI 容器，供 partial 注册文件解析页面 ViewModel。</summary>
@@ -65,32 +59,11 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     public MainWindowViewModel(IServiceProvider services)
     {
         Services = services;
-        SkinCard = new SkinCardViewModel(services);
         ApplyLaunchUiPreferences();
         RegisterPages();
         BuildNavigation();
         Navigate(NavigationKeys.Home);
-        _ = InitializeSkinCardAsync();
     }
-
-    /// <summary>
-    /// 皮肤卡的后台初始化。异常在这里就地落日志：调用方丢弃了这个任务（PITFALLS 2.8），
-    /// 让它静默失败在界面上只表现为「卡片一直停在默认皮肤」。
-    /// </summary>
-    private async Task InitializeSkinCardAsync()
-    {
-        try
-        {
-            await SkinCard.InitializeAsync();
-        }
-        catch (Exception ex)
-        {
-            (Services.GetService(typeof(IAppLog)) as IAppLog)?.Warn("初始化侧边栏皮肤卡失败", ex);
-        }
-    }
-
-    /// <summary>窗口关闭时拆掉皮肤卡的账户订阅与在途请求。</summary>
-    public void ReleaseSkinCard() => SkinCard.Dispose();
 
     /// <summary>
     /// 把「动效开关 / 背景特效」两项设置接进壳层。
@@ -360,14 +333,8 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
         Navigate(key);
     }
 
-    /// <summary>主导航项。</summary>
+    /// <summary>主导航项（7 个一级入口，顺序由 <see cref="NavigationRoutes.Primary"/> 固定）。</summary>
     public ObservableCollection<NavigationItem> NavigationItems { get; } = new();
-
-    /// <summary>侧边栏底部导航项（日志 / 帮助 / 设置）。</summary>
-    public ObservableCollection<NavigationItem> FooterItems { get; } = new();
-
-    /// <summary>侧边栏常驻的 3D 皮肤卡，位于主导航与页脚项之间。</summary>
-    public SkinCardViewModel SkinCard { get; }
 
     [ObservableProperty]
     private PageViewModelBase? _currentPage;
@@ -375,7 +342,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     [ObservableProperty]
     private string _statusText = "就绪";
 
-    /// <summary>背景星云是否运动。跟随「减少动态效果」设置。</summary>
+    /// <summary>背景色块是否漂移。跟随「减少动态效果」与「背景特效」设置。</summary>
     [ObservableProperty]
     private bool _enableBackgroundAnimations = true;
 
@@ -393,7 +360,7 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
 
     private string? _backgroundImagePath;
 
-    /// <summary>背景星云是否运动。跟随「减少动态效果」设置，且背景图铺满时停掉（看不见还烧 CPU）。</summary>
+    /// <summary>背景色块是否漂移。跟随「减少动态效果」设置，且背景图铺满时停掉（看不见还烧 CPU）。</summary>
     public bool BackgroundAnimationsActive => EnableBackgroundAnimations && !HasBackgroundImage;
 
     partial void OnEnableBackgroundAnimationsChanged(bool value) =>
@@ -406,47 +373,46 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
 
     public event EventHandler<PageViewModelBase>? Navigated;
 
+    /// <summary>
+    /// 导航入口。旧页面键先经 <see cref="NavigationRoutes.Resolve"/> 归一化到一级键，
+    /// 页面缓存也按一级键存，所以内容三键与「内容」共享同一个页面实例。
+    /// </summary>
     public void Navigate(string key)
     {
-        if (!_factories.TryGetValue(key, out var factory))
+        var primary = NavigationRoutes.Resolve(key);
+
+        if (!_factories.TryGetValue(primary, out var factory))
         {
             StatusText = $"导航目标不存在: {key}";
             return;
         }
 
-        if (!_pageCache.TryGetValue(key, out var page))
+        if (!_pageCache.TryGetValue(primary, out var page))
         {
             page = factory();
-            _pageCache[key] = page;
-        }
-
-        if (ReferenceEquals(page, CurrentPage))
-        {
-            return;
+            _pageCache[primary] = page;
         }
 
         var previous = CurrentPage;
-        CurrentPage = page;
+        if (!ReferenceEquals(previous, page))
+        {
+            CurrentPage = page;
+            Navigated?.Invoke(this, page);
+            _ = RunPageLifecycleAsync(previous, page);
+        }
 
         foreach (var item in NavigationItems)
         {
-            item.IsActive = string.Equals(item.Key, page.Key, StringComparison.Ordinal);
+            item.IsActive = string.Equals(item.Key, primary, StringComparison.Ordinal);
         }
-
-        foreach (var item in FooterItems)
-        {
-            item.IsActive = string.Equals(item.Key, page.Key, StringComparison.Ordinal);
-        }
-
-        Navigated?.Invoke(this, page);
-        _ = RunPageLifecycleAsync(previous, page);
     }
 
     public void Navigate(PageViewModelBase page)
     {
         ArgumentNullException.ThrowIfNull(page);
-        _pageCache[page.Key] = page;
-        Navigate(page.Key);
+        var primary = NavigationRoutes.Resolve(page.Key);
+        _pageCache[primary] = page;
+        Navigate(primary);
     }
 
     /// <summary>XAML 绑定入口。绑定到 <see cref="Navigate"/> 本身会因为方法不可绑定而失败。</summary>
@@ -755,23 +721,12 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
 
     private void BuildNavigation()
     {
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Home, "首页", NavigationKeys.IconHome));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Versions, "版本", NavigationKeys.IconVersions));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Download, "下载", NavigationKeys.IconDownload));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Mods, "模组", NavigationKeys.IconMods));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Library, "资源", NavigationKeys.IconLibrary));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Accounts, "账户", NavigationKeys.IconAccounts));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Servers, "服务器", NavigationKeys.IconServers));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Worlds, "世界", NavigationKeys.IconWorlds));
-        NavigationItems.Add(new NavigationItem(NavigationKeys.Skins, "皮肤", NavigationKeys.IconSkins));
-
-        var logs = new NavigationItem(NavigationKeys.Logs, "日志", NavigationKeys.IconLogs, isFooter: true);
-        var help = new NavigationItem(NavigationKeys.Help, "帮助", NavigationKeys.IconHelp, isFooter: true);
-        var settings = new NavigationItem(NavigationKeys.Settings, "设置", NavigationKeys.IconSettings, isFooter: true);
-
-        // 页脚三项在皮肤卡下方，按「内容入口 → 配置入口」的顺序排。
-        FooterItems.Add(logs);
-        FooterItems.Add(help);
-        FooterItems.Add(settings);
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Home, "启动", "Icon.Home"));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Versions, "版本", "Icon.Versions"));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Content, "内容", "Icon.Content"));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Download, "下载", "Icon.Download"));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Accounts, "账户", "Icon.Account"));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Servers, "服务器", "Icon.Server"));
+        NavigationItems.Add(new NavigationItem(NavigationKeys.Settings, "设置", "Icon.Settings"));
     }
 }

@@ -1,10 +1,12 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 
 namespace NebulaLauncher.Controls;
 
@@ -37,6 +39,7 @@ public class GlassPanel : ContentControl
     private Rectangle? _copy;
     private Panel? _copyLayer;
     private Visual? _lastBackdrop;
+    private Control? _resolvedBackdrop;
 
     static GlassPanel()
     {
@@ -47,6 +50,8 @@ public class GlassPanel : ContentControl
     public GlassPanel()
     {
         LayoutUpdated += (_, _) => UpdateCopy();
+        // 滚动只改变有效视口、不触发布局；背景副本必须跟着滚动重取 SourceRect，否则会错位。
+        EffectiveViewportChanged += (_, _) => UpdateCopy();
     }
 
     public Control? Backdrop
@@ -103,7 +108,7 @@ public class GlassPanel : ContentControl
             return;
         }
 
-        var backdrop = Backdrop;
+        var backdrop = Backdrop ?? ResolveBackdrop();
         if (backdrop is null)
         {
             _copy.Fill = Background;
@@ -135,5 +140,23 @@ public class GlassPanel : ContentControl
         }
 
         brush.SourceRect = new RelativeRect(origin.Value.X, origin.Value.Y, Bounds.Width, Bounds.Height, RelativeUnit.Absolute);
+    }
+
+    /// <summary>
+    /// 没有显式 <see cref="Backdrop"/> 时，从窗口视觉树里找唯一的 <see cref="GlassBackdrop"/>。
+    /// 背景控件通常与背景图、遮罩一起被包在 BackdropRoot 里，所以副本源取它的父面板，
+    /// 页面里的玻璃卡片因此不需要每张都手写 Backdrop 绑定，也不会把背景图漏在副本外。
+    /// </summary>
+    private Control? ResolveBackdrop()
+    {
+        if (_resolvedBackdrop is not null)
+        {
+            return _resolvedBackdrop;
+        }
+
+        var top = TopLevel.GetTopLevel(this);
+        var glass = top?.GetVisualDescendants().OfType<GlassBackdrop>().FirstOrDefault();
+        _resolvedBackdrop = glass?.Parent as Control ?? glass;
+        return _resolvedBackdrop;
     }
 }

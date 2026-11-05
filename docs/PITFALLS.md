@@ -240,7 +240,7 @@ powershell -File build.ps1 -Clean
 ### 4.2 样式 setter 打不过构造函数里的本地值
 - **症状**：给控件写了主题样式，运行后部分控件完全不变；把样式搬到更具体的选择器上仍然无效。
 - **成因**：Avalonia 的优先级里本地值高于样式 setter，构造函数里赋的值就是本地值。样式系统没错，是它在正确地输给一个看不见的赋值。
-- **规避**：控件里不要在构造函数写死视觉参数（含 `ClipToBounds`、`CornerRadius`、指针光标这类），或改用可控的属性/绑定；`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` 的构造函数注释就写明「裁剪与指针光标交给 XAML 设」。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）`、`src/NebulaLauncher.App/Controls/RingProgress.cs RingProgress（:13）`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
+- **规避**：控件里不要在构造函数写死视觉参数（含 `ClipToBounds`、`CornerRadius`、指针光标这类），或改用可控的属性/绑定；`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` 的构造函数注释就写明「裁剪与指针光标交给 XAML 设」。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/GlassBackdrop.cs GlassBackdrop`、`src/NebulaLauncher.App/Controls/RingProgress.cs RingProgress（:13）`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
 
 ### 4.3 `ColumnDefinition.Width` 绑不上 ViewModel
 - **症状**：想把两段进度条按比例分配宽度，绑定 `ColumnDefinition.Width` 后毫无反应，也没有绑定错误提示。
@@ -262,9 +262,9 @@ powershell -File build.ps1 -Clean
 - **成因**：两个独立原因——尺寸参数在有的场景下是客户区下限而不是外框，多出边框与标题栏；在 `WindowState != Normal` 时保存会把最小化尺寸写进配置。
 - **规避**：首帧前读设置（截图参数 `--size` 优先），只在 `WindowState == Normal` 时更新；关闭记忆时两端都不写。判定 `src/NebulaLauncher.Core/Platforms/WindowMemory.cs WindowMemory.ShouldPersist（:21）`。
 
-### 4.7 换肤改了服务端材质，侧边栏却还是旧皮肤
-- **症状**：在皮肤页把某套皮肤应用到当前账户，服务端确实换了（重进游戏能看到），但左侧那张 3D 卡片继续显示旧皮肤，要等切一次账户或重启启动器才更新。
-- **成因**：侧边栏卡的刷新挂在 `IAccountService.AccountsChanged` 上，而换肤改的是**服务端材质**，`Account` 的字段一个都没动，那条事件根本不会发。让 `IAccountService` 假装账户变了是错的方向——账户没变，谎报一次会让账户页、首页、启动链全都白刷一遍。
+### 4.7 换肤改了服务端材质，3D 预览却还是旧皮肤
+- **症状**：在皮肤页把某套皮肤应用到当前账户，服务端确实换了（重进游戏能看到），但 3D 预览继续显示旧皮肤，要等切一次账户或重启启动器才更新。
+- **成因**：预览的刷新挂在 `IAccountService.AccountsChanged` 上，而换肤改的是**服务端材质**，`Account` 的字段一个都没动，那条事件根本不会发。让 `IAccountService` 假装账户变了是错的方向——账户没变，谎报一次会让账户页、首页、启动链全都白刷一遍。
 - **规避**：换肤成功的一方广播一条独立事件，展示皮肤的一方订阅并自己重取。落点是 `src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs SkinChangeNotifier`（进程内默认实例在 `SkinChangeBus`，容器里注册了就优先用注册的那个）：换肤侧 `src/NebulaLauncher.App/ViewModels/SkinsViewModel.cs SkinsViewModel` 在成功后调 `Notify`，展示侧 `src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync` 订阅 `SkinChanged` 并切回 UI 线程再改 `Visual`，退订同样要走离开与释放两条路。回归用例 `tests/NebulaLauncher.Tests/AppSkin_ChangeNotifierTests.cs AppSkin_ChangeNotifierTests`。
 
 ### 4.8 页面级的「唯一入口」被写成两份（含 4.9）
@@ -358,8 +358,8 @@ powershell -File build.ps1 -Clean
 
 ### 5.11 写死的窗口最小尺寸会骗过 1024×660 验收
 - **症状**：`--size 1024x660` 的截图里侧边栏底部那项被裁成半行，指望滚动条也滚不出来；把 `MinHeight` 调到某个「看着刚好」的数，同一张截图就正常了，可再往侧边栏加一项又在同一个位置裁掉——每次都要手动改常量，而改完那个数没有任何东西在守。
-- **成因**：主窗口是 `src/NebulaLauncher.App/Views/MainWindow.axaml` 的 `Grid RowDefinitions="46,*"`，侧边栏内部又是 `RowDefinitions="*,Auto"`：标题栏与底部工具区是 Auto（不压缩），主内容吃剩下的 `*`。窗口最小尺寸写成常量时，它表达的是「上次调好时的内容高度」，不是「侧边栏现在需要多少」；票 #40 给底部工具区加了「世界 / 启动器设置 / 版本」三项，660 给不出那 44px，Auto 行先占满，`*` 行被压掉。写死的最小尺寸还会让 1024×660 的窄屏验收变成自欺：窗口被撑到 704，截图里当然什么都放得下。
-- **规避**：最小尺寸由代码算——`src/NebulaLauncher.App/Views/MainWindow.axaml.cs` 在首帧后量侧边栏三个竖直分段的实际 DesiredSize，交给 `src/NebulaLauncher.Core/Platforms/AdaptiveWindowSize.cs` 的 `Compute`，XAML 里不再出现 `MinWidth`/`MinHeight`。回归判据是 `tests/NebulaLauncher.Tests/CorePlatforms_AdaptiveWindowSizeTests.cs` 里的 `Compute_FollowsSidebarContentGrowth`：侧边栏涨多少，最小高度就得涨多少。截图模式（`--size`）跳过自适应，否则窗口被撑大，1024×660 的验收就看不见真实裁切。见 `CONVENTIONS.md` §7.11。
+- **成因**：主窗口是 `src/NebulaLauncher.App/Views/MainWindow.axaml` 的 `Grid RowDefinitions="46,*"`：标题栏是固定行，导航列表在剩余行里。窗口最小尺寸写成常量时，它表达的是「上次调好时的内容高度」，不是「侧边栏现在需要多少」；票 #40 曾在侧栏底部加内容把导航挤掉，660 给不出那 44px，写死的最小尺寸还会让 1024×660 的窄屏验收变成自欺：窗口被撑到 704，截图里当然什么都放得下。
+- **规避**：最小尺寸由代码算——`src/NebulaLauncher.App/Views/MainWindow.axaml.cs` 在首帧后量标题栏与导航列表的实际 DesiredSize，交给 `src/NebulaLauncher.Core/Platforms/AdaptiveWindowSize.cs` 的 `Compute`，XAML 里不再出现 `MinWidth`/`MinHeight`。回归判据是 `tests/NebulaLauncher.Tests/CorePlatforms_AdaptiveWindowSizeTests.cs` 里的 `Compute_FollowsSidebarContentGrowth`：侧边栏涨多少，最小高度就得涨多少。截图模式（`--size`）跳过自适应，否则窗口被撑大，1024×660 的验收就看不见真实裁切。见 `CONVENTIONS.md` §7.11。
 
 ---
 

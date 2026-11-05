@@ -8,6 +8,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NebulaLauncher.ViewModels"
         xmlns:controls="using:NebulaLauncher.Controls"
+        xmlns:conv="using:NebulaLauncher.Converters"
+        xmlns:services="using:NebulaLauncher.Services"
+        xmlns:primitives="using:Avalonia.Controls.Primitives"
         x:Class="NebulaLauncher.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Nebula Launcher"
@@ -20,64 +23,142 @@
         ExtendClientAreaTitleBarHeightHint="-1">
 
   <Window.Styles>
-    <!-- 侧边导航项 -->
+    <!--
+      一级导航项（票 #85）：44 高 / 胶囊选中；1024 下 40 高、图标 18。
+      这里不写颜色或时长字面量：全部取令牌，动效时长取 Motion 静态词表。
+    -->
     <Style Selector="Button.nav">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
-      <Setter Property="Padding" Value="12,10" />
-      <Setter Property="Margin" Value="10,1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="Margin" Value="12,2" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="MinHeight" Value="44" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
       <Setter Property="FontWeight" Value="Normal" />
-      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusAdorner">
+        <FocusAdornerTemplate>
+          <Border primitives:AdornerLayer.IsClipEnabled="False"
+                  Margin="-3"
+                  BorderBrush="{DynamicResource Stroke.Focus}"
+                  BorderThickness="2"
+                  CornerRadius="{DynamicResource Radius.Pill}"
+                  IsHitTestVisible="False" />
+        </FocusAdornerTemplate>
+      </Setter>
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="Background" Duration="0:0:0.16" />
-          <BrushTransition Property="Foreground" Duration="0:0:0.16" />
+          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+          <BrushTransition Property="Foreground" Duration="{x:Static services:Motion.Fast}" />
+          <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Instant}" />
         </Transitions>
       </Setter>
     </Style>
 
+    <Style Selector="Button.nav Path">
+      <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
+      <Setter Property="StrokeThickness" Value="1.8" />
+      <Setter Property="StrokeLineCap" Value="Round" />
+      <Setter Property="StrokeJoin" Value="Round" />
+      <Setter Property="Stretch" Value="Uniform" />
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <Style Selector="Button.nav:pointerover">
-      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.NavHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+
+    <Style Selector="Button.nav:pointerover Path">
+      <Setter Property="Stroke" Value="{DynamicResource Text.Primary}" />
     </Style>
 
     <Style Selector="Button.nav.active">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
       <Setter Property="FontWeight" Value="Medium" />
     </Style>
 
-    <Style Selector="Button.nav Path">
-      <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
-    </Style>
-
     <Style Selector="Button.nav.active Path">
-      <Setter Property="Stroke" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
     </Style>
 
+    <Style Selector="Button.nav.active:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="Opacity" Value="0.92" />
+    </Style>
+
+    <!-- 选中态辉光落在模板内的底板上；导航胶囊是唯一需要 glow 的导航元素。 -->
+    <Style Selector="Button.nav.active /template/ Border#PART_Root">
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+    </Style>
+
+    <!-- 页面抬头：字号在样式里给，1024 下由 compact 覆盖；不要写成内联值，否则样式优先级压不过。 -->
+    <Style Selector="TextBlock.page-title">
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Display}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+
+    <Style Selector="TextBlock.page-subtitle">
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+    </Style>
+
+    <!-- 1024×660：侧栏 176、项高 40、图标 18、窗口三键 29×25、标题 26。 -->
+    <Style Selector="Window.compact Button.nav">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="Margin" Value="12,1" />
+    </Style>
+
+    <Style Selector="Window.compact Button.nav Path">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+    </Style>
+
+    <Style Selector="Window.compact Button.window-btn">
+      <Setter Property="Width" Value="29" />
+      <Setter Property="Height" Value="25" />
+      <Setter Property="MinHeight" Value="25" />
+    </Style>
+
+    <Style Selector="Window.compact TextBlock.page-title">
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Headline}" />
+    </Style>
   </Window.Styles>
 
   <Panel>
-    <!-- 背景：星云光斑。关闭动效时保留静态渐变，避免视觉突然变空。 -->
-    <controls:AuroraBackground IsAnimated="{Binding BackgroundAnimationsActive}" />
+    <!--
+      背景层（票 #85）：主题渐变 + 三个硬边圆形色块，也是玻璃卡片的同源副本源。
+      用户背景图与遮罩作为这一层的子元素，玻璃卡片复制整棵子树后仍然对齐。
+      整个控件 IsHitTestVisible=false，不影响内容区点击。
+    -->
+    <Panel x:Name="BackdropRoot">
+      <controls:GlassBackdrop Background="{DynamicResource Gradient.Canvas}"
+                              Blob1="{DynamicResource Surface.BackdropBlob1}"
+                              Blob2="{DynamicResource Surface.BackdropBlob2}"
+                              Blob3="{DynamicResource Surface.BackdropBlob3}"
+                              IsAnimated="{Binding BackgroundAnimationsActive}" />
 
-    <!-- 用户背景图：盖住星云、位于内容之下。不参与命中测试，避免挡住点击。 -->
-    <Image Source="{Binding BackgroundImage}"
-           IsVisible="{Binding HasBackgroundImage}"
-           Stretch="UniformToFill"
-           IsHitTestVisible="False"
-           RenderOptions.BitmapInterpolationMode="HighQuality" />
+      <Image Source="{Binding BackgroundImage}"
+             IsVisible="{Binding HasBackgroundImage}"
+             Stretch="UniformToFill"
+             IsHitTestVisible="False"
+             RenderOptions.BitmapInterpolationMode="HighQuality" />
 
-    <!-- 主题色遮罩：保证背景图上的文字可读，强度由设置控制。 -->
-    <Border IsVisible="{Binding HasBackgroundImage}"
-            IsHitTestVisible="False"
-            Background="{DynamicResource Surface.Base}"
-            Opacity="{Binding BackgroundImageOverlay}" />
+      <Border IsVisible="{Binding HasBackgroundImage}"
+              IsHitTestVisible="False"
+              Background="{DynamicResource Surface.Base}"
+              Opacity="{Binding BackgroundImageOverlay}" />
+    </Panel>
 
     <Grid RowDefinitions="46,*">
 
@@ -91,17 +172,17 @@
                     Spacing="9"
                     VerticalAlignment="Center">
           <Border Width="20" Height="20"
-                  CornerRadius="6"
+                  CornerRadius="{DynamicResource Radius.Sm}"
                   Background="{DynamicResource Gradient.Accent}">
             <TextBlock Text="N"
-                       FontSize="11"
+                       FontSize="{DynamicResource FontSize.Caption}"
                        FontWeight="Bold"
-                       Foreground="White"
+                       Foreground="{DynamicResource Text.OnAccent}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="Nebula Launcher"
-                     FontSize="12"
+                     FontSize="{DynamicResource FontSize.Small}"
                      Foreground="{DynamicResource Text.Tertiary}"
                      VerticalAlignment="Center" />
         </StackPanel>
@@ -111,143 +192,95 @@
                     VerticalAlignment="Center"
                     Margin="0,0,6,0"
                     Spacing="2">
-          <Button Classes="window-btn" Click="OnMinimizeClick" ToolTip.Tip="最小化">
-            <Rectangle Width="10" Height="1" Fill="{DynamicResource Text.Secondary}" />
-          </Button>
-          <Button Classes="window-btn" Click="OnMaximizeClick" ToolTip.Tip="最大化">
-            <Rectangle Width="9" Height="9"
-                       Stroke="{DynamicResource Text.Secondary}"
-                       StrokeThickness="1"
-                       Fill="Transparent" />
-          </Button>
-          <Button Classes="window-btn close" Click="OnCloseClick" ToolTip.Tip="关闭">
-            <Path Data="M0,0 L9,9 M9,0 L0,9"
+          <Button Classes="window-btn"
+                  Click="OnMinimizeClick"
+                  ToolTip.Tip="最小化"
+                  AutomationProperties.Name="最小化">
+            <Path Data="{StaticResource Icon.WindowMinimize}"
                   Stroke="{DynamicResource Text.Secondary}"
-                  StrokeThickness="1.1" />
+                  StrokeThickness="1.1"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Width="10" Height="10" />
+          </Button>
+          <Button Classes="window-btn"
+                  Click="OnMaximizeClick"
+                  ToolTip.Tip="最大化"
+                  AutomationProperties.Name="最大化">
+            <Path Data="{StaticResource Icon.WindowMaximize}"
+                  Stroke="{DynamicResource Text.Secondary}"
+                  StrokeThickness="1.1"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Width="10" Height="10" />
+          </Button>
+          <Button Classes="window-btn close"
+                  Click="OnCloseClick"
+                  ToolTip.Tip="关闭"
+                  AutomationProperties.Name="关闭">
+            <Path Data="{StaticResource Icon.WindowClose}"
+                  Stroke="{DynamicResource Text.Secondary}"
+                  StrokeThickness="1.1"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Width="10" Height="10" />
           </Button>
         </StackPanel>
       </Grid>
 
       <!-- ==================== 主体 ==================== -->
-      <Grid Grid.Row="1" ColumnDefinitions="228,*">
+      <Grid Grid.Row="1" Name="BodyGrid" ColumnDefinitions="200,*">
 
-        <!-- 侧边栏 -->
+        <!-- 侧边栏：7 个一级入口；不放皮肤卡、统计块或滚动区。 -->
         <Border Grid.Column="0"
                 Name="Sidebar"
+                AutomationProperties.Name="主导航"
+                AutomationProperties.AutomationId="Navigation"
                 Background="{DynamicResource Surface.Sidebar}"
                 BorderBrush="{DynamicResource Stroke.Subtle}"
                 BorderThickness="0,1,1,0">
-          <Grid RowDefinitions="*,Auto">
-            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
-              <ItemsControl Name="NavigationList" ItemsSource="{Binding NavigationItems}" Margin="0,10,0,0">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:NavigationItem">
-                    <Button Classes="nav"
-                            Classes.active="{Binding IsActive}"
-                            Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
-                            CommandParameter="{Binding Key}">
-                      <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Path Data="{Binding IconData}"
-                              StrokeThickness="1.6"
-                              StrokeLineCap="Round"
-                              StrokeJoin="Round"
-                              Stretch="Uniform"
-                              Width="17" Height="17"
-                              VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
-                      </StackPanel>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </ScrollViewer>
-
-            <StackPanel Name="SidebarFooter" Grid.Row="1" Margin="0,0,0,12">
-              <!--
-                常驻的 3D 皮肤卡，放在主导航与页脚项之间的空白处。
-                拖动卡片里的模型可以改视角；它不在滚动区里，滚动导航不会带着它走。
-
-                这一块（含下面的 FooterItems）是窗口最小高度的实测对象之一：它每多一行，
-                MainWindow.axaml.cs 就把窗口最小高度再加一行 —— 票 #51。
-              -->
-              <Border Margin="12,8,12,8"
-                      CornerRadius="{DynamicResource Radius.Md}"
-                      Background="{DynamicResource Surface.CardSolid}"
-                      BorderBrush="{DynamicResource Stroke.Subtle}"
-                      BorderThickness="1"
-                      ClipToBounds="True">
-                <StackPanel>
-                  <Border Height="104"
-                          Background="{DynamicResource Surface.Sunken}"
-                          ClipToBounds="True">
-                    <controls:SkinModelView
-                        ClipToBounds="True"
-                        Cursor="SizeAll"
-                        Visual="{Binding SkinCard.Visual}" />
-                  </Border>
-                  <StackPanel Margin="10,6,10,8" Spacing="1">
-                    <TextBlock Text="{Binding SkinCard.PlayerName}"
-                               FontSize="{DynamicResource FontSize.Small}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource Text.Primary}"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding SkinCard.Detail}"
-                               FontSize="{DynamicResource FontSize.Caption}"
-                               Foreground="{DynamicResource Text.Muted}"
-                               TextTrimming="CharacterEllipsis" />
+          <ItemsControl Name="NavigationList"
+                        ItemsSource="{Binding NavigationItems}"
+                        Margin="0,10,0,0"
+                        VerticalAlignment="Top">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:NavigationItem">
+                <Button Classes="nav"
+                        Classes.active="{Binding IsActive}"
+                        AutomationProperties.Name="{Binding Title}"
+                        Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
+                        CommandParameter="{Binding Key}">
+                  <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Path Data="{Binding IconKey, Converter={x:Static conv:Converters.IconKeyToGeometry}}" />
+                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
                   </StackPanel>
-                </StackPanel>
-              </Border>
-
-              <Border Height="1" Margin="20,0,20,8" Background="{DynamicResource Stroke.Subtle}" />
-              <ItemsControl ItemsSource="{Binding FooterItems}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:NavigationItem">
-                    <Button Classes="nav"
-                            Classes.active="{Binding IsActive}"
-                            Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).GoToCommand}"
-                            CommandParameter="{Binding Key}">
-                      <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Path Data="{Binding IconData}"
-                              StrokeThickness="1.6"
-                              StrokeLineCap="Round"
-                              StrokeJoin="Round"
-                              Stretch="Uniform"
-                              Width="17" Height="17"
-                              VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
-                      </StackPanel>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </Border>
 
         <!-- 内容区 -->
-        <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+        <Grid Grid.Column="1"
+              RowDefinitions="Auto,*,Auto"
+              AutomationProperties.Name="主内容"
+              AutomationProperties.AutomationId="Main">
 
-          <!-- 页面抬头 -->
-          <!--
-            两列而不是「横向 StackPanel 放在 * 列」：横 StackPanel 的测量宽度只取子元素之和，
-            窗口压到 1024 时它先被压成标题宽度，副标题拿到 0 宽而整条消失（截图实测）。
-            Auto 列给标题、* 列给副标题，副标题才有可用的剩余宽度，并用省略号兜住长文案。
-          -->
+          <!-- 页面抬头：标题与副标题由外壳统一渲染，页面内不重复画。 -->
           <Grid Grid.Row="0" Margin="30,20,30,4" ColumnDefinitions="Auto,*">
             <TextBlock Grid.Column="0"
                        Text="{Binding CurrentPage.Title}"
-                       Classes="h3"
+                       Classes="page-title"
                        VerticalAlignment="Center" />
             <TextBlock Grid.Column="1"
                        Text="{Binding CurrentPage.Subtitle}"
-                       Classes="muted"
+                       Classes="page-subtitle muted"
                        VerticalAlignment="Center"
-                       Margin="12,3,0,0"
+                       Margin="12,4,0,0"
                        TextTrimming="CharacterEllipsis" />
           </Grid>
 
-          <!-- 页面宿主：切换内容时自动播放转场 -->
+          <!-- 页面宿主：切换内容时只做 220ms 淡入，不做整页位移。 -->
           <controls:PageHost Grid.Row="1"
                              Content="{Binding CurrentPage}"
                              Margin="30,10,30,0" />
@@ -279,7 +312,7 @@
             IsVisible="{Binding IsExitDownloadConfirmOpen}">
       <Border Classes="card"
               Width="420"
-              Padding="22,20"
+              Padding="20,20"
               HorizontalAlignment="Center"
               VerticalAlignment="Center"
               BoxShadow="{DynamicResource Shadow.Overlay}">

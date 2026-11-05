@@ -42,7 +42,7 @@
 | ViewModels | 页面状态与命令；`MainWindowViewModel` 是导航与页面工厂的根 | `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel.RegisterPages（:670）`、`src/NebulaLauncher.App/ViewModels/HomeViewModel.cs HomeViewModel.LaunchAsync（:912）` |
 | Views | Avalonia 视图，与 ViewModels 一一对应 | `src/NebulaLauncher.App/Views/MainWindow.axaml.cs MainWindow（:21）` |
 | Services | App 层服务：导航/窗口动作代理、启动参数合成、外壳进度 | `src/NebulaLauncher.App/Services/LaunchOptionsFactory.cs LaunchOptionsFactory.Build（:41）`、`src/NebulaLauncher.App/Services/NavigationServiceProxy.cs NavigationServiceProxy（:13）` |
-| Controls | 自定义控件（页面宿主、极光背景、折叠容器、环形进度、3D 皮肤模型） | `src/NebulaLauncher.App/Controls/PageHost.cs PageHost（:19）`、`src/NebulaLauncher.App/Controls/AuroraBackground.cs AuroraBackground（:22）`、`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` |
+| Controls | 自定义控件（页面宿主、玻璃背景、折叠容器、环形进度、3D 皮肤模型） | `src/NebulaLauncher.App/Controls/PageHost.cs PageHost（:19）`、`src/NebulaLauncher.App/Controls/GlassBackdrop.cs GlassBackdrop`、`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` |
 | Skinning | 皮肤客户端与渲染管线：皮肤站浏览、皮肤站换肤、官方换肤、profile 解析、软光栅 | `src/NebulaLauncher.App/Skinning/SkinLibraryClient.cs SkinLibraryClient`、`src/NebulaLauncher.App/Skinning/AuthlibSkinClient.cs AuthlibSkinClient`、`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient` |
 
 其余子目录（Converters / Themes / Assets / Properties）只放转换器、样式令牌与静态资源，不含业务逻辑。
@@ -166,10 +166,11 @@
 10. CurseForge 落盘：`src/NebulaLauncher.Core/Mods/CurseForgeService.cs CurseForgeService.InstallAsync（:868）` 同一模式（partial + `File.Move`，`:956`）。
 11. 外部边界：`api.modrinth.com`、`api.curseforge.com`（及 `mod.mcimirror.top` 镜像重写，见 `src/NebulaLauncher.Core/Downloads/DownloadInfrastructure.cs DownloadHttpClientFactory（:996）`）；禁用的内容改后缀 `.disabled`，由 `src/NebulaLauncher.Core/Mods/ContentBatch.cs ContentBatch` 管理。
 
-### 4.4 侧边栏 3D 皮肤卡（账户 → 像素）
+### 4.4 3D 皮肤预览（账户 → 像素）
 
-1. 壳层创建卡片 VM：`src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs MainWindowViewModel（:64）` → `InitializeSkinCardAsync`（丢弃任务前已就地 try/catch 落日志，见 PITFALLS 2.8）；关闭时 `ReleaseSkinCard` 拆订阅。
-2. VM 跟随账户：`src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync`，订阅 `IAccountService.AccountsChanged`，每次变更 `ApplyAsync`（用 `Interlocked.Exchange` 取消上一次在途请求）。
+票 #85 起侧边栏不再常驻 3D 皮肤卡；`SkinCardViewModel` 保留为内容页皮肤分类（#92）的预览模型，当前没有壳层入口。
+
+1. 预览模型：`src/NebulaLauncher.App/ViewModels/SkinCardViewModel.cs SkinCardViewModel.InitializeAsync`，订阅 `IAccountService.AccountsChanged`，每次变更 `ApplyAsync`（用 `Interlocked.Exchange` 取消上一次在途请求）。
 3. 取皮肤地址：规则只在 `src/NebulaLauncher.Core/Skinning/SkinProfileUrls.cs SkinProfileUrls.BuildProfileUrl` 写一份，预览（`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.BuildProfileUrl`）与头像服务都转发过来——微软账户走 `sessionserver.mojang.com`，第三方账户在 `AuthServerUrl`（API 根，**保留**末尾 `/yggdrasil`）后接 `/sessionserver/session/minecraft/profile/{uuid}?unsigned=false`；`src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseProfile` 解 `properties[]` 里 `name=textures` 的 base64 载荷，得到 `SKIN.url` / `CAPE.url` / `metadata.model`。
 4. 下载与解码：`src/NebulaLauncher.App/Skinning/SkinTextureLoader.cs SkinTextureLoader.LoadAsync` → `DownloadTextureAsync` → `DecodePng`（`WriteableBitmap.Decode` + `Lock` + `Marshal.Copy`，只认 `Bgra8888` / `Rgba8888`，统一成 `0xAARRGGBB` 数组）。任何一步失败都退 `SkinVisual.Default` 并 `IAppLog.Warn`，**卡片永不空白**。
 5. 几何：`src/NebulaLauncher.App/Skinning/SkinMeshBuilder.cs Build` 按 MC 像素建 6 个部件（Steve 臂宽 4 / Alex 3，脚底 y=0 头顶 y=32），有皮肤时再叠 6 个外层（各边 +0.5 单位即纹理上的 +0.25）。UV 用 `BuildUv` 的 mojang 展开公式；纹理尺寸按 64 的整数倍传入，128/256/512 的 HD 皮肤按 `textureWidth / 64` 等比缩放全部 UV。**披风例外**，走 `BuildCapeUv`——披风图整块只有 22 宽，等宽公式会把背面推到 31 列而取到透明像素。
@@ -188,7 +189,7 @@
 5. 官方换肤：`src/NebulaLauncher.App/Skinning/MojangSkinClient.cs MojangSkinClient.UploadSkinAsync` / `ResetSkinAsync`，`variant` 由 `MojangSkinClient.VariantOf` 产出（只认 `classic` / `slim`）。401 是令牌过期，引导去账户页刷新，**不自动重试**。
 6. 能力判定：官方侧 `src/NebulaLauncher.App/Skinning/OfficialSkinActions.cs OfficialSkinActions.Of` 决定当前账户能不能用官方换肤（披风那句是常量）；皮肤站侧 `src/NebulaLauncher.App/Skinning/AuthlibSkinActions.cs AuthlibSkinActions.Of` 结合 `SkinCapabilities` 决定能否上传皮肤/披风，离线与官方账户各有一句固定拒绝文案。`uploadableTextures` 的解析在 `src/NebulaLauncher.App/Skinning/SkinProfileParser.cs SkinProfileParser.ParseUploadableTextures`，没读到之前不要假设能传。
 7. 反馈与冷却：`src/NebulaLauncher.App/Skinning/SkinUploadFeedback.cs SkinUploadFeedback.For` 把 `SkinUploadResult` 折成一句话 + 有无重试 / 有无「去账户页」；`src/NebulaLauncher.App/Skinning/SkinUploadThrottle.cs SkinUploadThrottle` 拦同一渠道的连点（默认 15 秒）。
-8. 广播与回写：成功后调 `src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs SkinChangeNotifier.Notify`，侧边栏卡见 4.4；体型经 `src/NebulaLauncher.App/Skinning/SkinModelMapping.cs SkinModelMapping.ToAccountValue` 写进 `Account.SkinModel`。
+8. 广播与回写：成功后调 `src/NebulaLauncher.App/Skinning/SkinChangeNotifier.cs SkinChangeNotifier.Notify`，3D 预览见 4.4；体型经 `src/NebulaLauncher.App/Skinning/SkinModelMapping.cs SkinModelMapping.ToAccountValue` 写进 `Account.SkinModel`。
 
 ## 5. 依赖注入
 

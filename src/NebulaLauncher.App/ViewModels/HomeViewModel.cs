@@ -146,7 +146,7 @@ public partial class HomeViewModel : PageViewModelBase
         ApplyScreenshotLaunchState();
     }
 
-    public override string Title => "首页";
+    public override string Title => "启动";
 
     public override string? Subtitle => _subtitle;
 
