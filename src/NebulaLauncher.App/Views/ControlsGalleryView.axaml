@@ -1,0 +1,378 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:controls="using:NebulaLauncher.Controls"
+             x:Class="NebulaLauncher.Views.ControlsGalleryView"
+             x:DataType="vm:ControlsGalleryViewModel">
+  <UserControl.Styles>
+    <!--
+      演示态镜像：真实页面用 :pointerover / :pressed 伪类，示例页用 demo-* 类把同一组视觉摆出来。
+      只在本页生效，不进生产样式表。
+    -->
+    <Style Selector="Button.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+      <Setter Property="RenderTransform" Value="translate(0,-1px)" />
+    </Style>
+    <Style Selector="Button.primary.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+    </Style>
+    <Style Selector="Button.danger.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Status.Danger}" />
+      <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Button.ghost.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+    <Style Selector="Button.demo-pressed">
+      <Setter Property="Background" Value="{DynamicResource Surface.Pressed}" />
+      <Setter Property="Opacity" Value="0.9" />
+    </Style>
+    <Style Selector="Button.primary.demo-pressed">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="Opacity" Value="0.82" />
+    </Style>
+    <Style Selector="TextBox.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+    </Style>
+    <Style Selector="TextBox.demo-pressed">
+      <Setter Property="Background" Value="{DynamicResource Surface.Pressed}" />
+    </Style>
+    <Style Selector="ListBoxItem.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Card}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="RenderTransform" Value="translate(2px,0)" />
+    </Style>
+    <Style Selector="Border.card.demo-hover">
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+      <Setter Property="RenderTransform" Value="translate(0,-3px)" />
+    </Style>
+    <Style Selector="TabControl.demo-hover /template/ Border#PART_TabStrip">
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    </Style>
+    <Style Selector="ProgressBar.demo-hover">
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+    <Style Selector="ScrollBar.demo-hover">
+      <Setter Property="Width" Value="10" />
+    </Style>
+    <Style Selector="Border.badge.demo-hover">
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+    <Style Selector="Button.window-btn.demo-hover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+    <Style Selector="controls|GlassPanel.demo-hover">
+      <Setter Property="Tint" Value="{DynamicResource Surface.Raised}" />
+    </Style>
+    <Style Selector="Border.demo-disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="controls|GlassPanel.demo-disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid>
+    <ScrollViewer>
+      <StackPanel Spacing="16">
+      <!-- 状态工具条：切换后所有标记 Tag=demo 的控件进入该状态。 -->
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h3" Text="状态切换" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="pill" Tag="default" Click="OnStateClick" Content="default" />
+            <Button Classes="pill" Tag="hover" Click="OnStateClick" Content="hover" />
+            <Button Classes="pill" Tag="focus" Click="OnStateClick" Content="focus" />
+            <Button Classes="pill" Tag="pressed" Click="OnStateClick" Content="pressed" />
+            <Button Classes="pill" Tag="disabled" Click="OnStateClick" Content="disabled" />
+            <Button Classes="pill" Tag="loading" Click="OnStateClick" Content="loading" />
+          </StackPanel>
+          <TextBlock Name="StateHint" Classes="muted" Text="default：不加速度、不伪类。" TextWrapping="Wrap" />
+          <!-- 焦点环是键盘态：截图模式没有键盘，请运行应用按 Tab 复核（票 #84 的验收项之一）。 -->
+        </StackPanel>
+      </Border>
+
+      <!-- 1 · Button -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="1 · Button" />
+          <TextBlock Classes="muted" Text="五变体 · 高度 32 / 36 / 44 · 圆角 16 · primary 渐变 + Shadow.Glow · icon 36×36 · danger 实心带图标" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Classes="primary" Tag="demo" Content="primary" />
+            <Button Classes="secondary" Tag="demo" Content="secondary" />
+            <Button Classes="ghost" Tag="demo" Content="ghost" />
+            <Button Classes="icon" Tag="demo" Content="＋" />
+            <Button Classes="danger" Tag="demo">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Path Data="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"
+                      Stroke="{DynamicResource Text.OnAccent}"
+                      StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round"
+                      Stretch="Uniform" Width="14" Height="14" />
+                <TextBlock Text="danger" Foreground="{DynamicResource Text.OnAccent}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Classes="primary sm" Tag="demo" Content="32 高" />
+            <Button Classes="primary" Tag="demo" Content="36 高" />
+            <Button Classes="primary lg" Tag="demo" Content="44 高" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 2 · TextBox -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="2 · TextBox" />
+          <TextBlock Classes="muted" Text="高 36（多行最小 72）· 圆角 12 · 1px Stroke.Default · hover 转亮 · focus 描边主色" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBox Tag="demo" Width="220" Watermark="单行输入" />
+            <TextBox Tag="demo" Classes="search" Width="220" Watermark="搜索（带图标位）" />
+          </StackPanel>
+          <TextBox Tag="demo" Classes="multiline" Height="88" Watermark="多行输入，最小 72" />
+        </StackPanel>
+      </Border>
+
+      <!-- 3 · ComboBox -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="3 · ComboBox" />
+          <TextBlock Classes="muted" Text="高 36 · 圆角 12 · 下拉玻璃层 + 16 圆角 + Shadow.Overlay · 展开箭头翻转 · 下拉项行高 36" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <ComboBox Tag="demo" Width="220" SelectedIndex="0">
+              <ComboBoxItem Content="选项一" />
+              <ComboBoxItem Content="选项二" />
+              <ComboBoxItem Content="选项三" />
+            </ComboBox>
+            <ComboBox Width="220" PlaceholderText="展开查看玻璃下拉（截图用）" IsDropDownOpen="True">
+              <ComboBoxItem Content="玻璃下拉项" />
+              <ComboBoxItem Content="第二项" />
+            </ComboBox>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 4 · CheckBox -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="4 · CheckBox" />
+          <TextBlock Classes="muted" Text="框 18×18 · 圆角 4 · 行高 28 · 选中主色实心 + 白勾" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="20">
+            <CheckBox Tag="demo" Content="未选中" />
+            <CheckBox Tag="demo" Content="已选中" IsChecked="True" />
+            <CheckBox Content="禁用" IsEnabled="False" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 5 · ToggleSwitch -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="5 · ToggleSwitch" />
+          <TextBlock Classes="muted" Text="轨 44×24 · 滑块 20 · 圆角 999 · 开态主色轨道、关态 Stroke.Default" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="20">
+            <ToggleSwitch Tag="demo" IsChecked="True" />
+            <ToggleSwitch Tag="demo" />
+            <ToggleSwitch IsChecked="True" IsEnabled="False" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 6 · ListBoxItem -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="6 · ListBoxItem" />
+          <TextBlock Classes="muted" Text="行高 52（紧凑 44）· 圆角 12 · hover 右移 2px + 描边 · selected 主色 10% 底" TextWrapping="Wrap" />
+          <ListBox Height="220">
+            <ListBoxItem Tag="demo" Content="普通行 · 行高 52" />
+            <ListBoxItem Tag="demo" Content="选中行 · Accent.Soft 底" IsSelected="True" />
+            <ListBoxItem Tag="demo" Classes="compact" Content="紧凑行 · 行高 44" />
+            <ListBoxItem Content="禁用行" IsEnabled="False" />
+          </ListBox>
+        </StackPanel>
+      </Border>
+
+      <!-- 7 · ScrollBar -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="7 · ScrollBar" />
+          <TextBlock Classes="muted" Text="宽 8（hover 10）· 胶囊滑块 · 无轨道底 · 拖动加深（悬停/拖动右侧滚动条查看）" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <ScrollBar Tag="demo" Orientation="Vertical" Height="120" Width="8" Minimum="0" Maximum="100" Value="40" ViewportSize="40" />
+            <ScrollViewer Height="140" Width="320" VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
+            <StackPanel Spacing="6">
+              <TextBlock Text="滚动内容 01" />
+              <TextBlock Text="滚动内容 02" />
+              <TextBlock Text="滚动内容 03" />
+              <TextBlock Text="滚动内容 04" />
+              <TextBlock Text="滚动内容 05" />
+              <TextBlock Text="滚动内容 06" />
+              <TextBlock Text="滚动内容 07" />
+              <TextBlock Text="滚动内容 08" />
+              <TextBlock Text="滚动内容 09" />
+              <TextBlock Text="滚动内容 10" />
+              <TextBlock Text="滚动内容 11" />
+              <TextBlock Text="滚动内容 12" />
+            </StackPanel>
+          </ScrollViewer>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 8 · TabControl -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="8 · TabControl" />
+          <TextBlock Classes="muted" Text="高 36 · 圆角 999 · 底槽 Surface.Sunken · 选中主色胶囊 + Text.OnAccent · 切换 220ms" TextWrapping="Wrap" />
+          <TabControl Tag="demo" SelectedIndex="1">
+            <TabItem Header="已安装" />
+            <TabItem Header="可下载" />
+            <TabItem Header="整合包" />
+          </TabControl>
+        </StackPanel>
+      </Border>
+
+      <!-- 9 · ToolTip -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="9 · ToolTip" />
+          <TextBlock Classes="muted" Text="黑底白字 · 11px · 圆角 8 · 内边距 10,6 · 最大宽 280" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Tag="demo" Classes="secondary" Content="悬停查看" ToolTip.Tip="ToolTip：黑底白字，最大宽 280，圆角 8。" />
+            <Button Classes="ghost" Content="静态展示" ToolTip.Tip="悬停查看：黑底白字，最大宽 280。" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 10 · Dialog -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="10 · Dialog" />
+          <TextBlock Classes="muted" Text="自建浮层 · 最小 420 / 最大 720 · 圆角 24 · 玻璃 + Shadow.Overlay · 遮罩黑 40% · 首焦点主行动" TextWrapping="Wrap" />
+          <Button Classes="primary" HorizontalAlignment="Left" Content="打开对话框" Command="{Binding OpenDialogCommand}" />
+          <Border Height="300" ClipToBounds="True" CornerRadius="{DynamicResource Radius.Xl}">
+            <controls:DialogOverlay Tag="demo" IsOpen="True">
+              <StackPanel Spacing="12" Width="380">
+                <TextBlock Classes="h3" Text="内联预览：确认删除？" />
+                <TextBlock Classes="secondary" TextWrapping="Wrap" Text="遮罩与玻璃面板在这个预览框里展开；真实页面用页面级 DialogOverlay。" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                  <Button Classes="ghost" Content="取消" />
+                  <Button Classes="danger" Content="删除" />
+                </StackPanel>
+              </StackPanel>
+            </controls:DialogOverlay>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <!-- 11 · ProgressBar -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="11 · ProgressBar" />
+          <TextBlock Classes="muted" Text="高 6（细 4）· 圆角 999 · 填充 Gradient.Progress · 不确定态流动条" TextWrapping="Wrap" />
+          <ProgressBar Tag="demo" Value="62" />
+          <ProgressBar Tag="demo" Classes="thin" Value="38" />
+          <ProgressBar Tag="demo" IsIndeterminate="True" />
+        </StackPanel>
+      </Border>
+
+      <!-- 12 · Card / GlassPanel -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="12 · Card / GlassPanel" />
+          <TextBlock Classes="muted" Text="卡片圆角 20（hero 28）· 内边距 20（hero 28）· Shadow.Glass · hover 上浮 3px" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <Border Tag="demo" Classes="card" Width="220">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="h3" Text="Card" />
+                <TextBlock Classes="muted" Text="圆角 20 / 内边距 20" />
+              </StackPanel>
+            </Border>
+            <Border Tag="demo" Classes="card hero" Width="220">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="h3" Text="Card hero" />
+                <TextBlock Classes="muted" Text="圆角 28 / 内边距 28" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <Grid Height="160">
+            <Border Name="GalleryBackdrop"
+                    Background="{DynamicResource Gradient.Canvas}"
+                    CornerRadius="{DynamicResource Radius.Xl}"
+                    ClipToBounds="True">
+              <Panel>
+                <Border Width="220" Height="220" CornerRadius="{DynamicResource Radius.Pill}"
+                        Background="{DynamicResource Accent.Glow}"
+                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-40,-60,0,0" />
+                <Border Width="180" Height="180" CornerRadius="{DynamicResource Radius.Pill}"
+                        Background="{DynamicResource Accent.Brand}"
+                        Opacity="0.35"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-20,-40" />
+              </Panel>
+            </Border>
+            <controls:GlassPanel Tag="demo"
+                                 Backdrop="{Binding #GalleryBackdrop}"
+                                 Height="160"
+                                 Margin="16">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="h3" Text="GlassPanel" />
+                <TextBlock Classes="muted" Text="背景副本 + BlurEffect + 色调层 + 内容层" />
+              </StackPanel>
+            </controls:GlassPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- 13 · Badge / StatusPill -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="13 · Badge / StatusPill" />
+          <TextBlock Classes="muted" Text="高 20 · 内边距 8,2 · 圆角 999 · 11px · 四色状态（中性 / 成功 / 警告 / 危险）" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Border Tag="demo" Classes="badge info"><TextBlock Text="中性" /></Border>
+            <Border Tag="demo" Classes="badge success"><TextBlock Text="成功" /></Border>
+            <Border Tag="demo" Classes="badge warning"><TextBlock Text="警告" /></Border>
+            <Border Tag="demo" Classes="badge danger"><TextBlock Text="危险" /></Border>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 14 · 窗口三键 -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="14 · 窗口三键" />
+          <TextBlock Classes="muted" Text="33×29 · 圆角 8 · 关闭 hover 危险色 · 图标 10px" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <Button Tag="demo" Classes="window-btn">
+              <Rectangle Width="10" Height="1" Fill="{DynamicResource Text.Secondary}" />
+            </Button>
+            <Button Tag="demo" Classes="window-btn">
+              <Rectangle Width="9" Height="9" Stroke="{DynamicResource Text.Secondary}" StrokeThickness="1" Fill="Transparent" />
+            </Button>
+            <Button Tag="demo" Classes="window-btn close">
+              <Path Data="M0,0 L9,9 M9,0 L0,9" Stroke="{DynamicResource Text.Secondary}" StrokeThickness="1.1" />
+            </Button>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+
+      </StackPanel>
+    </ScrollViewer>
+
+      <controls:DialogOverlay IsOpen="{Binding IsDialogOpen}" PrimaryAction="{Binding #ConfirmButton}">
+        <StackPanel Spacing="14" Width="380">
+          <TextBlock Classes="h3" Text="确认删除这个实例？" />
+          <TextBlock Classes="secondary" TextWrapping="Wrap" Text="删除后无法恢复。附带的存档与模组不会被删除。" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Classes="ghost" Content="取消" Command="{Binding CloseDialogCommand}" />
+            <Button Name="ConfirmButton" Classes="danger" Content="删除" Command="{Binding CloseDialogCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </controls:DialogOverlay>
+  </Grid>
+</UserControl>

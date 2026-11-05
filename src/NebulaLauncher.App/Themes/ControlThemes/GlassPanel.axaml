@@ -1,0 +1,49 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:NebulaLauncher.Controls">
+
+  <!--
+    玻璃面板：背景副本层 + 色调层 + 内容层。
+    BlurEffect 只挂在副本 Rectangle 上；挂在根节点会把文字一起糊掉（票 #84 的边界条款）。
+  -->
+  <ControlTheme x:Key="{x:Type controls:GlassPanel}" TargetType="controls:GlassPanel">
+    <Setter Property="Background" Value="{DynamicResource Gradient.Canvas}" />
+    <Setter Property="Tint" Value="{DynamicResource Surface.Glass}" />
+    <Setter Property="Padding" Value="20" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xl}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid>
+          <Border x:Name="PART_Clip"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  ClipToBounds="True">
+            <Panel x:Name="PART_CopyLayer">
+              <!-- 模糊半径由 GlassPanel.UpdateBlur() 在代码里设（TemplateBinding 到 BlurEffect 不生效）。 -->
+              <Rectangle x:Name="PART_Copy"
+                         Fill="{TemplateBinding Background}"
+                         IsHitTestVisible="False">
+                <Rectangle.Effect>
+                  <BlurEffect Radius="24" />
+                </Rectangle.Effect>
+              </Rectangle>
+              <Border Background="{TemplateBinding Tint}" IsHitTestVisible="False" />
+            </Panel>
+          </Border>
+
+          <!-- 描边与内/外阴影在独立层，不参与命中。 -->
+          <Border BorderBrush="{DynamicResource Glass.Edge}"
+                  BorderThickness="1"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  BoxShadow="{DynamicResource Shadow.Glass}"
+                  IsHitTestVisible="False" />
+
+          <ContentPresenter x:Name="PART_ContentHost"
+                            Margin="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+</ResourceDictionary>

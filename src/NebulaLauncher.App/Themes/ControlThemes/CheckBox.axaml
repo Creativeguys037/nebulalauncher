@@ -1,0 +1,82 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:primitives="using:Avalonia.Controls.Primitives">
+
+  <!--
+    复选框：18×18 框、4 圆角、行高 28。
+
+    为什么重写模板：Fluent 的 NormalRectangle 是 20×20 且尺寸写在模板里，
+    普通 Style 的优先级低于 Template，改不到。这里把框、勾、文字排成两列，
+    勾的显隐靠 :checked 伪类（StyleTrigger 优先级高于 Template）切换。
+  -->
+  <ControlTheme x:Key="{x:Type CheckBox}" TargetType="CheckBox">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border primitives:AdornerLayer.IsClipEnabled="False"
+                Margin="-3"
+                BorderBrush="{DynamicResource Stroke.Focus}"
+                BorderThickness="2"
+                CornerRadius="{DynamicResource Radius.Xs}"
+                IsHitTestVisible="False" />
+      </FocusAdornerTemplate>
+    </Setter>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="Auto,*" Background="Transparent">
+          <Border x:Name="PART_Box"
+                  Width="18" Height="18"
+                  CornerRadius="{DynamicResource Radius.Xs}"
+                  Background="Transparent"
+                  BorderBrush="{DynamicResource Stroke.Strong}"
+                  BorderThickness="1.5"
+                  VerticalAlignment="Center">
+            <Path x:Name="PART_Check"
+                  Data="M3,9 L7.5,13.5 L15,4"
+                  Stroke="{DynamicResource Text.OnAccent}"
+                  StrokeThickness="2"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="None"
+                  IsVisible="False" />
+          </Border>
+          <ContentPresenter x:Name="PART_ContentPresenter"
+                            Grid.Column="1"
+                            Margin="10,0,0,0"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            VerticalAlignment="Center" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^:pointerover /template/ Border#PART_Box">
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <Style Selector="^:checked /template/ Border#PART_Box">
+      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+    <Style Selector="^:checked /template/ Path#PART_Check">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <Style Selector="^:pressed /template/ Border#PART_Box">
+      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+    <Style Selector="^:pressed /template/ Path#PART_Check">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+  </ControlTheme>
+
+</ResourceDictionary>

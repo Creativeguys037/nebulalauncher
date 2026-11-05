@@ -1,0 +1,74 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:services="using:NebulaLauncher.Services">
+
+  <!--
+    进度条：6 高（.thin 4）、胶囊圆角、Gradient.Progress 填充；不确定态是流动条。
+
+    为什么重写模板：Fluent 的不确定态是固定结构的分段动画，改不了节奏与形状。
+    这里确定态用 PART_Indicator（由 ProgressBar 自己算宽度），不确定态用 PART_Flow
+    （一条 72px 的渐变条在 Canvas 上循环平移；Canvas.Left 走内置 DoubleAnimator，
+    RenderTransform 在 Avalonia 11.3 的 Animation 里没有注册动画器）。
+  -->
+  <ControlTheme x:Key="{x:Type ProgressBar}" TargetType="ProgressBar">
+    <Setter Property="Background" Value="{DynamicResource Surface.Sunken}" />
+    <Setter Property="Foreground" Value="{DynamicResource Gradient.Progress}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="MinHeight" Value="6" />
+    <Setter Property="Height" Value="6" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid x:Name="PART_Root"
+              Height="{TemplateBinding Height}"
+              MinHeight="{TemplateBinding MinHeight}"
+              ClipToBounds="True">
+          <Border x:Name="PART_Track"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Border x:Name="PART_Indicator"
+                  HorizontalAlignment="Left"
+                  Background="{TemplateBinding Foreground}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+          <Canvas x:Name="PART_FlowLayer" IsHitTestVisible="False">
+            <Border x:Name="PART_Flow"
+                    Width="72"
+                    Height="{TemplateBinding Height}"
+                    Canvas.Left="-72"
+                    Background="{TemplateBinding Foreground}"
+                    CornerRadius="{TemplateBinding CornerRadius}"
+                    IsVisible="False" />
+          </Canvas>
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- 细档。 -->
+    <Style Selector="^.thin">
+      <Setter Property="Height" Value="4" />
+      <Setter Property="MinHeight" Value="4" />
+    </Style>
+
+    <!--
+      不确定态：流动条。Duration 1.4s 是循环动画，属于 CONVENTIONS §7.8
+      「300ms 以上只用于进度条」的例外；关掉动效由 #99 的统一开关处理。
+    -->
+    <Style Selector="^:indeterminate /template/ Border#PART_Flow">
+      <Setter Property="IsVisible" Value="True" />
+      <Style.Animations>
+        <Animation Duration="{x:Static services:Motion.Loop}" IterationCount="INFINITE" Easing="{x:Static services:Motion.EaseInOut}">
+          <KeyFrame Cue="0%">
+            <Setter Property="Canvas.Left" Value="-72" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Canvas.Left" Value="420" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+  </ControlTheme>
+
+</ResourceDictionary>

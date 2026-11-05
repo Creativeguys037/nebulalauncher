@@ -12,5 +12,8 @@ public partial class MainWindowViewModel
         RegisterPage(NavigationKeys.Logs, () => Resolve<LogsViewModel>());
         RegisterPage(NavigationKeys.Help, () => Resolve<HelpViewModel>());
         RegisterPage(NavigationKeys.Settings, () => Resolve<SettingsViewModel>());
+
+        // 控件示例页（票 #84）：不在导航里露出，只通过 --page controls 进入，交付后保留供复核。
+        RegisterPage(NavigationKeys.Controls, () => Resolve<ControlsGalleryViewModel>());
     }
 }

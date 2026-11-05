@@ -280,6 +280,16 @@
   <!-- Palette.VioletDeep：同上，已废弃但保留键。 -->
   <Color x:Key="Palette.VioletDeep">#7C3AED</Color>
 
+  <!--
+    ToolTip 的底色：两套主题都是同一个近黑，不跟随主题。
+    放在根部而不是主题字典：它是固定语义（黑底白字的高对比气泡），
+    深色下换成别的颜色反而会和页面玻璃层混在一起。
+  -->
+  <SolidColorBrush x:Key="Surface.Tooltip" Color="#0A0D14" />
+
+  <!-- 对话框遮罩：黑 40%，两套主题一致；深色下再深就会和背景糊成一片。 -->
+  <SolidColorBrush x:Key="Surface.Scrim" Color="#66000000" />
+
   <!-- ============ 圆角 ============ -->
   <CornerRadius x:Key="Radius.Xs">4</CornerRadius>
   <CornerRadius x:Key="Radius.Sm">8</CornerRadius>
@@ -309,5 +319,6 @@
   <x:Double x:Key="Motion.Fast">150</x:Double>
   <x:Double x:Key="Motion.Normal">220</x:Double>
   <x:Double x:Key="Motion.Slow">320</x:Double>
+  <x:Double x:Key="Motion.Loop">1400</x:Double>
 
 </ResourceDictionary>

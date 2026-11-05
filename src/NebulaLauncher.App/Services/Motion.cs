@@ -28,6 +28,9 @@ public static class Motion
     /// <summary>页面转场。</summary>
     public static readonly TimeSpan Slow = TimeSpan.FromMilliseconds(320);
 
+    /// <summary>循环动画（进度条的流动条）。300ms 以上只允许用在这里。</summary>
+    public static readonly TimeSpan Loop = TimeSpan.FromMilliseconds(1400);
+
     /// <summary>
     /// 全部 UI 动效默认缓动：快出慢收 <c>cubic-bezier(.22, .9, .24, 1)</c>。
     /// Avalonia 11.3 起 <c>CubicBezierEasing</c> 已废弃（不再实现 <see cref="Easing"/>），

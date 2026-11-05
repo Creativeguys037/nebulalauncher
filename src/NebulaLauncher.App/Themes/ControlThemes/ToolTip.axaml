@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    提示气泡：黑底、白字、11px、圆角 8、内边距 10,6、最大宽 280。
+
+    票面要求「必须重写控件主题」，但 Fluent 的 ToolTip 模板本身只有一层 Border + ContentPresenter，
+    所以这里的重写只是把外观钉死，不改变结构（结构变了反而会丢弹层定位行为）。
+  -->
+  <ControlTheme x:Key="{x:Type ToolTip}" TargetType="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource Surface.Tooltip}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MaxWidth" Value="280" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="PART_LayoutRoot"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}"
+                MaxWidth="{TemplateBinding MaxWidth}">
+          <ContentPresenter x:Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+</ResourceDictionary>

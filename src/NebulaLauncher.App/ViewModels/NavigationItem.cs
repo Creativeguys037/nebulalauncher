@@ -55,6 +55,9 @@ public static class NavigationKeys
 
     public const string Settings = "settings";
 
+    /// <summary>控件示例页：不在侧边栏露出，只用于控件复核与截图（票 #84）。</summary>
+    public const string Controls = "controls";
+
     /// <summary>Material Symbols 风格的 24×24 描边图标。</summary>
     public const string IconHome =
         "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z";

@@ -1,0 +1,220 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:NebulaLauncher.Controls"
+                    xmlns:services="using:NebulaLauncher.Services"
+                    xmlns:primitives="using:Avalonia.Controls.Primitives">
+
+  <!--
+    按钮：五变体（primary / secondary / ghost / icon / danger）、三档高度（32 / 36 / 44）、六态。
+
+    为什么重写模板而不是只改属性：loading 态要求「内容换成 14px 进度环、外框尺寸不变」，
+    Fluent 的 Button 模板只有一个 ContentPresenter，没有放进度环的位置。这里在内容层之上
+    叠一个隐藏的 RingProgress，由 `.loading` 类切换可见性，宽度由调用方锁死即可。
+
+    旧类名 .accent / .pill 保留为别名：现有页面大量使用，删掉会让主行动退化成次级样式。
+  -->
+  <ControlTheme x:Key="{x:Type Button}" TargetType="Button">
+    <Setter Property="Background" Value="{DynamicResource Surface.Card}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+    <Setter Property="Padding" Value="18,0" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <!-- 2px 焦点环 + 2px 外扩；AdornerLayer 默认把装饰裁到控件边界，必须显式关掉。 -->
+        <Border primitives:AdornerLayer.IsClipEnabled="False"
+                Margin="-3"
+                BorderBrush="{DynamicResource Stroke.Focus}"
+                BorderThickness="2"
+                CornerRadius="{DynamicResource Radius.Lg}"
+                IsHitTestVisible="False" />
+      </FocusAdornerTemplate>
+    </Setter>
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+        <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Instant}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{x:Static services:Motion.Fast}" />
+      </Transitions>
+    </Setter>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="PART_Root"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}"
+                RenderTransform="{TemplateBinding RenderTransform}"
+                RenderTransformOrigin="50%,50%"
+                ClipToBounds="False">
+          <Panel>
+            <ContentPresenter x:Name="PART_ContentPresenter"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+            <controls:RingProgress x:Name="PART_LoadingRing"
+                                   Width="14" Height="14"
+                                   Thickness="2"
+                                   IsIndeterminate="True"
+                                   IsVisible="False"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   ProgressBrush="{DynamicResource Accent.Primary}"
+                                   TrackBrush="{DynamicResource Stroke.Subtle}" />
+          </Panel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <!-- ============ 默认（secondary）：玻璃白底 ============ -->
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+      <Setter Property="RenderTransform" Value="translate(0,-1px)" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Border#PART_Root">
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.CardHover}" />
+    </Style>
+
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="{DynamicResource Surface.Pressed}" />
+      <Setter Property="Opacity" Value="0.9" />
+    </Style>
+
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+      <Setter Property="Cursor" Value="Arrow" />
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="^:disabled /template/ Border#PART_Root">
+      <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+    </Style>
+
+    <!-- ============ primary：主行动，渐变实心 ============ -->
+    <Style Selector="^.primary">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="^.primary /template/ Border#PART_Root">
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+    </Style>
+    <Style Selector="^.primary:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="Opacity" Value="0.94" />
+    </Style>
+    <Style Selector="^.primary:pressed">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="Opacity" Value="0.82" />
+    </Style>
+
+    <!-- 旧类名兼容：.accent 与 .primary 同义。 -->
+    <Style Selector="^.accent">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="^.accent /template/ Border#PART_Root">
+      <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glow}" />
+    </Style>
+    <Style Selector="^.accent:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="Opacity" Value="0.94" />
+    </Style>
+    <Style Selector="^.accent:pressed">
+      <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+      <Setter Property="Opacity" Value="0.82" />
+    </Style>
+
+    <!-- ============ secondary：显式别名（默认外观） ============ -->
+    <Style Selector="^.secondary">
+      <Setter Property="Background" Value="{DynamicResource Surface.Card}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+
+    <!-- ============ ghost：无底色 ============ -->
+    <Style Selector="^.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="^.ghost:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+
+    <!-- ============ icon：36×36 方形 ============ -->
+    <Style Selector="^.icon">
+      <Setter Property="Width" Value="36" />
+      <Setter Property="Height" Value="36" />
+      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Lg}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- ============ danger：危险实心，必须带图标（使用约束） ============ -->
+    <Style Selector="^.danger">
+      <Setter Property="Background" Value="{DynamicResource Status.Danger}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="^.danger:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Status.Danger}" />
+      <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="^.danger:pressed">
+      <Setter Property="Opacity" Value="0.82" />
+    </Style>
+
+    <!-- ============ 三档高度 ============ -->
+    <Style Selector="^.sm">
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+    </Style>
+    <Style Selector="^.lg">
+      <Setter Property="MinHeight" Value="44" />
+      <Setter Property="Padding" Value="22,0" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Subtitle}" />
+    </Style>
+
+    <!-- 旧类名兼容：胶囊按钮。 -->
+    <Style Selector="^.pill">
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+      <Setter Property="Padding" Value="18,0" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
+
+    <!-- ============ loading：内容隐藏、进度环居中、外框不变 ============ -->
+    <Style Selector="^.loading /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="^.loading /template/ controls|RingProgress#PART_LoadingRing">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="^.loading">
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+  </ControlTheme>
+
+</ResourceDictionary>

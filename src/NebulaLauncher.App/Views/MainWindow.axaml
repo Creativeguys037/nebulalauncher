@@ -60,31 +60,6 @@
       <Setter Property="Stroke" Value="{DynamicResource Accent.Primary}" />
     </Style>
 
-    <!-- 窗口控制按钮 -->
-    <Style Selector="Button.window-btn">
-      <Setter Property="Width" Value="44" />
-      <Setter Property="Height" Value="32" />
-      <Setter Property="MinHeight" Value="32" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xs}" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-
-    <Style Selector="Button.window-btn:pointerover">
-      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
-    </Style>
-
-    <Style Selector="Button.window-btn.close:pointerover">
-      <Setter Property="Background" Value="{DynamicResource Window.CloseHover}" />
-    </Style>
-
-    <!-- 红色底上浅灰叉号在浅色主题里对比度不足，悬停时统一转成反白色（两种主题都是白） -->
-    <Style Selector="Button.window-btn.close:pointerover Path">
-      <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
-    </Style>
   </Window.Styles>
 
   <Panel>

@@ -1,0 +1,89 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:services="using:NebulaLauncher.Services"
+                    xmlns:primitives="using:Avalonia.Controls.Primitives">
+
+  <!--
+    页签：36 高、胶囊圆角、底槽 Surface.Sunken、选中主色胶囊 + Text.OnAccent、切换 220ms。
+
+    为什么重写模板：Fluent 的 TabItem 是下划线指示器（PART_SelectedPipe），
+    没有共享胶囊；胶囊的形态与底槽只能靠整体换模板。
+    页签与筛选分段分成两件（筛选用 ToggleButton 组，类名 .segmented），互不共用。
+  -->
+  <ControlTheme x:Key="{x:Type TabItem}" TargetType="TabItem">
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusAdorner">
+      <FocusAdornerTemplate>
+        <Border primitives:AdornerLayer.IsClipEnabled="False"
+                Margin="-3"
+                BorderBrush="{DynamicResource Stroke.Focus}"
+                BorderThickness="2"
+                CornerRadius="{DynamicResource Radius.Pill}"
+                IsHitTestVisible="False" />
+      </FocusAdornerTemplate>
+    </Setter>
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Normal}" />
+        <BrushTransition Property="Foreground" Duration="{x:Static services:Motion.Fast}" />
+      </Transitions>
+    </Setter>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="PART_LayoutRoot"
+                Background="Transparent"
+                CornerRadius="{DynamicResource Radius.Pill}"
+                Padding="18,0"
+                MinHeight="36"
+                RenderTransformOrigin="50%,50%">
+          <ContentPresenter x:Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Header}"
+                            ContentTemplate="{TemplateBinding HeaderTemplate}"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type TabControl}" TargetType="TabControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid RowDefinitions="Auto,*">
+          <Border x:Name="PART_TabStrip"
+                  Background="{DynamicResource Surface.Sunken}"
+                  CornerRadius="{DynamicResource Radius.Pill}"
+                  Padding="4"
+                  HorizontalAlignment="Left">
+            <ItemsPresenter Name="PART_ItemsPresenter"
+                            ItemsPanel="{TemplateBinding ItemsPanel}" />
+          </Border>
+          <ContentPresenter x:Name="PART_SelectedContentHost"
+                            Grid.Row="1"
+                            Margin="0,16,0,0"
+                            Content="{TemplateBinding SelectedContent}"
+                            ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+</ResourceDictionary>
