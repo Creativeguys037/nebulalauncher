@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:NebulaLauncher.Services">
 
   <!--
     Nebula 控件样式表。
@@ -66,9 +67,9 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Transitions">
       <Transitions>
-        <BrushTransition Property="Background" Duration="0:0:0.15" />
-        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
-        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+        <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Fast}" />
       </Transitions>
     </Setter>
   </Style>
@@ -157,8 +158,8 @@
     <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Card}" />
     <Setter Property="Transitions">
       <Transitions>
-        <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
-        <BrushTransition Property="Background" Duration="0:0:0.18" />
+        <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
       </Transitions>
     </Setter>
   </Style>
@@ -235,7 +236,7 @@
     <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
     <Setter Property="Transitions">
       <Transitions>
-        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
       </Transitions>
     </Setter>
   </Style>
@@ -315,7 +316,7 @@
     <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
     <Setter Property="Transitions">
       <Transitions>
-        <BrushTransition Property="Background" Duration="0:0:0.14" />
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
       </Transitions>
     </Setter>
   </Style>

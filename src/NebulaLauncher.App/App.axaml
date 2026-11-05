@@ -12,10 +12,15 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://NebulaLauncher/Themes/Tokens.axaml" />
+        <ResourceInclude Source="avares://NebulaLauncher/Themes/Icons.axaml" />
       </ResourceDictionary.MergedDictionaries>
 
-      <!-- 字体由 App.axaml.cs 在启动时按平台覆盖（Windows: Microsoft YaHei UI，macOS: PingFang SC）。 -->
-      <FontFamily x:Key="Font.UI">Microsoft YaHei UI</FontFamily>
+      <!--
+        UI 字体栈：CJK 优先，西文缺字回退 Segoe UI，最后交给系统无衬线。
+        运行期由 App.axaml.cs 的 ApplyPlatformFont 换成 Program.DefaultFontFamily
+        （Windows / macOS / Linux 各取系统字体），这里保留完整栈给设计器与首帧兜底。
+      -->
+      <FontFamily x:Key="Font.UI">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
     </ResourceDictionary>
   </Application.Resources>
 
