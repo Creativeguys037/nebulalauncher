@@ -1,0 +1,199 @@
+<!doctype html>
+<!--
+  页面样板骨架（脚手架，不是样板本身）
+  ------------------------------------------------------------------
+  用途：补一页页面样板时，整段复制本文件，只改 <title> 与「PAGE-CONTENT」区，
+  粘贴进来的基础样式片段不要改动，页面专用类追加在它下面。
+
+  外壳按**现实现**画，不按 home-glass.html 的 62 高 topbar：
+    · 竖栏 82（紧凑 68），不是整高实心侧栏
+    · 右列顶部是 46 高 TitleBar（页面抬头 + 窗口三键）
+    · 底部 41 高状态条
+  这条是 docs/UI-STRUCTURE.md §11 的 D1，别再按 topbar 画。
+
+  坐标（1240×800）：
+    舞台 1204×764（扣 18 外边距） − 竖栏 82 − 间隙 18 = 主列 1104
+    主列高 764 − TitleBar 46 − 状态条 41 = **页面画布 1100×677**
+    主列宽 1104 − PageHost 左内边距 4 = 1100
+  页面四行：40 + 48 + 509 + 44 + 12×3 = 677
+  紧凑档 1024×660 用 @media 换宽高，画布 898×537。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nebula Launcher — 页面名</title>
+<link rel="stylesheet" href="glass.css">
+<style>
+/* ===== 基础片段开始（复制时不要改） ===== */
+/* 外壳：与 MainWindow.axaml 写实结构一致 */
+.app{position:relative;z-index:1;height:100vh;display:flex;gap:18px;padding:18px}
+.main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
+.titlebar{flex:0 0 46px;display:flex;align-items:center;gap:12px;padding:0 2px}
+.titlebar .tt{font-size:22px;font-weight:800;letter-spacing:-.6px;color:var(--ink)}
+.titlebar .ts{font-size:11px;color:var(--ink-3);margin-top:4px}
+.titlebar .ww{margin-left:auto;display:flex;align-items:center;gap:4px}
+.stagecol{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+/* 页面栅格：Auto,Auto,*,Auto + RowSpacing 12，根不滚动 */
+.page{
+  flex:1 1 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;
+  gap:12px;min-height:0;
+}
+/* Row0=40 / Row1=48 / Row3=44；Row2 由 minmax(0,1fr) 吃掉剩余 509 */
+.prow0{height:40px;display:flex;align-items:center;gap:14px;min-width:0}
+.prow1{height:48px;display:flex;align-items:center;gap:12px;min-width:0}
+.prow3{height:44px;display:flex;align-items:center;gap:10px;min-width:0}
+.statusbar{
+  flex:0 0 41px;display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;color:var(--ink-3);border-top:1px solid rgba(10,13,20,.08);
+}
+/* 内容框：L2 玻璃 + 内部唯一滚动条 */
+.panebox{border-radius:var(--r-md);display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:8px}
+.panebox>h3{font-size:12px;font-weight:700;padding:6px 12px 10px;position:relative;z-index:1;display:flex;align-items:center;gap:8px}
+.panebox>h3 em{font-style:normal;font-size:9.5px;font-weight:600;color:var(--blue);letter-spacing:.06em;text-transform:uppercase;margin-left:auto}
+.scroll{flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(10,13,20,.18) transparent;position:relative;z-index:1}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb{background:rgba(10,13,20,.18);border-radius:4px}
+.scroll::-webkit-scrollbar-track{background:transparent}
+.rows{display:flex;flex-direction:column;gap:4px}
+/* 列表行（L3 实心，行内不超过 3 个动作，禁止 accent 实心按钮） */
+.row{
+  display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:12px;min-width:0;
+  border:1px solid transparent;cursor:pointer;
+  transition:background 140ms var(--ease),border-color 140ms var(--ease),transform 140ms var(--ease);
+}
+.row:hover{background:rgba(255,255,255,.62);border-color:rgba(255,255,255,.95);transform:translateX(2px)}
+.row.sel{background:rgba(22,104,255,.10);border-color:rgba(22,104,255,.28);box-shadow:inset 3px 0 0 var(--blue)}
+.row .ric{flex:0 0 32px;width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.95)}
+.row .ric svg{width:17px;height:17px;stroke:var(--blue);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.row .rn{flex:1 1 auto;min-width:0}
+.row .rn b{display:block;font-size:13px;font-weight:700;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rn span{display:block;font-size:10px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rmeta{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);text-align:right}
+.row .rmeta b{display:block;font-size:11.5px;color:var(--ink);font-weight:700}
+/* 行内动作：ghost / icon 只有，不放 accent */
+.ract{display:flex;gap:4px;flex:0 0 auto}
+.ibtn{
+  width:30px;height:30px;border-radius:9px;border:1px solid transparent;background:transparent;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-2);
+  transition:background 140ms var(--ease),color 140ms var(--ease);
+}
+.ibtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ibtn:hover{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.95);color:var(--ink)}
+.ibtn:active{background:rgba(10,13,20,.08)}
+.ibtn.danger:hover{color:#C0392B;background:rgba(192,57,43,.10)}
+/* 徽标 */
+.badge{font-size:9px;font-weight:700;letter-spacing:.03em;padding:3px 7px;border-radius:6px;background:rgba(10,13,20,.06);color:var(--ink-2);white-space:nowrap}
+.badge.live{background:rgba(34,197,94,.14);color:#15803D}
+.badge.off{background:rgba(10,13,20,.08);color:var(--ink-3)}
+.badge.warn{background:rgba(234,179,8,.16);color:#8A5A00}
+.badge.bad{background:rgba(192,57,43,.12);color:#B03A2E}
+/* 空态：图标 32 + 一句说明 + 一个动作，框内居中 */
+.empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px}
+.empty .eic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.95)}
+.empty .eic svg{width:24px;height:24px;stroke:var(--ink-3);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.empty h4{font-size:13px;font-weight:700}
+.empty p{font-size:10.5px;color:var(--ink-3);max-width:300px;line-height:1.6}
+/* 骨架：4 行，行高 = 真实行高 */
+.skel{display:flex;flex-direction:column;gap:4px;padding:4px}
+.skel i{display:block;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,.85),rgba(255,255,255,.55));background-size:200% 100%;animation:sk 1.4s linear infinite}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* 工具条控件 */
+.search{flex:0 1 320px;height:36px;border-radius:11px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.9);display:flex;align-items:center;gap:9px;padding:0 12px;color:var(--ink-3);font-size:11.5px}
+.search svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round}
+.segs{display:flex;gap:2px;padding:3px;border-radius:10px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.9)}
+.segs a{font-size:10.5px;font-weight:600;color:var(--ink-3);text-decoration:none;padding:5px 10px;border-radius:7px;cursor:pointer}
+.segs a.on{background:var(--blue);color:#fff;box-shadow:0 4px 12px rgba(22,104,255,.3)}
+.spacer{flex:1 1 auto}
+.btn.sm{height:34px;padding:0 15px;font-size:12px;border-radius:10px}
+/* 结果条 / 批量条（Row3） */
+.bar44{flex:1 1 auto;height:44px;border-radius:12px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.9);font-size:11px;color:var(--ink-2)}
+.bar44 b{font-weight:700}
+.bar44 .x{margin-left:auto}
+/* ===== 基础片段结束 ===== */
+
+/* PAGE-STYLES：本页专用类追加在这里 */
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 左侧玻璃竖栏（与 home-glass.html 相同，逐字复用） -->
+  <aside class="rail glass">
+    <div class="logo">N</div>
+    <a class="navb" title="主页">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg>
+      <span>主页</span>
+    </a>
+    <a class="navb" title="版本">
+      <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3.5l8 4v9l-8 4-8-4z"/><path d="M4 7.5 12 11.5l8-4"/><path d="M12 11.5v9"/></svg>
+      <span>版本</span>
+    </a>
+    <a class="navb" title="内容">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>
+      <span>内容</span>
+    </a>
+    <a class="navb" title="下载">
+      <svg viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 19.5h15"/></svg>
+      <span>下载</span>
+    </a>
+    <div class="sep"></div>
+    <a class="navb" title="账户">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6"/></svg>
+      <span>账户</span>
+    </a>
+    <a class="navb" title="服务器">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="6" rx="2"/><rect x="3.5" y="14" width="17" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg>
+      <span>服务器</span>
+    </a>
+    <div class="spacer"></div>
+    <a class="navb" title="设置">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4M17.8 17.8l-1.4-1.4M7.6 7.6 6.2 6.2"/></svg>
+      <span>设置</span>
+    </a>
+  </aside>
+
+  <div class="main">
+    <!-- 46 高 TitleBar：左页面抬头 + 右窗口三键（不是样板 topbar） -->
+    <div class="titlebar">
+      <span class="tt">页面名</span>
+      <span class="ts">页面副标题</span>
+      <div class="ww">
+        <button class="wbtn" title="最小化" aria-label="最小化"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+        <button class="wbtn" title="最大化" aria-label="最大化"><svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.4"/></svg></button>
+        <button class="wbtn close" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+      </div>
+    </div>
+
+    <div class="stagecol">
+      <!-- 页面画布：1100×677（紧凑 898×537） -->
+      <div class="page">
+
+        <!-- Row0（40）：页面头 -->
+        <div class="prow0">
+        </div>
+
+        <!-- Row1（48）：工具条 -->
+        <div class="prow1">
+        </div>
+
+        <!-- Row2（*）：内容框 GlassPanel → 内部唯一 ScrollViewer -->
+        <section class="panebox glass">
+        </section>
+
+        <!-- Row3（44）：底栏（无内容时整行不出现） -->
+        <div class="prow3">
+        </div>
+
+      </div>
+
+      <div class="statusbar">
+        <span>行高 56 时宽屏 8 行 · 紧凑 5 行</span>
+        <span>Nebula Launcher</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

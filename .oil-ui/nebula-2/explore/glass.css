@@ -1,0 +1,311 @@
+/* 液态玻璃 · 蓝白现代
+   主色蓝、白色承载、黑色副色（文字与少量强调块） */
+:root{
+  --blue:#1668FF;          /* 主蓝 */
+  --blue-deep:#0B3FCC;     /* 深蓝：渐变尾、按下 */
+  --blue-soft:#E8F0FF;     /* 极浅蓝：底色块 */
+  --cyan:#37D6FF;          /* 辅助青，只做光斑与点缀 */
+  --white:#FFFFFF;
+  --ink:#0A0D14;           /* 黑：主文字、黑色块 */
+  --ink-2:#39445A;         /* 次级文字 */
+  --ink-3:#6B7891;         /* 弱文字 */
+  --line:rgba(10,13,20,.08);
+
+  --glass:rgba(255,255,255,.34);
+  --glass-edge-glow:0 0 0 1px rgba(255,255,255,.30), 0 0 22px rgba(255,255,255,.28);
+  --glass-strong:rgba(255,255,255,.55);
+  --glass-edge:rgba(255,255,255,.85);
+  --glass-sh:0 26px 60px rgba(16,48,120,.22), 0 4px 12px rgba(16,48,120,.10), inset 0 2px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,.6), inset 1px 0 0 rgba(255,255,255,.75), inset -1px 0 0 rgba(255,255,255,.75), inset 0 -16px 30px -16px rgba(16,48,120,.28), inset 0 14px 22px -18px rgba(255,255,255,.9);
+
+  --r-lg:28px;
+  --r-md:20px;
+  --r-sm:14px;
+  --r-xs:10px;
+
+  --bg-layers:
+    radial-gradient(circle 210px at 545px 215px, rgba(22,104,255,.55) 0 96%, transparent 100%),
+    radial-gradient(circle 165px at 1090px 430px, rgba(55,214,255,.62) 0 95%, transparent 100%),
+    radial-gradient(circle 120px at 250px 640px, rgba(11,63,204,.42) 0 94%, transparent 100%),
+    radial-gradient(560px 400px at 10% 4%, rgba(22,104,255,.78), transparent 62%),
+    radial-gradient(480px 360px at 92% 10%, rgba(55,214,255,.66), transparent 60%),
+    radial-gradient(680px 440px at 76% 100%, rgba(11,63,204,.55), transparent 66%),
+    linear-gradient(152deg,#E8F0FF 0%,#C9DCFF 34%,#A8C6FF 68%,#8FB4FF 100%);
+  --sans:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --ease:cubic-bezier(.22,.9,.24,1);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);color:var(--ink);overflow:hidden;
+  background:var(--bg-layers);
+  background-attachment:fixed;
+}
+/* 背景光斑：玻璃要有东西可折射 */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;opacity:.55;
+  background:
+    radial-gradient(560px 400px at 10% 4%, rgba(22,104,255,.78), transparent 62%),
+    radial-gradient(480px 360px at 92% 10%, rgba(55,214,255,.66), transparent 60%),
+    radial-gradient(680px 440px at 76% 100%, rgba(11,63,204,.55), transparent 66%),
+    radial-gradient(360px 280px at 30% 74%, rgba(255,255,255,.95), transparent 68%),
+    radial-gradient(300px 240px at 52% 46%, rgba(11,63,204,.28), transparent 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(22,104,255,.10) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(22,104,255,.10) 1px,transparent 1px);
+  background-size:40px 40px;
+  mask-image:radial-gradient(88% 78% at 50% 42%,#000 42%,transparent 100%);
+}
+
+/* 玻璃基类 */
+.glass{
+  background:transparent;
+  border:1px solid rgba(255,255,255,.86);
+  box-shadow:var(--glass-sh);
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+}
+/* 内衬：与页面背景同源、视口对齐、再模糊 —— 等价于 backdrop-filter，但不依赖它 */
+.glass::after{
+  content:"";position:absolute;inset:-48px;z-index:-1;pointer-events:none;
+  background:var(--bg-layers);
+  background-attachment:fixed;
+  filter:blur(26px) saturate(190%) brightness(1.04);
+  opacity:.96;
+}
+/* 白色半透明白 + 顶部高光：压在模糊层之上 */
+.glass::before{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;z-index:0;
+  background:
+    radial-gradient(126% 62% at 6% -14%, rgba(255,255,255,.92) 0%, rgba(255,255,255,.42) 32%, transparent 56%),
+    radial-gradient(90% 50% at 96% 108%, rgba(255,255,255,.5) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,.19));
+}
+/* 底部内反光：由 --glass-sh 的 inset 承担 */
+
+.stage{position:relative;z-index:1;height:100vh;display:flex;gap:18px;padding:18px}
+
+/* ── 左侧玻璃栏 ── */
+.rail{
+  flex:0 0 82px;border-radius:var(--r-lg);display:flex;flex-direction:column;
+  align-items:center;gap:8px;padding:16px 0 18px;
+}
+.logo{
+  width:40px;height:40px;border-radius:12px;background:linear-gradient(150deg,var(--blue),var(--blue-deep));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;
+  box-shadow:0 6px 16px rgba(22,104,255,.38);margin-bottom:8px;position:relative;z-index:1;
+}
+.rail .sep{width:30px;height:1px;background:var(--line);margin:4px 0;position:relative;z-index:1}
+.navb{
+  position:relative;z-index:1;width:52px;height:46px;border-radius:14px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;color:var(--ink-3);text-decoration:none;
+  transition:background 160ms var(--ease),color 160ms var(--ease),transform 160ms var(--ease);
+}
+.navb svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.navb span{font-size:9.5px;font-weight:600;letter-spacing:.01em}
+.navb:hover{background:rgba(255,255,255,.7);color:var(--ink);transform:translateY(-1px)}
+.navb.on{background:var(--blue);color:#fff;box-shadow:0 8px 20px rgba(22,104,255,.36)}
+.rail .spacer{flex:1 1 auto}
+
+/* ── 主列 ── */
+.col{flex:1 1 auto;display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* 顶条 */
+.topbar{flex:0 0 auto;height:62px;border-radius:var(--r-md);display:flex;align-items:center;gap:14px;padding:0 16px}
+.topbar .who{display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.ava{width:34px;height:34px;border-radius:11px;overflow:hidden;background:#0A0D14;flex:0 0 34px;box-shadow:0 0 0 2px rgba(255,255,255,.9)}
+.ava img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.who .nm{display:flex;flex-direction:column;line-height:1.15}
+.who .nm b{font-size:13.5px;font-weight:700;letter-spacing:-.1px}
+.who .nm span{font-size:10px;color:var(--ink-3)}
+.search{
+  flex:1 1 auto;max-width:420px;height:38px;border-radius:12px;background:rgba(255,255,255,.62);
+  border:1px solid rgba(255,255,255,.9);display:flex;align-items:center;gap:9px;padding:0 13px;
+  color:var(--ink-3);font-size:12.5px;position:relative;z-index:1;
+}
+.search svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.pill{
+  height:30px;padding:0 12px;border-radius:999px;display:flex;align-items:center;gap:6px;
+  font-size:10.5px;font-weight:600;background:rgba(255,255,255,.7);color:var(--ink-2);
+  border:1px solid rgba(255,255,255,.95);
+}
+.pill i{width:6px;height:6px;border-radius:50%;background:#22C55E;box-shadow:0 0 0 3px rgba(34,197,94,.16)}
+.pill.blue{background:var(--blue);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(22,104,255,.32)}
+
+/* Hero */
+.hero{flex:0 0 auto;border-radius:var(--r-lg);display:flex;align-items:stretch;overflow:hidden;min-height:246px}
+.hero .txt{flex:1 1 auto;padding:26px 28px;display:flex;flex-direction:column;justify-content:center;position:relative;z-index:1;min-width:0}
+.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--blue);text-transform:uppercase;margin-bottom:9px}
+.hero h1{font-size:38px;line-height:1.06;font-weight:800;letter-spacing:-1.1px;margin-bottom:8px}
+.hero .inst{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:18px}
+.hero .inst b{font-size:16px;font-weight:700;letter-spacing:-.2px}
+.hero .inst span{font-size:11px;color:var(--ink-3)}
+.hero .inst .dot{width:3px;height:3px;border-radius:50%;background:var(--ink-3);opacity:.6}
+.hero .btns{display:flex;gap:10px;align-items:center}
+.btn{
+  height:42px;padding:0 22px;border-radius:12px;border:0;cursor:pointer;font-size:13px;font-weight:700;
+  font-family:inherit;display:inline-flex;align-items:center;gap:8px;
+  transition:transform 150ms var(--ease),box-shadow 150ms var(--ease),background 150ms var(--ease);
+}
+.btn.primary{background:var(--blue);color:#fff;box-shadow:0 10px 24px rgba(22,104,255,.34)}
+.btn.primary:hover{transform:translateY(-1px);box-shadow:0 14px 28px rgba(22,104,255,.42)}
+.btn.dark{background:rgba(255,255,255,.72);color:var(--ink);border:1px solid rgba(10,13,20,.14);box-shadow:none}
+.btn.dark:hover{background:#fff;border-color:rgba(10,13,20,.24);transform:translateY(-1px)}
+.btn.ghost{background:rgba(255,255,255,.7);color:var(--ink);border:1px solid rgba(255,255,255,.95)}
+.btn.ghost:hover{background:#fff}
+
+/* Hero 右侧：玻璃方块组，液态玻璃的视觉锚 */
+.hero .art{flex:0 0 300px;position:relative;display:flex;align-items:center;justify-content:center}
+.hero .art .blob{
+  position:absolute;inset:-30%;background:
+    radial-gradient(closest-side at 42% 34%, rgba(22,104,255,.55), transparent 72%),
+    radial-gradient(closest-side at 68% 66%, rgba(55,214,255,.45), transparent 70%);
+  filter:blur(22px);
+}
+.cubes{position:relative;display:grid;grid-template-columns:repeat(3,44px);gap:9px;transform:rotate(-8deg);z-index:1}
+.cube{
+  width:44px;height:44px;border-radius:12px;
+  background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.44));
+  border:1px solid rgba(255,255,255,.95);
+  box-shadow:0 6px 16px rgba(16,48,120,.16), inset 0 1px 0 rgba(255,255,255,1);
+  backdrop-filter:blur(10px);
+}
+.cube.b{background:linear-gradient(150deg,#3D86FF,#0B3FCC);border-color:rgba(255,255,255,.7)}
+.cube.k{background:linear-gradient(150deg,#2A3040,#0A0D14);border-color:rgba(255,255,255,.4)}
+.cube.t{background:linear-gradient(150deg,rgba(55,214,255,.9),rgba(22,104,255,.7));border-color:rgba(255,255,255,.8)}
+.cube:nth-child(2){transform:translateY(-9px)}
+.cube:nth-child(5){transform:translateY(-9px)}
+.cube:nth-child(6){transform:translateY(-9px)}
+.cube:nth-child(4){opacity:.55}
+.cube:nth-child(7){opacity:.7}
+.cube:nth-child(9){opacity:.4}
+
+/* 最近实例 */
+.recent{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px;padding:0 2px}
+.sechead h2{font-size:13px;font-weight:700;letter-spacing:-.1px}
+.sechead a{font-size:11px;color:var(--blue);text-decoration:none;font-weight:600}
+.cards{flex:1 1 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:13px;min-height:0}
+.card{
+  border-radius:var(--r-md);padding:15px 15px 17px;display:flex;flex-direction:column;justify-content:space-between;
+  cursor:pointer;transition:transform 160ms var(--ease),box-shadow 160ms var(--ease),border-color 160ms var(--ease);
+  min-width:0;
+}
+.card:hover{transform:translateY(-3px);box-shadow:0 22px 44px rgba(16,48,120,.2);border-color:#fff}
+.card .ctop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;position:relative;z-index:1;min-width:0}
+.card .ic{
+  width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 34px;
+  background:linear-gradient(150deg,rgba(22,104,255,.16),rgba(55,214,255,.14));
+  border:1px solid rgba(255,255,255,.9);
+}
+.card .ic svg{width:17px;height:17px;stroke:var(--blue);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.card .badge{
+  font-size:9px;font-weight:700;letter-spacing:.04em;padding:3px 7px;border-radius:6px;
+  background:rgba(10,13,20,.06);color:var(--ink-2);text-transform:uppercase;
+}
+.card .badge.live{background:rgba(34,197,94,.14);color:#15803D}
+.card .cbot{position:relative;z-index:1;min-width:0}
+.card .cname{font-size:14px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .cmeta{font-size:11px;color:var(--ink-3);display:flex;gap:7px;align-items:center}
+.card .cmeta b{color:var(--ink-2);font-weight:600}
+.card .bar{height:4px;border-radius:2px;background:rgba(10,13,20,.09);margin-top:11px;overflow:hidden}
+.card .bar i{display:block;height:100%;border-radius:2px;background:var(--blue)}
+
+
+/* ── 窗口控制：最小化 / 最大化 / 关闭 ── */
+.winctl{
+  display:flex;align-items:center;gap:1px;margin-left:4px;padding-left:9px;
+  border-left:1px solid rgba(10,13,20,.10);position:relative;z-index:1;
+}
+.wbtn{
+  width:33px;height:29px;border:0;background:transparent;border-radius:8px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--ink-2);
+  transition:background 120ms var(--ease),color 120ms var(--ease);
+}
+.wbtn svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.wbtn:hover{background:rgba(10,13,20,.08);color:var(--ink)}
+.wbtn:active{background:rgba(10,13,20,.14)}
+.wbtn.close:hover{background:#E81123;color:#fff}
+.wbtn.close:active{background:#C50F1F;color:#fff}
+
+/* 右侧玻璃信息栏 */
+.side{flex:0 0 280px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.side .box{border-radius:var(--r-md);padding:16px 17px 17px;position:relative;z-index:0}
+.side h3{font-size:12px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+.side h3 em{font-style:normal;font-size:9.5px;font-weight:600;color:var(--blue);letter-spacing:.06em;text-transform:uppercase}
+.task{position:relative;z-index:1;margin-bottom:13px}
+.task:last-child{margin-bottom:0}
+.task .tr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:10px;padding-right:2px}
+.task .tn{font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task .tp{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue)}
+.task .tb{height:5px;border-radius:3px;background:rgba(10,13,20,.08);overflow:hidden}
+.task .tb i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.side .note{font-size:10.5px;line-height:1.65;color:var(--ink-2);position:relative;z-index:1}
+.side .note b{color:var(--ink);font-weight:700}
+.stat{display:flex;justify-content:space-between;align-items:center;height:26px;position:relative;z-index:1}
+.stat span{font-size:10.5px;color:var(--ink-3)}
+.stat b{font-family:var(--mono);font-size:11.5px;font-weight:700}
+.side .grow{flex:0 0 auto}
+.darkbox{background:linear-gradient(155deg,rgba(12,20,40,.86),rgba(11,40,120,.80));color:#fff;border-radius:var(--r-md);padding:15px 16px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 40px rgba(6,20,60,.28), inset 0 1px 0 rgba(255,255,255,.22)}
+.darkbox::before{content:"";position:absolute;right:-40%;top:-40%;width:110%;height:110%;background:radial-gradient(closest-side,rgba(22,104,255,.55),transparent 70%);filter:blur(10px)}
+.darkbox h3{color:#fff}
+.darkbox .note{color:rgba(255,255,255,.7)}
+.darkbox .note b{color:#fff}
+
+/* ── 1024×660 ── */
+@media (max-width:1120px),(max-height:720px){
+  .stage{gap:12px;padding:12px}
+  .rail{flex:0 0 68px;padding:10px 0;border-radius:22px}
+  .logo{width:34px;height:34px;border-radius:10px;font-size:15px;margin-bottom:4px}
+  .navb{width:46px;height:40px;border-radius:11px}
+  .navb svg{width:17px;height:17px}
+  .navb span{font-size:7.5px}
+  .col{gap:12px}
+  .topbar{height:52px;padding:0 12px;border-radius:16px}
+  .ava{width:28px;height:28px;flex:0 0 28px;border-radius:9px}
+  .who .nm b{font-size:12px}
+  .who .nm span{font-size:9px}
+  .search{height:32px;font-size:11.5px;max-width:300px}
+  .hero{min-height:200px;border-radius:22px}
+  .hero .txt{padding:18px 20px}
+  .hero h1{font-size:29px;letter-spacing:-.8px}
+  .hero .inst{margin-bottom:12px}
+  .hero .inst b{font-size:14px}
+  .hero .inst span{font-size:10px}
+  .btn{height:36px;padding:0 17px;font-size:12px;border-radius:10px}
+  .hero .art{flex:0 0 210px}
+  .cubes{grid-template-columns:repeat(3,34px);gap:7px}
+  .cube{width:34px;height:34px;border-radius:9px}
+  .cards{gap:10px}
+  .card{padding:11px;border-radius:16px}
+  .card .ic{width:28px;height:28px;flex:0 0 28px;border-radius:8px}
+  .card .cname{font-size:12.5px}
+  .card .cmeta{font-size:9.5px}
+  .side{flex:0 0 188px;gap:12px}
+  .side .box,.darkbox{padding:12px;border-radius:16px}
+  .sechead{margin-bottom:8px}
+  .sechead h2{font-size:12px}
+}
+/* 极紧高度：改成 3 列并收紧 */
+@media (max-height:680px){
+  .cards{grid-template-columns:repeat(4,1fr);gap:7px;min-width:0}
+  .card{padding:9px 9px 11px;border-radius:13px}
+  .card .ic{width:24px;height:24px;flex:0 0 24px;border-radius:7px}
+  .card .ic svg{width:13px;height:13px}
+  .card .badge{font-size:8px;padding:2px 5px}
+  .card .cname{font-size:11.5px;margin-bottom:2px}
+  .card .cmeta{font-size:9px;gap:5px}
+  .card .bar{margin-top:7px;height:3px}
+  .hero{min-height:172px}
+  .hero h1{font-size:25px}
+  .hero .art{flex:0 0 170px}
+  .cubes{grid-template-columns:repeat(3,29px);gap:6px}
+  .cube{width:29px;height:29px;border-radius:8px}
+  .wbtn{width:29px;height:25px;border-radius:7px}
+  .wbtn svg{width:10px;height:10px}
+}

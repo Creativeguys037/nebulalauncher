@@ -97,7 +97,7 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 ## 7. 怎么画界面
 
-写页面前读完本节。本节自足，不需要再翻别的文档。
+写页面前先读 `docs/UI-STRUCTURE.md`——它是结构契约（五层模型、外壳树、页面固定栅格、12 页行分配、控件关系 12 条、滚动边界、禁止清单）。本节讲设计语言、令牌与尺寸档位。
 
 ### 7.1 设计语言：黑主色 / 玻璃 / 强调色
 
@@ -219,24 +219,39 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 每个页面是一个 `UserControl`，顶部不重复画标题——标题由 MainWindow 的页面抬头区显示（`PageViewModelBase.Title` / `Subtitle`）。
 
+**页面是固定面板，不是可滚动网页。** 根节点只允许 `Grid` / `Panel`；`ScrollViewer` 只能出现在内容框内部。页面画布在 `PageHost` 内，宽屏 **1100×677**、紧凑（窗口宽 < 1120，含 1024×660）**898×537**。
+
 ```xml
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:controls="using:NebulaLauncher.Controls"
              x:Class="NebulaLauncher.Views.HomeView"
              x:DataType="vm:HomeViewModel">
-  <ScrollViewer>
-    <StackPanel Spacing="16">
-      ...
-    </StackPanel>
-  </ScrollViewer>
+  <!-- 根是固定栅格，自己不滚动 -->
+  <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+    <!-- Row0 高 40：页面头（页签 / 标题行），固定 -->
+    <!-- Row1 高 48：工具条（搜索 / 筛选 / 目标选择器），固定 -->
+    <controls:GlassPanel Grid.Row="2">
+      <!-- Row2 内容框：全页唯一的纵向滚动区 -->
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        ...
+      </ScrollViewer>
+    </controls:GlassPanel>
+    <!-- Row3 高 44：底栏（批量条 / 结果条），无内容时 IsVisible=false -->
+  </Grid>
 </UserControl>
 ```
 
 - **必须写 `x:DataType`**，编译绑定已全局开启，漏了直接编译报错。
-- 页面根用 `ScrollViewer`，内容用 `StackPanel Spacing="16"` 纵向排列。
+- **页面根不得是 `ScrollViewer`**：一级界面不许整页滚动，滚轮一动抬头、工具条、状态条跟着走就没有桌面应用的固定感。
+- **滚动必须有框**：`ScrollViewer` 的父容器必须是 `controls:GlassPanel`（1px 可见边）；无边框滚动区一律打回。
+- **固定区不进滚动**：外壳竖栏、TitleBar、Row0、Row1、Row3 在任何滚动下都不移动。
+- 一屏一条主滚动：多栏页面每栏各一条，但每栏都要有框；浮层内可滚但 `MaxHeight` ≤ 画布高的 60%。
 - 列表用 `ItemsControl` + `DataTemplate`，超过 50 项改用 `ListBox`（虚拟化）。
-- 空状态必须实现：没有版本 / 没有模组 / 没有账户时显示引导文案，不留白屏。
+- 空状态必须实现：没有版本 / 没有模组 / 没有账户时显示引导文案 + 下一步动作，不留白屏；空态与加载态都在内容框内居中，不撑高页面、不新增行。
+
+行高与一屏行数（列表行高 56 时，1024×660 一屏最少 5 行）的完整数值、12 页行分配与列宽，见 `docs/UI-STRUCTURE.md`；层模型、控件关系与禁止清单同在该文档。
 
 ### 7.8 动效
 
@@ -274,7 +289,9 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 - [ ] 页面里没有颜色字面量（XAML 里出现 `#RRGGBB` 就是错的）
 - [ ] 每个 `UserControl` 有 `x:DataType`
-- [ ] 加载中 / 空 / 错误三种状态都有对应 UI
+- [ ] 页面根**不是** `ScrollViewer`；内容框是 `controls:GlassPanel`，滚动条只在框内侧
+- [ ] 滚到顶与滚到底各截一张，抬头 / 工具条 / 底栏没移动（固定感）
+- [ ] 加载中 / 空 / 错误三种状态都有对应 UI，且都在内容框内，不把页面撑高
 - [ ] 长文本 `TextWrapping="Wrap"`，不会把窗口撑破
 - [ ] 窗口缩到 `1024×660` 时布局不重叠、不裁切（抬头副标题也要看）
 - [ ] 窗口最小尺寸没有在 XAML 里写死：它由 `src/NebulaLauncher.App/Views/MainWindow.axaml.cs` 按侧边栏实测的自然尺寸算出（`src/NebulaLauncher.Core/Platforms/AdaptiveWindowSize.cs`），往侧边栏加内容只需要重跑截图确认，不用改尺寸常量（见 PITFALLS 5.11）

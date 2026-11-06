@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nebula Launcher — 继续游戏</title>
+<style>
+  :root{
+    --ink:#05060A; --blue:#0269F6; --azure:#00A9F0; --ice:#45F3FC;
+    --deep:#273C62; --white:#FCFDFD; --red:#F25C4A; --red-warm:#FF8A70; --pink:#FF2D9A; --sysred:#F03A16;
+    --text-2:#D8ECFF; --text-3:#A9CDF2;
+    --sans:system-ui,"Microsoft YaHei","PingFang SC",sans-serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --ease:cubic-bezier(.2,.8,.2,1);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;overflow:hidden;color:var(--white);font-family:var(--sans);
+    background:
+      radial-gradient(1200px 800px at 78% 8%, rgba(69,243,252,.34), transparent 58%),
+      radial-gradient(900px 600px at 18% 110%, rgba(0,169,240,.38), transparent 62%),
+      linear-gradient(118deg, #0B5BE0 0%, #0A46C0 38%, #08328C 68%, #273C62 100%);
+  }
+  body::before{
+    content:"";position:fixed;inset:-20%;pointer-events:none;
+    background:
+      linear-gradient(118deg, transparent 44%, rgba(255,255,255,.10) 44.2%, rgba(255,255,255,.10) 48%, transparent 48.2%),
+      linear-gradient(118deg, transparent 58%, rgba(255,255,255,.06) 58.2%, rgba(255,255,255,.06) 63%, transparent 63.2%),
+      repeating-linear-gradient(118deg, transparent 0 90px, rgba(255,255,255,.03) 90px 91px);
+    transform:rotate(-2deg);
+  }
+  body::after{
+    content:"";position:fixed;left:-8%;bottom:-30%;width:70%;height:70%;pointer-events:none;
+    background:var(--ink);opacity:.16;transform:rotate(-12deg);
+  }
+  .stage{position:relative;z-index:1;height:100vh;min-height:600px;display:flex;padding:22px 26px 18px 28px}
+
+  /* 左上黑底信息卡 */
+  .info-card{
+    position:absolute;left:28px;top:22px;background:var(--ink);color:var(--white);
+    border:1px solid rgba(255,255,255,.5);padding:9px 14px 8px;min-width:132px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  }
+  .info-card b{display:block;font-size:23px;font-weight:700;letter-spacing:-.5px;margin-bottom:1px}
+  .info-card span{display:block;font-size:9px;color:#C9C9CF;letter-spacing:.08em}
+
+  /* 左侧竖排小字 */
+  .vertical-label{position:absolute;left:7px;top:118px;bottom:64px;writing-mode:vertical-rl;text-orientation:mixed;font-family:var(--mono);font-size:9.5px;letter-spacing:.26em;color:rgba(255,255,255,.62);white-space:nowrap;pointer-events:none}
+
+  /* 左下大裁切字 */
+  .brand-cut{
+    position:absolute;left:-22px;bottom:-34px;font-size:150px;font-weight:900;
+    font-style:italic;letter-spacing:-10px;color:var(--ink);opacity:.26;pointer-events:none;
+    transform:skewX(-10deg);line-height:.8;user-select:none;
+  }
+
+  /* 主区 */
+  .center{width:min(760px,62vw);display:flex;flex-direction:column;justify-content:center;padding-left:6px}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.28em;color:var(--ice);margin-bottom:2px}
+  h1{
+    margin:0 0 2px;font-size:78px;line-height:.95;font-weight:900;font-style:italic;
+    letter-spacing:-5px;transform:skewX(-7deg);transform-origin:left bottom;
+    text-shadow:0 4px 0 rgba(0,1,22,.18);
+  }
+  .current{margin:8px 0 22px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .current b{font-size:26px;font-weight:800;font-style:italic;letter-spacing:-.6px}
+  .current span{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--text-2)}
+
+  /* 实例菜单 */
+  .list{display:flex;flex-direction:column;gap:2px;border-top:1px solid rgba(255,255,255,.35);padding-top:8px}
+  .item{
+    display:flex;align-items:center;gap:16px;height:54px;padding:0 14px 0 12px;text-decoration:none;
+    color:var(--white);position:relative;
+    transition:background 140ms var(--ease),transform 140ms var(--ease);
+  }
+  .item{background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,.01))}
+  .item:hover{background:linear-gradient(90deg,rgba(255,255,255,.18),rgba(255,61,154,.07));transform:translateX(5px)}
+  .item.active{background:rgba(252,253,253,.78);color:#05060A;box-shadow:5px 5px 0 rgba(255,45,154,.35)}
+  .item.active::before{display:none}
+  .no{font-family:var(--mono);font-size:19px;font-weight:700;color:rgba(255,255,255,.55);width:30px;flex:0 0 30px}
+  .item.active .no{color:var(--pink)}
+  .item-name{font-size:18px;font-weight:800;font-style:italic;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;transform:skewX(-3deg)}
+  .item.active .item-name{color:#05060A}
+  .item.active .item-meta{color:#5A5A66}
+  .item-meta{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--text-3);white-space:nowrap}
+  .item-go{
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ice);
+    border:1px solid rgba(69,243,252,.5);padding:5px 9px;opacity:.9;
+  }
+  .item.active .item-go{background:#05060A;color:#FCFDFD;border-color:#05060A;opacity:1}
+  .item:hover .item-go{background:var(--ice);color:var(--ink);border-color:var(--ice)}
+
+  .cta{
+    margin-top:18px;align-self:flex-start;height:52px;padding:0 34px;border:0;cursor:pointer;
+    background:var(--ice);color:var(--ink);font-size:14px;font-weight:800;letter-spacing:.08em;
+    clip-path:polygon(16px 0,100% 0,calc(100% - 16px) 100%,0 100%);
+    box-shadow:0 0 30px rgba(69,243,252,.35);transition:filter 140ms var(--ease),transform 140ms var(--ease);
+  }
+  .cta:hover{filter:brightness(1.1);transform:translateX(4px)}
+
+  /* 右侧纵向菜单 */
+  .menu{
+    margin-left:auto;align-self:center;display:flex;flex-direction:column;align-items:flex-end;gap:3px;
+    padding-right:16px;
+  }
+  .menu a{
+    position:relative;display:block;text-decoration:none;color:rgba(252,253,253,.62);
+    font-size:29px;font-weight:900;font-style:italic;letter-spacing:-1px;line-height:1.1;
+    padding:2px 12px 3px;margin:1px 0;
+    background:linear-gradient(90deg,rgba(255,255,255,.10),rgba(255,255,255,.02));
+    transform:skewX(-8deg);transform-origin:right center;
+    transition:color 140ms var(--ease),background 140ms var(--ease),transform 140ms var(--ease);
+  }
+  .menu a:hover{color:var(--white);background:linear-gradient(90deg,rgba(255,255,255,.22),rgba(255,61,154,.10));transform:skewX(-8deg) translateX(-5px)}
+  .menu a.active{
+    position:relative;display:block;width:264px;height:86px;
+    padding:0;margin:8px -12px 8px 0;background:transparent;
+    transform:none;transform-origin:right center;
+  }
+  .system-art{width:100%;height:100%;display:block;overflow:visible;isolation:isolate;filter:drop-shadow(0 6px 12px rgba(3,7,42,.28));transition:transform 180ms var(--ease)}
+  .menu a.active:hover .system-art{transform:translateY(-2px)}
+  .menu a.active span,.menu a.active small{display:none}
+  .menu a small{display:block;font-family:var(--mono);font-size:9px;font-style:normal;font-weight:500;letter-spacing:.18em;color:rgba(255,255,255,.45);margin-top:1px}
+
+  .status{
+    position:absolute;left:28px;right:26px;bottom:16px;display:flex;justify-content:space-between;
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:rgba(255,255,255,.65);
+    border-top:1px solid rgba(255,255,255,.22);padding-top:9px;
+  }
+  .status b{color:var(--ice);font-weight:500}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* 1024×660 */
+  @media (max-width:1120px){
+    .stage{padding:16px 18px 14px 20px}
+    .info-card{left:20px;top:16px;padding:7px 11px;min-width:112px}
+    .info-card b{font-size:19px}
+    .center{width:60vw}
+    h1{font-size:56px;letter-spacing:-3px}
+    .current b{font-size:20px}
+    .current{margin-bottom:14px}
+    .item{height:44px;gap:11px;padding:0 10px}
+    .no{font-size:16px;width:24px;flex-basis:24px}
+    .item-name{font-size:15px}
+    .item-meta{font-size:8.5px}
+    .cta{height:44px;padding:0 26px;font-size:12.5px;margin-top:12px}
+    .menu a{font-size:23px}
+    .menu a.active{width:228px;height:78px;font-size:29px;margin-right:-8px}
+    .menu a.active span{transform:rotate(4deg) skewX(-14deg) translate(-16px,3px)}
+    .menu a small{font-size:8px}
+    .brand-cut{font-size:110px;bottom:-24px}
+  }
+  @media (max-height:720px){
+    .item{height:40px}
+    .item:nth-child(5){display:none}
+    h1{font-size:52px}
+    .current{margin:5px 0 12px}
+    .cta{height:40px;margin-top:9px}
+    .menu a{font-size:21px}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="info-card"><b>4 / 6.2h</b><span>INSTANCES / THIS WEEK</span></div>
+  <div class="brand-cut">NEBULA</div>
+  <div class="vertical-label">NEBULA LAUNCHER · PERSONAL BUILD · 2026</div>
+
+  <main class="center">
+    <div class="eyebrow">CONTINUE</div>
+    <h1>继续游戏</h1>
+    <div class="current"><b>neoforge-21.4.50</b><span>NEOFORGE 21.4.50 / 1.21.4 / 4 MODS / 2H AGO</span></div>
+
+    <div class="list">
+      <a class="item active" href="#">
+        <span class="no">01</span>
+        <span class="item-name">fabric-loader-0.16.9</span>
+        <span class="item-meta">FABRIC / 3 MODS / YESTERDAY</span>
+        <span class="item-go">启动</span>
+      </a>
+      <a class="item" href="#">
+        <span class="no">02</span>
+        <span class="item-name">1.21.4</span>
+        <span class="item-meta">VANILLA / GLOBAL / 3 DAYS</span>
+        <span class="item-go">启动</span>
+      </a>
+      <a class="item" href="#">
+        <span class="no">03</span>
+        <span class="item-name">All the Mods 10</span>
+        <span class="item-meta">NEOFORGE / 188 MODS / LAST WEEK</span>
+        <span class="item-go">启动</span>
+      </a>
+      <a class="item" href="#">
+        <span class="no">04</span>
+        <span class="item-name">1.20.1</span>
+        <span class="item-meta">VANILLA / GLOBAL / LAST WEEK</span>
+        <span class="item-go">启动</span>
+      </a>
+    </div>
+
+    <button class="cta">启动游戏</button>
+  </main>
+
+  <nav class="menu">
+    <a class="active" href="#" aria-label="主页">
+      <svg class="system-art" viewBox="0 0 1245 378" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="pink" x1="0" y1="0" x2=".85" y2="1">
+            <stop offset="0" stop-color="#ff3b9b"/>
+            <stop offset=".5" stop-color="#f72a90"/>
+            <stop offset="1" stop-color="#e0177f"/>
+          </linearGradient>
+          <clipPath id="whiteClip"><path d="M 86 44 L 1170 104 L 812 356 Z"/></clipPath>
+          <filter id="redSoft" x="-5%" y="-10%" width="110%" height="120%"><feGaussianBlur stdDeviation=".8"/></filter>
+        </defs>
+        <path d="M 52 62 L 1236 48 L 792 378 Z" fill="url(#pink)" opacity=".92"/>
+        <path d="M 52 62 L 1236 48 L 792 378 Z" fill="none" stroke="#ff65b0" stroke-width="8" opacity=".2" transform="translate(-7 5)"/>
+        <path d="M 86 44 L 1170 104 L 812 356 Z" fill="#ffffff" opacity=".97"/>
+        <path d="M 86 44 L 1170 104 L 812 356 Z" fill="none" stroke="#ff3d9b" stroke-width="1.8" opacity=".5" transform="translate(4 4)"/>
+        <g transform="translate(340 272) rotate(7.2) skewX(-14)">
+          <text x="0" y="0" font-size="200" fill="#050505" font-family="'Microsoft YaHei','PingFang SC','Arial Black',sans-serif" font-weight="900">主页</text>
+        </g>
+        <g clip-path="url(#whiteClip)" style="mix-blend-mode: screen" filter="url(#redSoft)">
+          <rect x="0" y="0" width="1245" height="378" fill="#f72f00"/>
+        </g>
+      </svg>
+    </a>
+    <a href="#">版本<small>VERSIONS</small></a>
+    <a href="#">内容<small>CONTENT</small></a>
+    <a href="#">下载<small>DOWNLOADS</small></a>
+    <a href="#">账户<small>ACCOUNT</small></a>
+    <a href="#">服务器<small>SERVERS</small></a>
+    <a href="#">设置<small>SETTINGS</small></a>
+  </nav>
+
+  <div class="status"><span>NEBULA LAUNCHER // PERSONAL BUILD</span><span>BUILD <b>v1.2.2</b> // 4 INSTANCES // READY</span></div>
+</div>
+</body>
+</html>

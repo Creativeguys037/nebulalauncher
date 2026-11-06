@@ -1,0 +1,349 @@
+<!doctype html>
+<!--
+  样板 #93 · 下载（概览条 + 可折叠参数 + 任务列表）     依据票 #93「结构树（本页）」「布局坐标（本页）」
+  ------------------------------------------------------------------
+  外壳按现实现画：左 rail 82 + 46 高 TitleBar + 41 高 statusbar（不是 62 高 topbar；docs/UI-STRUCTURE.md D1）。
+
+  坐标（1240×800）：
+    页面画布 1100×677 = Row0 40 + Row1 48 + Row2 509 + Row3 44 + RowSpacing 12×3
+    Row2 509 − panebox 上下内边距 16 = 任务滚动区 493
+    任务行高 64 + 行距 4 → 一屏 7 整行（493 / 68 = 7.25）
+    票面写「折叠时宽屏 8 行」：折叠时 Row1 为 0，Row2 565（557 可用）→ 8 行；
+    本样板按结构树画**参数栏展开**态（48），故一屏 7 行，行高仍是票面的 64。
+
+  列（任务行，宽屏 1100 / 紧凑 898，**紧凑档固定列不缩窄**）：
+    名称 *（min 0，两行截断）· 进度条 160 · 数字三列 48 / 96 / 72（右对齐、等宽）· 行内动作 ≤3
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nebula Launcher — 下载</title>
+<link rel="stylesheet" href="glass.css">
+<style>
+/* ===== 基础片段开始（复制时不要改） ===== */
+/* 外壳：与 MainWindow.axaml 写实结构一致 */
+.app{position:relative;z-index:1;height:100vh;display:flex;gap:18px;padding:18px}
+.main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
+.titlebar{flex:0 0 46px;display:flex;align-items:center;gap:12px;padding:0 2px}
+.titlebar .tt{font-size:22px;font-weight:800;letter-spacing:-.6px;color:var(--ink)}
+.titlebar .ts{font-size:11px;color:var(--ink-3);margin-top:4px}
+.titlebar .ww{margin-left:auto;display:flex;align-items:center;gap:4px}
+.stagecol{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+/* 页面栅格：Auto,Auto,*,Auto + RowSpacing 12，根不滚动 */
+.page{
+  flex:1 1 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;
+  gap:12px;min-height:0;
+}
+/* Row0=40 / Row1=48 / Row3=44；Row2 由 minmax(0,1fr) 吃掉剩余 509 */
+.prow0{height:40px;display:flex;align-items:center;gap:14px;min-width:0}
+.prow1{height:48px;display:flex;align-items:center;gap:12px;min-width:0}
+.prow3{height:44px;display:flex;align-items:center;gap:10px;min-width:0}
+.statusbar{
+  flex:0 0 41px;display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;color:var(--ink-3);border-top:1px solid rgba(10,13,20,.08);
+}
+/* 内容框：L2 玻璃 + 内部唯一滚动条 */
+.panebox{border-radius:var(--r-md);display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:8px}
+.panebox>h3{font-size:12px;font-weight:700;padding:6px 12px 10px;position:relative;z-index:1;display:flex;align-items:center;gap:8px}
+.panebox>h3 em{font-style:normal;font-size:9.5px;font-weight:600;color:var(--blue);letter-spacing:.06em;text-transform:uppercase;margin-left:auto}
+.scroll{flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(10,13,20,.18) transparent;position:relative;z-index:1}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb{background:rgba(10,13,20,.18);border-radius:4px}
+.scroll::-webkit-scrollbar-track{background:transparent}
+.rows{display:flex;flex-direction:column;gap:4px}
+/* 列表行（L3 实心，行内不超过 3 个动作，禁止 accent 实心按钮） */
+.row{
+  display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:12px;min-width:0;
+  border:1px solid transparent;cursor:pointer;
+  transition:background 140ms var(--ease),border-color 140ms var(--ease),transform 140ms var(--ease);
+}
+.row:hover{background:rgba(255,255,255,.62);border-color:rgba(255,255,255,.95);transform:translateX(2px)}
+.row.sel{background:rgba(22,104,255,.10);border-color:rgba(22,104,255,.28);box-shadow:inset 3px 0 0 var(--blue)}
+.row .ric{flex:0 0 32px;width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.95)}
+.row .ric svg{width:17px;height:17px;stroke:var(--blue);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.row .rn{flex:1 1 auto;min-width:0}
+.row .rn b{display:block;font-size:13px;font-weight:700;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rn span{display:block;font-size:10px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rmeta{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);text-align:right}
+.row .rmeta b{display:block;font-size:11.5px;color:var(--ink);font-weight:700}
+/* 行内动作：ghost / icon 只有，不放 accent */
+.ract{display:flex;gap:4px;flex:0 0 auto}
+.ibtn{
+  width:30px;height:30px;border-radius:9px;border:1px solid transparent;background:transparent;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-2);
+  transition:background 140ms var(--ease),color 140ms var(--ease);
+}
+.ibtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ibtn:hover{background:rgba(255,255,255,.85);border-color:rgba(255,255,255,.95);color:var(--ink)}
+.ibtn:active{background:rgba(10,13,20,.08)}
+.ibtn.danger:hover{color:#C0392B;background:rgba(192,57,43,.10)}
+/* 徽标 */
+.badge{font-size:9px;font-weight:700;letter-spacing:.03em;padding:3px 7px;border-radius:6px;background:rgba(10,13,20,.06);color:var(--ink-2);white-space:nowrap}
+.badge.live{background:rgba(34,197,94,.14);color:#15803D}
+.badge.off{background:rgba(10,13,20,.08);color:var(--ink-3)}
+.badge.warn{background:rgba(234,179,8,.16);color:#8A5A00}
+.badge.bad{background:rgba(192,57,43,.12);color:#B03A2E}
+/* 空态：图标 32 + 一句说明 + 一个动作，框内居中 */
+.empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px}
+.empty .eic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.95)}
+.empty .eic svg{width:24px;height:24px;stroke:var(--ink-3);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.empty h4{font-size:13px;font-weight:700}
+.empty p{font-size:10.5px;color:var(--ink-3);max-width:300px;line-height:1.6}
+/* 骨架：4 行，行高 = 真实行高 */
+.skel{display:flex;flex-direction:column;gap:4px;padding:4px}
+.skel i{display:block;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,.85),rgba(255,255,255,.55));background-size:200% 100%;animation:sk 1.4s linear infinite}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* 工具条控件 */
+.search{flex:0 1 320px;height:36px;border-radius:11px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.9);display:flex;align-items:center;gap:9px;padding:0 12px;color:var(--ink-3);font-size:11.5px}
+.search svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round}
+.segs{display:flex;gap:2px;padding:3px;border-radius:10px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.9)}
+.segs a{font-size:10.5px;font-weight:600;color:var(--ink-3);text-decoration:none;padding:5px 10px;border-radius:7px;cursor:pointer}
+.segs a.on{background:var(--blue);color:#fff;box-shadow:0 4px 12px rgba(22,104,255,.3)}
+.spacer{flex:1 1 auto}
+.btn.sm{height:34px;padding:0 15px;font-size:12px;border-radius:10px}
+/* 结果条 / 批量条（Row3） */
+.bar44{flex:1 1 auto;height:44px;border-radius:12px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.9);font-size:11px;color:var(--ink-2)}
+.bar44 b{font-weight:700}
+.bar44 .x{margin-left:auto}
+/* ===== 基础片段结束 ===== */
+
+/* PAGE-STYLES：本页专用类（只在此追加，不改 glass.css、不新增变量） */
+/* .glass 的白色高光 ::before 是 z-index:0，玻璃容器里的内容层必须自建层，否则文字被压淡 */
+.sum>*,.params>*,.bar44>*{position:relative;z-index:1}
+
+/* Row0 概览条：40 高单行玻璃条；数字等宽 + 右对齐 + 固定列宽 */
+.sum{flex:1 1 auto;height:40px;display:flex;align-items:center;gap:6px;padding:0 6px 0 16px;border-radius:var(--r-sm)}
+.sum .ml{font-size:10px;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+.sum .mv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;text-align:right;color:var(--ink)}
+.sum .mv.w1{width:26px}
+.sum .mv.w2{width:88px}
+.sum .mv.w3{width:52px}
+.sum .vd{width:1px;height:16px;background:var(--line);margin:0 8px}
+
+/* Row1 参数栏：展开态 48（默认折叠为 0） */
+.params{flex:1 1 auto;height:48px;display:flex;align-items:center;gap:10px;padding:0 8px 0 16px;border-radius:var(--r-sm)}
+.params .pl{font-size:10px;font-weight:600;color:var(--ink-3)}
+.psel{height:32px;min-width:136px;border-radius:9px;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.95);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.psel svg{width:13px;height:13px;stroke:var(--ink-3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-left:auto}
+.pstep{height:32px;display:flex;align-items:center;gap:2px;padding:0 3px;border-radius:9px;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.95)}
+.pstep b{width:30px;text-align:center;font-family:var(--mono);font-size:12px;font-weight:700}
+.pstep .ibtn{width:26px;height:26px;border-radius:7px}
+.pstep .ibtn svg{width:13px;height:13px}
+
+/* Row2 任务行：高 64；四列 = 名称* / 进度 160 / 数字 48+96+72 / 动作 ≤3 */
+.trow{height:64px}
+.tprog{flex:0 0 160px;height:6px;border-radius:999px;background:rgba(10,13,20,.09);overflow:hidden}
+.tprog i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.tprog.pause i{background:rgba(10,13,20,.26)}
+.tprog.fail i{background:rgba(192,57,43,.78)}
+.tn{flex:0 0 auto;display:flex;align-items:baseline;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tn b{flex:0 0 48px;text-align:right;font-size:12px;font-weight:700;color:var(--ink)}
+.tn i{flex:0 0 96px;text-align:right;font-style:normal;font-size:11px;color:var(--ink-2)}
+.tn em{flex:0 0 72px;text-align:right;font-style:normal;font-size:11px;color:var(--ink-3)}
+
+/* Row3 结果条：失败汇总 + 唯一主行动（全页只有这一个 .btn.primary） */
+.bar44 .acts{margin-left:auto;display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.bar44 .acts .btn{height:32px;font-size:11.5px;padding:0 14px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 左侧玻璃竖栏 -->
+  <aside class="rail glass">
+    <div class="logo">N</div>
+    <a class="navb" title="主页">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg>
+      <span>主页</span>
+    </a>
+    <a class="navb" title="版本">
+      <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3.5l8 4v9l-8 4-8-4z"/><path d="M4 7.5 12 11.5l8-4"/><path d="M12 11.5v9"/></svg>
+      <span>版本</span>
+    </a>
+    <a class="navb" title="内容">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>
+      <span>内容</span>
+    </a>
+    <a class="navb on" title="下载">
+      <svg viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 19.5h15"/></svg>
+      <span>下载</span>
+    </a>
+    <div class="sep"></div>
+    <a class="navb" title="账户">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c0-3.4 3.1-5.6 7-5.6s7 2.2 7 5.6"/></svg>
+      <span>账户</span>
+    </a>
+    <a class="navb" title="服务器">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="6" rx="2"/><rect x="3.5" y="14" width="17" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg>
+      <span>服务器</span>
+    </a>
+    <div class="spacer"></div>
+    <a class="navb" title="设置">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4M17.8 17.8l-1.4-1.4M7.6 7.6 6.2 6.2"/></svg>
+      <span>设置</span>
+    </a>
+  </aside>
+
+  <div class="main">
+    <!-- 46 高 TitleBar：左页面抬头 + 右窗口三键 -->
+    <div class="titlebar">
+      <span class="tt">下载</span>
+      <span class="ts">3 个进行中 · 1 个失败 · 4 个已完成</span>
+      <div class="ww">
+        <button class="wbtn" title="最小化" aria-label="最小化"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+        <button class="wbtn" title="最大化" aria-label="最大化"><svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.4"/></svg></button>
+        <button class="wbtn close" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+      </div>
+    </div>
+
+    <div class="stagecol">
+      <div class="page">
+
+        <!-- Row0（40）：概览条 GlassPanel —— 活跃数 / 总速度 / 剩余时间（等宽 + 右对齐）+ 全部暂停 ghost -->
+        <div class="prow0">
+          <div class="sum glass">
+            <span class="ml">活跃</span><span class="mv w1">3</span>
+            <span class="vd"></span>
+            <span class="ml">总速度</span><span class="mv w2">18.4 MB/s</span>
+            <span class="vd"></span>
+            <span class="ml">剩余</span><span class="mv w3">04:12</span>
+            <span class="spacer"></span>
+            <button class="btn ghost sm">全部暂停</button>
+          </div>
+        </div>
+
+        <!-- Row1（48）：参数栏，样板画展开态（默认折叠为 0） -->
+        <div class="prow1">
+          <div class="params glass">
+            <span class="pl">下载源</span>
+            <div class="psel">官方镜像 · BMCLAPI<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></div>
+            <span class="pl">并发</span>
+            <div class="pstep">
+              <button class="ibtn" title="减少" aria-label="减少"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+              <b>4</b>
+              <button class="ibtn" title="增加" aria-label="增加"><svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg></button>
+            </div>
+            <span class="pl">限速</span>
+            <div class="psel">不限速<svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></div>
+            <span class="spacer"></span>
+            <button class="btn ghost sm">收起参数</button>
+          </div>
+        </div>
+
+        <!-- 空态（0 条任务，样板未画）：用 .empty 结构 —— 图标 + 一句「没有下载任务」+ 一个动作「去版本页」。
+             加载态用 .skel（4 行，行高 = 64）。 -->
+
+        <!-- Row2（* = 509）：任务列表框 → 框内唯一滚动；行高 64，一屏 7 整行 -->
+        <section class="panebox glass">
+          <div class="scroll"><div class="rows">
+
+            <div class="row sel trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><path d="M4 7.5 12 3.5l8 4v9l-8 4-8-4z"/><path d="M4 7.5 12 11.5l8-4"/><path d="M12 11.5v9"/></svg></span>
+              <span class="rn"><b>荒野生存 · 1.21.1 · 模组包</b><span>下载模组 · 32.4 / 52.1 MB · 12 项</span></span>
+              <span class="tprog"><i style="width:62%"></i></span>
+              <span class="tn"><b>62%</b><i>1.2 MB/s</i><em>02:10</em></span>
+              <span class="ract">
+                <button class="ibtn" title="暂停" aria-label="暂停"><svg viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"/></svg></button>
+                <button class="ibtn danger" title="取消" aria-label="取消"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+                <button class="ibtn" title="打开目录" aria-label="打开目录"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button>
+              </span>
+            </div>
+
+            <div class="row trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><path d="M12 3.5 20 8v8L12 20.5 4 16V8z"/><path d="M8.5 9.5h7M8.5 13h7"/></svg></span>
+              <span class="rn"><b>Better MC · 整合包</b><span>下载模组 · 148 / 390 MB · 287 项</span></span>
+              <span class="tprog"><i style="width:38%"></i></span>
+              <span class="tn"><b>38%</b><i>3.4 MB/s</i><em>05:02</em></span>
+              <span class="ract">
+                <button class="ibtn" title="暂停" aria-label="暂停"><svg viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"/></svg></button>
+                <button class="ibtn danger" title="取消" aria-label="取消"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+                <button class="ibtn" title="打开目录" aria-label="打开目录"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button>
+              </span>
+            </div>
+
+            <div class="row trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg></span>
+              <span class="rn"><b>Fabric 0.16.9 加载器</b><span>下载库文件 · 18.6 / 20.4 MB · 3 项</span></span>
+              <span class="tprog"><i style="width:91%"></i></span>
+              <span class="tn"><b>91%</b><i>860 KB/s</i><em>00:12</em></span>
+              <span class="ract">
+                <button class="ibtn" title="暂停" aria-label="暂停"><svg viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"/></svg></button>
+                <button class="ibtn danger" title="取消" aria-label="取消"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+                <button class="ibtn" title="打开目录" aria-label="打开目录"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button>
+              </span>
+            </div>
+
+            <div class="row trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2.6"/><path d="M3.5 9h17"/><path d="M8 13.5h8M8 16.5h5"/></svg></span>
+              <span class="rn"><b>存档备份 · 远古遗迹</b><span>已完成 · 128 MB · 2 分钟前</span></span>
+              <span class="tprog"><i style="width:100%"></i></span>
+              <span class="tn"><b>100%</b><i>—</i><em>—</em></span>
+              <span class="ract">
+                <button class="ibtn" title="打开目录" aria-label="打开目录"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button>
+                <button class="ibtn" title="从列表移除" aria-label="从列表移除"><svg viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V5h5v2M7 7l1 12h8l1-12"/></svg></button>
+              </span>
+            </div>
+
+            <div class="row trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><path d="M12 4.5 14.6 9l5.2.8-3.8 3.7.9 5.2-4.9-2.6-4.9 2.6.9-5.2L4.2 9.8 9.4 9z"/></svg></span>
+              <span class="rn"><b>光影包 BSL v8.4</b><span>已暂停 · 12.8 / 28.6 MB · 用户暂停</span></span>
+              <span class="tprog pause"><i style="width:45%"></i></span>
+              <span class="tn"><b>45%</b><i>0 B/s</i><em>—</em></span>
+              <span class="ract">
+                <button class="ibtn" title="继续" aria-label="继续"><svg viewBox="0 0 24 24"><path d="M8.5 6.5 18 12l-9.5 5.5z"/></svg></button>
+                <button class="ibtn danger" title="取消" aria-label="取消"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+                <button class="ibtn" title="打开目录" aria-label="打开目录"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button>
+              </span>
+            </div>
+
+            <div class="row trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/></svg></span>
+              <span class="rn"><b>资源索引 · 1.21.1 清单</b><span>失败 · 网络超时（Github API 30s 无响应）· 可重试</span></span>
+              <span class="tprog fail"><i style="width:12%"></i></span>
+              <span class="tn"><b>12%</b><i>0 B/s</i><em>—</em></span>
+              <span class="ract">
+                <button class="ibtn" title="重试" aria-label="重试"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></svg></button>
+                <button class="ibtn danger" title="取消" aria-label="取消"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+                <button class="ibtn" title="详情" aria-label="详情"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/></svg></button>
+              </span>
+            </div>
+
+            <div class="row trow">
+              <span class="ric"><svg viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 19.5h15"/></svg></span>
+              <span class="rn"><b>Java 21 运行时 · Temurin</b><span>已完成 · 186 MB · 1 小时前</span></span>
+              <span class="tprog"><i style="width:100%"></i></span>
+              <span class="tn"><b>100%</b><i>—</i><em>—</em></span>
+              <span class="ract">
+                <button class="ibtn" title="打开目录" aria-label="打开目录"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></button>
+                <button class="ibtn" title="从列表移除" aria-label="从列表移除"><svg viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V5h5v2M7 7l1 12h8l1-12"/></svg></button>
+              </span>
+            </div>
+
+          </div></div>
+        </section>
+
+        <!-- Row3（44）：结果条 —— 失败汇总 + 全页唯一主行动 -->
+        <div class="prow3">
+          <div class="bar44">
+            <span class="badge bad">失败 1</span>
+            <span><b>资源索引 · 1.21.1 清单</b> 网络超时，已重试 0 次</span>
+            <span class="acts">
+              <button class="btn primary sm">全部重试</button>
+              <button class="ibtn" title="关闭" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="statusbar">
+        <span>任务行高 64 · 一屏宽屏 7 / 紧凑 5 · 数字列 48/96/72 不缩窄 · 参数栏展开 48</span>
+        <span>Nebula Launcher</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

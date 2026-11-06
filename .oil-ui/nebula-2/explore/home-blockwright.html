@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nebula Launcher — 启动</title>
+<style>
+  :root{
+    --bg:#101214; --panel:#171A1E; --panel-2:#1D2126; --line:#2A2F36;
+    --text:#F0F3F7; --text-2:#C0C8D2; --text-3:#93A0AD;
+    --copper:#C97B4A; --copper-hi:#D68A57; --lapis:#6E9FDB;
+    --redstone:#C05A5A; --emerald:#4E9A6B;
+    --ease:cubic-bezier(.2,.8,.2,1);
+    --sans:system-ui,"Microsoft YaHei","PingFang SC",sans-serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:13px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  button{font:inherit;color:inherit}
+  .app{display:flex;height:100vh;min-height:600px}
+
+  /* ---------- 侧栏 ---------- */
+  .sidebar{
+    width:208px;flex:0 0 208px;background:#121417;border-right:1px solid var(--line);
+    padding:10px;display:flex;flex-direction:column;gap:4px;
+  }
+  .brand{height:40px;display:flex;align-items:center;gap:10px;padding:0 10px;margin-bottom:6px}
+  .brand-mark{
+    width:22px;height:22px;background:var(--copper);
+    clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+    display:grid;place-items:center;
+  }
+  .brand-mark i{display:block;width:8px;height:8px;background:#17110D}
+  .brand-name{font-size:13px;font-weight:600;letter-spacing:.2px}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav a{
+    position:relative;height:36px;display:flex;align-items:center;gap:10px;
+    padding:0 10px;border-radius:8px;color:var(--text-2);text-decoration:none;
+    font-size:13px;transition:background 140ms var(--ease),color 140ms var(--ease);
+  }
+  .nav a svg{width:17px;height:17px;flex:0 0 17px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .nav a:hover{background:var(--panel-2);color:var(--text)}
+  .nav a.active{background:rgba(201,123,74,.12);color:var(--text);font-weight:500}
+  .nav a.active::before{content:"";position:absolute;left:-10px;top:9px;bottom:9px;width:2px;background:var(--copper);border-radius:0 2px 2px 0}
+  .account-bar{
+    margin-top:auto;border-top:1px solid var(--line);padding:10px 8px 2px;
+    display:flex;align-items:center;gap:9px;
+  }
+  .avatar{
+    width:28px;height:28px;border-radius:6px;background:#2A2F36;overflow:hidden;flex:0 0 28px;
+    display:grid;place-items:center;
+  }
+  .account-name{font-size:12px;font-weight:500;line-height:1.2}
+  .account-sub{font-size:10.5px;color:var(--text-3);display:flex;align-items:center;gap:4px;margin-top:2px}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--emerald)}
+
+  /* ---------- 主区 ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{
+    height:48px;flex:0 0 48px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;padding:0 18px 0 22px;
+  }
+  .crumb{font-size:12.5px;color:var(--text-2)}
+  .top-actions{display:flex;align-items:center;gap:6px}
+  .icon-btn{
+    width:30px;height:28px;border:0;background:transparent;border-radius:6px;
+    display:grid;place-items:center;color:var(--text-3);cursor:pointer;
+  }
+  .icon-btn:hover{background:var(--panel-2);color:var(--text-2)}
+  .win-controls{display:flex;gap:2px;margin-left:6px}
+  .win-controls span{width:12px;height:12px;border:1px solid var(--line);border-radius:2px;display:block}
+
+  .content{
+    flex:1;overflow:auto;padding:20px 24px 26px;
+    background-image:
+      repeating-linear-gradient(0deg,transparent 0 7px,rgba(255,255,255,.012) 7px 8px),
+      repeating-linear-gradient(90deg,transparent 0 7px,rgba(255,255,255,.012) 7px 8px);
+  }
+  .page-head h1{font-size:26px;line-height:1.15;margin:0;font-weight:600;letter-spacing:-.3px}
+  .page-head p{margin:5px 0 0;font-size:12px;color:var(--text-3)}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;display:flex;align-items:center;gap:18px;
+    animation:rise 240ms var(--ease) both;
+  }
+  .hero-icon{
+    width:64px;height:64px;flex:0 0 64px;background:#23272D;border:1px solid #343A42;
+    clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+    display:grid;place-items:center;
+  }
+  .hero-icon svg{width:30px;height:30px;stroke:var(--copper);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .hero-info{min-width:0}
+  .hero-kicker{font-size:11px;color:var(--text-3);margin-bottom:3px}
+  .hero-info h2{font-size:24px;line-height:1.15;margin:0 0 7px;font-weight:600;letter-spacing:-.2px}
+  .hero-meta{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-2);flex-wrap:wrap}
+  .tag{
+    border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px;
+    color:var(--text-2);font-family:var(--mono);
+  }
+  .btn-primary{
+    margin-left:auto;height:44px;padding:0 26px;border:0;cursor:pointer;
+    background:var(--copper);color:#17110D;font-size:14px;font-weight:600;letter-spacing:.2px;
+    clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+    transition:background 140ms var(--ease),transform 140ms var(--ease);
+    white-space:nowrap;
+  }
+  .btn-primary:hover{background:var(--copper-hi);transform:translateY(-1px)}
+  .btn-primary:active{transform:translateY(0)}
+
+  /* ---------- 最近实例 ---------- */
+  .row-2{display:grid;grid-template-columns:1fr 208px;gap:16px;margin-top:16px}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
+  .section-head h3{font-size:14px;margin:0;font-weight:600}
+  .section-head a{font-size:12px;color:var(--lapis);text-decoration:none}
+  .section-head a:hover{text-decoration:underline}
+  .recent-list{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .recent-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;
+    display:flex;align-items:center;gap:10px;min-width:0;
+    animation:rise 240ms var(--ease) both;animation-delay:calc(var(--i) * 20ms);
+    transition:transform 140ms var(--ease),border-color 140ms var(--ease);
+  }
+  .recent-card:hover{transform:translateY(-2px);border-color:#3A4048}
+  .recent-icon{
+    width:36px;height:36px;flex:0 0 36px;background:#23272D;border:1px solid #343A42;border-radius:6px;
+    display:grid;place-items:center;
+  }
+  .recent-icon svg{width:18px;height:18px;stroke:var(--text-2);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .recent-card h4{margin:0;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .recent-card .meta{font-size:10.5px;color:var(--text-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stats{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 14px;display:flex;flex-direction:column;justify-content:center}
+  .stat{display:flex;align-items:baseline;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)}
+  .stat:last-child{border-bottom:0}
+  .stat-label{font-size:11px;color:var(--text-3)}
+  .stat-value{font-family:var(--mono);font-size:16px;font-weight:500;font-variant-numeric:tabular-nums}
+  .stat-value.ok{color:var(--emerald)}
+
+  /* ---------- 实例库 ---------- */
+  .library{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .lib-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .lib-head h3{font-size:14px;margin:0;font-weight:600}
+  .muted{font-size:11.5px;color:var(--text-3)}
+  .table-head,.lib-row{display:grid;grid-template-columns:1fr 120px 104px 88px;align-items:center;gap:10px}
+  .table-head{font-size:11px;color:var(--text-3);padding:6px 10px 7px}
+  .lib-row{
+    position:relative;height:52px;padding:0 10px;border-top:1px solid var(--line);
+    transition:background 140ms var(--ease);
+  }
+  .lib-row:hover{background:rgba(255,255,255,.018)}
+  .lib-row.current::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:2px;background:var(--copper);border-radius:1px}
+  .lib-name{display:flex;align-items:center;gap:10px;min-width:0}
+  .lib-icon{width:30px;height:30px;flex:0 0 30px;background:#23272D;border:1px solid #343A42;border-radius:5px;display:grid;place-items:center}
+  .lib-icon svg{width:16px;height:16px;stroke:var(--text-2);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .lib-name h4{margin:0;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lib-name .sub{font-size:10.5px;color:var(--text-3);margin-top:1px}
+  .lib-meta{font-size:11.5px;color:var(--text-3);font-family:var(--mono)}
+  .lib-status{font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px}
+  .lib-status .dot{background:var(--emerald)}
+  .btn-ghost{
+    height:28px;padding:0 12px;border:1px solid var(--line);background:transparent;border-radius:6px;
+    font-size:12px;color:var(--text-2);cursor:pointer;transition:border-color 140ms var(--ease),color 140ms var(--ease);
+  }
+  .btn-ghost:hover{border-color:#4A5058;color:var(--text)}
+
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ---------- 1024×660 ---------- */
+  @media (max-width:1100px){
+    .sidebar{width:176px;flex-basis:176px;padding:8px}
+    .brand{padding:0 8px}
+    .content{padding:14px 16px 18px}
+    .page-head h1{font-size:22px}
+    .hero{margin-top:12px;padding:13px 15px;gap:13px}
+    .hero-icon{width:52px;height:52px;flex-basis:52px}
+    .hero-info h2{font-size:20px;margin-bottom:5px}
+    .hero-meta{font-size:11.5px;gap:8px}
+    .btn-primary{height:40px;padding:0 18px;font-size:13px}
+    .row-2{grid-template-columns:1fr;gap:10px;margin-top:12px}
+    .stats{flex-direction:row;gap:0;padding:8px 12px}
+    .stat{flex:1;border-bottom:0;border-right:1px solid var(--line);justify-content:center;gap:8px;padding:0}
+    .stat:last-child{border-right:0}
+    .library{margin-top:12px;padding:12px 14px}
+    .lib-row{height:44px}
+  }
+  @media (max-height:720px){
+    .page-head p{display:none}
+    .hero{margin-top:10px}
+    .row-2{margin-top:10px}
+    .library{margin-top:10px}
+    .recent-card{padding:8px}
+    .table-head{padding-top:4px;padding-bottom:5px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark"><i></i></span><span class="brand-name">Nebula</span></div>
+    <nav class="nav">
+      <a class="active" href="#"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg>启动</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>版本</a>
+      <a href="#"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>内容</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg>下载</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20c.6-3.6 3.1-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/></svg>账户</a>
+      <a href="#"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/><path d="M8 7h.01M8 17h.01"/></svg>服务器</a>
+      <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>设置</a>
+    </nav>
+    <div class="account-bar">
+      <span class="avatar">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+          <rect x="5" y="3" width="12" height="11" rx="2" fill="#C89B7B"/>
+          <rect x="7" y="7" width="2" height="2" fill="#2B2320"/>
+          <rect x="13" y="7" width="2" height="2" fill="#2B2320"/>
+          <rect x="8" y="11" width="6" height="1.4" fill="#8E6650"/>
+          <rect x="4" y="15" width="14" height="5" rx="1.5" fill="#4A7DBD"/>
+        </svg>
+      </span>
+      <div>
+        <div class="account-name">NebulaPilot</div>
+        <div class="account-sub"><span class="dot"></span>离线账户</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb">启动</div>
+      <div class="top-actions">
+        <button class="icon-btn" aria-label="搜索"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+        <button class="icon-btn" aria-label="通知"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9a6 6 0 10-12 0c0 6-2 6-2 7h16c0-1-2-1-2-7"/><path d="M10.5 20a2 2 0 003 0"/></svg></button>
+        <span class="win-controls"><span></span><span></span><span></span></span>
+      </div>
+    </header>
+
+    <section class="content">
+      <div class="page-head">
+        <h1>继续游戏</h1>
+        <p>上次游玩 今天 19:42 · 4 个实例可用</p>
+      </div>
+
+      <article class="hero">
+        <div class="hero-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+        </div>
+        <div class="hero-info">
+          <div class="hero-kicker">最近实例 · 2 小时前</div>
+          <h2>neoforge-21.4.50</h2>
+          <div class="hero-meta">
+            <span class="tag">NeoForge 21.4.50</span>
+            <span>1.21.4</span>
+            <span>4 个模组</span>
+            <span>独立实例</span>
+          </div>
+        </div>
+        <button class="btn-primary">启动游戏</button>
+      </article>
+
+      <div class="row-2">
+        <section>
+          <div class="section-head"><h3>最近实例</h3><a href="#">全部实例</a></div>
+          <div class="recent-list">
+            <article class="recent-card" style="--i:1">
+              <span class="recent-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+              <div><h4>fabric-loader-0.16.9</h4><div class="meta">1.21.4 · 3 个模组</div></div>
+            </article>
+            <article class="recent-card" style="--i:2">
+              <span class="recent-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+              <div><h4>1.21.4</h4><div class="meta">原版 · 纯净</div></div>
+            </article>
+            <article class="recent-card" style="--i:3">
+              <span class="recent-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+              <div><h4>1.20.1</h4><div class="meta">原版 · 存档测试</div></div>
+            </article>
+          </div>
+        </section>
+        <aside class="stats">
+          <div class="stat"><span class="stat-label">本周游玩</span><span class="stat-value">6.2h</span></div>
+          <div class="stat"><span class="stat-label">启动次数</span><span class="stat-value">12</span></div>
+          <div class="stat"><span class="stat-label">崩溃</span><span class="stat-value ok">0</span></div>
+        </aside>
+      </div>
+
+      <section class="library">
+        <div class="lib-head"><h3>实例库</h3><span class="muted">4 个实例 · 按最近使用排序</span></div>
+        <div class="table-head"><span>实例</span><span>版本</span><span>最后游玩</span><span></span></div>
+        <div class="lib-row current">
+          <div class="lib-name">
+            <span class="lib-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+            <div><h4>neoforge-21.4.50</h4><div class="sub">独立实例 · 4 个模组</div></div>
+          </div>
+          <span class="lib-meta">1.21.4</span>
+          <span class="lib-status"><span class="dot"></span>2 小时前</span>
+          <button class="btn-ghost">启动</button>
+        </div>
+        <div class="lib-row">
+          <div class="lib-name">
+            <span class="lib-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+            <div><h4>fabric-loader-0.16.9-1.21.4</h4><div class="sub">独立实例 · 3 个模组</div></div>
+          </div>
+          <span class="lib-meta">1.21.4</span>
+          <span class="lib-status">昨天</span>
+          <button class="btn-ghost">启动</button>
+        </div>
+        <div class="lib-row">
+          <div class="lib-name">
+            <span class="lib-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+            <div><h4>1.21.4</h4><div class="sub">全局目录 · 原版</div></div>
+          </div>
+          <span class="lib-meta">1.21.4</span>
+          <span class="lib-status">3 天前</span>
+          <button class="btn-ghost">启动</button>
+        </div>
+        <div class="lib-row">
+          <div class="lib-name">
+            <span class="lib-icon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>
+            <div><h4>1.20.1</h4><div class="sub">全局目录 · 原版</div></div>
+          </div>
+          <span class="lib-meta">1.20.1</span>
+          <span class="lib-status">上周</span>
+          <button class="btn-ghost">启动</button>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+</body>
+</html>

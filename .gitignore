@@ -24,3 +24,11 @@ logs/
 .local/
 # 任务临时工作目录（调查脚本、导出副本、测试日志）
 tmp/
+tools/_tmp_*
+
+# 设计工作区：只纳入样板（explore/）与设计文本（design/）。
+# 演示数据、参考视频、截图是本地素材，体积以百 MB 计，不进仓库。
+.oil-ui/nebula-2/data/
+.oil-ui/nebula-2/ref-video/
+.oil-ui/nebula-2/shots/
+.oil-ui/nebula-2/audit/
