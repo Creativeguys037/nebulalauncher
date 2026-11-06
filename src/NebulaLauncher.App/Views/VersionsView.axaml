@@ -405,7 +405,7 @@
                                 Width="32"
                                 Height="32"
                                 MinHeight="32"
-                                FontSize="18"
+                                FontSize="{DynamicResource FontSize.Subtitle}"
                                 VerticalAlignment="Center"
                                 ToolTip.Tip="更多操作：修复、组件、打开目录、隐藏、删除">
                           <Button.Flyout>

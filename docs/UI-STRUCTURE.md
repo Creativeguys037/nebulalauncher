@@ -332,7 +332,7 @@ TitleBar (46, 可拖动)
 | 搜索框淡入 / 淡出 | 跟随胶囊 | 同上 | 搜索框只做 `IsVisible` 与透明度，**不做宽度动画**（见 §13.2 的测量坑） |
 | 三键 hover 换色 | 120ms | 同上 | 不抢位移的注意力 |
 
-时长与曲线只从 `src/NebulaLauncher.App/Services/Motion.cs` 取，XAML 里用 `{x:Static svc:Motion.Normal}` / `EaseOut`，不写字面量——`MainWindow_HasNoPageLevelDesignLiterals` 会抓。
+时长与曲线只从 `src/NebulaLauncher.App/Services/Motion.cs` 取，XAML 里用 `{x:Static services:Motion.Normal}` / `EaseOut`，不写字面量——`MainWindow_HasNoPageLevelDesignLiterals` 会抓。
 
 ### 13.4 同步规则
 

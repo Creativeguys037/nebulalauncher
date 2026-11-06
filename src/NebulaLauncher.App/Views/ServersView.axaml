@@ -12,7 +12,7 @@
       <Setter Property="Background" Value="{DynamicResource Text.Muted}" />
       <Setter Property="Width" Value="10" />
       <Setter Property="Height" Value="10" />
-      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
       <Setter Property="VerticalAlignment" Value="Top" />
       <Setter Property="Margin" Value="2,7,0,0" />
     </Style>
@@ -315,7 +315,7 @@
       <Border Classes="card" IsVisible="{Binding IsEmpty}" Padding="32,36">
         <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="560">
           <Border Width="56" Height="56"
-                  CornerRadius="28"
+                  CornerRadius="{DynamicResource Radius.Pill}"
                   Background="{DynamicResource Accent.Soft}"
                   HorizontalAlignment="Center">
             <Path Data="M4 6h16v5H4zM4 13h16v5H4zM7.5 8.5h.01M7.5 15.5h.01"

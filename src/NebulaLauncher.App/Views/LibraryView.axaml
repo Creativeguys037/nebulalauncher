@@ -284,13 +284,13 @@
               <Grid ColumnDefinitions="44,*,Auto">
 
                 <Border Width="44" Height="44"
-                        CornerRadius="12"
+                        CornerRadius="{DynamicResource Radius.Md}"
                         ClipToBounds="True"
                         Background="{DynamicResource Gradient.Accent}"
                         VerticalAlignment="Top">
                   <Panel>
                     <TextBlock Text="{Binding Initial}"
-                               FontSize="18"
+                               FontSize="{DynamicResource FontSize.Subtitle}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource Text.OnAccent}"
                                HorizontalAlignment="Center"
@@ -338,7 +338,7 @@
       <Border Grid.Row="3" Classes="card" IsVisible="{Binding IsEmpty}" Padding="24,28" VerticalAlignment="Top">
         <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
           <Border Width="52" Height="52"
-                  CornerRadius="26"
+                  CornerRadius="{DynamicResource Radius.Pill}"
                   Background="{DynamicResource Accent.Soft}"
                   HorizontalAlignment="Center">
             <Path Data="M4 4v16M8.5 4v16M13 4l3.6 15.4M18.5 5.4 21 4.4"
@@ -418,13 +418,13 @@
 
             <Grid ColumnDefinitions="48,*">
               <Border Width="48" Height="48"
-                      CornerRadius="12"
+                      CornerRadius="{DynamicResource Radius.Md}"
                       ClipToBounds="True"
                       Background="{DynamicResource Gradient.Accent}"
                       VerticalAlignment="Top">
                 <Panel>
                   <TextBlock Text="{Binding SelectedProject.Initial}"
-                             FontSize="20"
+                             FontSize="{DynamicResource FontSize.Title}"
                              FontWeight="SemiBold"
                              Foreground="{DynamicResource Text.OnAccent}"
                              HorizontalAlignment="Center"
@@ -516,7 +516,7 @@
                   <DataTemplate x:DataType="sys:String">
                     <Border Height="83"
                             Margin="0,0,6,6"
-                            CornerRadius="8"
+                            CornerRadius="{DynamicResource Radius.Sm}"
                             ClipToBounds="True"
                             Background="{DynamicResource Surface.Sunken}">
                       <Image Source="{Binding Converter={StaticResource PathToImage}}" Stretch="UniformToFill" />

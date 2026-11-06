@@ -97,7 +97,7 @@
                       IsVisible="{Binding IsOAuthPending}">
                 <StackPanel Spacing="4">
                   <TextBlock Text="在浏览器里确认这个代码：" Classes="caption" />
-                  <TextBlock Text="{Binding OAuthUserCode}" FontSize="22" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding OAuthUserCode}" FontSize="{DynamicResource FontSize.Title}" FontWeight="SemiBold" />
                   <TextBlock Text="{Binding OAuthVerificationUri}" Classes="caption"
                              TextWrapping="Wrap" />
                   <TextBlock Text="授权完成后这里会自动登录；没有打开浏览器就手动复制上面的链接。"
@@ -279,7 +279,7 @@
           <Border Classes="card" VerticalAlignment="Top" Padding="24,28"
                   IsVisible="{Binding IsEmpty}">
             <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="430">
-              <Border Width="52" Height="52" CornerRadius="26"
+              <Border Width="52" Height="52" CornerRadius="{DynamicResource Radius.Pill}"
                       Background="{DynamicResource Accent.Soft}"
                       HorizontalAlignment="Center">
                 <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"

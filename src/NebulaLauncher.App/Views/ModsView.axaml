@@ -6,6 +6,7 @@
              xmlns:ctrl="using:NebulaLauncher.Controls"
              xmlns:conv="using:NebulaLauncher.Converters"
              xmlns:sys="using:System"
+             xmlns:services="using:NebulaLauncher.Services"
              x:Class="NebulaLauncher.Views.ModsView"
              x:DataType="vm:ModsViewModel">
 
@@ -70,7 +71,7 @@
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="Background" Duration="0:0:0.16" />
+          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
         </Transitions>
       </Setter>
     </Style>
@@ -88,7 +89,7 @@
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
-          <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+          <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Fast}" />
         </Transitions>
       </Setter>
     </Style>
@@ -100,8 +101,8 @@
     <Style Selector="Border.modcard">
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
-          <BrushTransition Property="Background" Duration="0:0:0.16" />
+          <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
         </Transitions>
       </Setter>
     </Style>
@@ -709,12 +710,12 @@
 
                       <Border Grid.Column="1"
                               Width="44" Height="44"
-                              CornerRadius="12"
+                              CornerRadius="{DynamicResource Radius.Md}"
                               ClipToBounds="True"
                               Background="{DynamicResource Gradient.Accent}">
                         <Panel>
                           <TextBlock Text="{Binding Initial}"
-                                     FontSize="18"
+                                     FontSize="{DynamicResource FontSize.Subtitle}"
                                      FontWeight="SemiBold"
                                      Foreground="{DynamicResource Text.OnAccent}"
                                      HorizontalAlignment="Center"
@@ -734,7 +735,7 @@
                         <!-- 译名做主标题时，把英文原名放第二行，方便对照资源站搜索 -->
                         <TextBlock Text="{Binding EnglishNameText}"
                                    Classes="muted"
-                                   FontSize="11"
+                                   FontSize="{DynamicResource FontSize.Caption}"
                                    TextTrimming="CharacterEllipsis"
                                    IsVisible="{Binding HasEnglishName}" />
                         <TextBlock Text="{Binding DetailText}"
@@ -747,7 +748,7 @@
                     <TextBlock Grid.Row="2"
                                Text="{Binding DescriptionText}"
                                Classes="muted"
-                               FontSize="11"
+                               FontSize="{DynamicResource FontSize.Caption}"
                                LineHeight="16"
                                MaxLines="2"
                                TextWrapping="Wrap"
@@ -837,7 +838,7 @@
           <Border Classes="card" IsVisible="{Binding IsEmpty}" Padding="32,36">
             <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="560">
               <Border Width="56" Height="56"
-                      CornerRadius="28"
+                      CornerRadius="{DynamicResource Radius.Pill}"
                       Background="{DynamicResource Accent.Soft}"
                       HorizontalAlignment="Center">
                 <Path Data="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5zM4 8.5 12 13l8-4.5M12 13v7"

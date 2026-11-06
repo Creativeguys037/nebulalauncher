@@ -68,7 +68,8 @@ public sealed class CollapseHost : Decorator
             new DoubleTransition
             {
                 Property = ProgressProperty,
-                Duration = Motion.Dur(180),
+                // 展开/收起属于「状态切换」，取 Normal 档；180 是词表外的孤立值（§7.8 没有区间覆盖它）。
+                Duration = Motion.Dur(Motion.Normal),
                 Easing = new CubicEaseOut(),
             },
         };

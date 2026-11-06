@@ -12,7 +12,7 @@
         xmlns:vm="using:NebulaLauncher.ViewModels"
         xmlns:controls="using:NebulaLauncher.Controls"
         xmlns:conv="using:NebulaLauncher.Converters"
-        xmlns:svc="using:NebulaLauncher.Services"
+        xmlns:services="using:NebulaLauncher.Services"
         x:Class="NebulaLauncher.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Nebula Launcher"
@@ -204,8 +204,8 @@
                   <Transitions>
                     <!-- 时长与曲线只从 Motion 词表取，XAML 里不写 0:0:0.22 这类字面量 -->
                     <DoubleTransition Property="X"
-                                      Duration="{x:Static svc:Motion.Normal}"
-                                      Easing="{x:Static svc:Motion.EaseOut}" />
+                                      Duration="{x:Static services:Motion.Normal}"
+                                      Easing="{x:Static services:Motion.EaseOut}" />
                   </Transitions>
                 </TranslateTransform.Transitions>
               </TranslateTransform>

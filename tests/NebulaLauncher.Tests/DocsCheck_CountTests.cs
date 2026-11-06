@@ -50,8 +50,12 @@ public sealed class DocsCheck_CountTests
     ///
     /// 另一个坑：本文件是扫描器的输入，注释里出现 InlineData 的完整字面量写法
     /// 会被算进总数（曾让基线从 858 漂到 860）。所以这条注释只描述、不举例。
+    ///
+    /// 票 #82 把「页面零字号 / 零圆角 / 零时长」三个 Fact 收成一个 Theory + 3 个 InlineData：
+    /// 三条共用同一段扫描与断言，拆开只是三份逐字重复的壳，而 Theory 的每个参数行在报告里
+    /// 仍能指出是哪一类契约破了。净增 3，为 861。
     /// </summary>
-    private const int BaselineInlineData = 858;
+    private const int BaselineInlineData = 861;
 
     [Fact]
     public void 按Fact与InlineData计数()

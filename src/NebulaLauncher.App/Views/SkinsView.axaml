@@ -478,7 +478,7 @@
 
                     <Grid Grid.Row="2" ColumnDefinitions="*,*">
                       <Button Classes="pill"
-                              Padding="6,6" FontSize="12"
+                              Padding="6,6" FontSize="{DynamicResource FontSize.Small}"
                               Content="下载到本地"
                               IsEnabled="{Binding !IsSavingToLocal}"
                               ToolTip.Tip="把这张皮肤存进本地皮肤目录"
@@ -486,7 +486,7 @@
                               CommandParameter="{Binding}" />
                       <Button Grid.Column="1"
                               Classes="pill"
-                              Padding="6,6" FontSize="12"
+                              Padding="6,6" FontSize="{DynamicResource FontSize.Small}"
                               Margin="6,0,0,0"
                               Content="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).ApplyToCloudLabel}"
                               IsEnabled="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).CanApplyNetworkToCloud}"
@@ -508,7 +508,7 @@
                   Padding="24,28">
             <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="420">
               <Border Width="52" Height="52"
-                      CornerRadius="26"
+                      CornerRadius="{DynamicResource Radius.Pill}"
                       Background="{DynamicResource Accent.Soft}"
                       HorizontalAlignment="Center">
                 <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
@@ -667,7 +667,7 @@
 
                     <Grid Grid.Row="2" ColumnDefinitions="*,*">
                       <Button Classes="pill"
-                              Padding="6,6" FontSize="12"
+                              Padding="6,6" FontSize="{DynamicResource FontSize.Small}"
                               Content="应用到微软账户"
                               IsEnabled="{Binding $parent[UserControl].((vm:SkinsViewModel)DataContext).CanApplyLocalToOfficial}"
                               ToolTip.Tip="把这套皮肤上传到当前微软账户"
@@ -675,7 +675,7 @@
                               CommandParameter="{Binding}" />
                       <Button Grid.Column="1"
                               Classes="pill"
-                              Padding="6,6" FontSize="12"
+                              Padding="6,6" FontSize="{DynamicResource FontSize.Small}"
                               Margin="6,0,0,0"
                               Content="删除"
                               ToolTip.Tip="删除这个皮肤文件"
@@ -698,7 +698,7 @@
                   Padding="24,28">
             <StackPanel Spacing="12" HorizontalAlignment="Left" MaxWidth="380">
               <Border Width="52" Height="52"
-                      CornerRadius="26"
+                      CornerRadius="{DynamicResource Radius.Pill}"
                       Background="{DynamicResource Accent.Soft}"
                       HorizontalAlignment="Left">
                 <Path Data="M12 4a3.2 3.2 0 1 0 0 6.4A3.2 3.2 0 0 0 12 4ZM6 20v-2.4a6 6 0 0 1 12 0V20"
@@ -962,7 +962,7 @@
           <TextBlock Text="按住拖动可以转视角，松手继续自转"
                      Classes="muted"
                      TextWrapping="Wrap"
-                     FontSize="11" />
+                     FontSize="{DynamicResource FontSize.Caption}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="12,8,12,10" Spacing="3"
@@ -978,7 +978,7 @@
           <TextBlock Text="按住拖动可以转视角，松手继续自转"
                      Classes="muted"
                      TextWrapping="Wrap"
-                     FontSize="11" />
+                     FontSize="{DynamicResource FontSize.Caption}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -986,14 +986,14 @@
     <!-- 收起后的圆钮：只留一个入口，不占内容区的视觉空间。 -->
     <Button Grid.Row="3"
             Width="44" Height="44"
-            CornerRadius="22"
+            CornerRadius="{DynamicResource Radius.Pill}"
             HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
             Margin="0,0,16,16"
             ZIndex="101"
             Classes="pill"
             Content="预览"
-            FontSize="11"
+            FontSize="{DynamicResource FontSize.Caption}"
             ToolTip.Tip="展开预览卡"
             IsVisible="{Binding IsPreviewCollapsed}"
             Command="{Binding TogglePreviewCollapsedCommand}" />

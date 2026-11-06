@@ -382,7 +382,7 @@
               单独一行而不是塞进「加载器版本」下拉：它不是一个版本选择，而是一个要不要装的开关。
             -->
             <Border Padding="14,12"
-                    CornerRadius="10"
+                    CornerRadius="{DynamicResource Radius.Md}"
                     Background="{DynamicResource Surface.Sunken}"
                     IsVisible="{Binding ShowFabricApiOption}">
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -404,7 +404,7 @@
             <Button Classes="accent"
                     Content="开始安装"
                     Height="44"
-                    CornerRadius="12"
+                    CornerRadius="{DynamicResource Radius.Md}"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center"
                     Command="{Binding InstallCommand}" />
@@ -448,7 +448,7 @@
                                    Value="{Binding Progress}"
                                    Maximum="100"
                                    Thickness="8"
-                                   FontSize="18"
+                                   FontSize="{DynamicResource FontSize.Title}"
                                    VerticalAlignment="Center"
                                    Text="{Binding ProgressText}"
                                    TextBrush="{DynamicResource Text.Primary}" />
@@ -594,7 +594,7 @@
             <Button Classes="accent"
                     Content="下载服务端"
                     Height="44"
-                    CornerRadius="12"
+                    CornerRadius="{DynamicResource Radius.Md}"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center"
                     Command="{Binding DownloadServerCommand}" />

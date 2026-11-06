@@ -568,21 +568,21 @@
                     <!-- 图例：每项自带色块，窄窗下整项换行，数字不会被折断 -->
                     <WrapPanel Orientation="Horizontal">
                       <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
-                        <Border Width="8" Height="8" CornerRadius="2"
+                        <Border Width="8" Height="8" CornerRadius="{DynamicResource Radius.Xs}"
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource Memory.BarFree}" />
                         <TextBlock Text="可分配" Classes="muted" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding MemoryTotalText}" Classes="mono" VerticalAlignment="Center" />
                       </StackPanel>
                       <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
-                        <Border Width="8" Height="8" CornerRadius="2"
+                        <Border Width="8" Height="8" CornerRadius="{DynamicResource Radius.Xs}"
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource Memory.BarUsed}" />
                         <TextBlock Text="其它占用" Classes="muted" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding MemoryUsedText}" Classes="mono" VerticalAlignment="Center" />
                       </StackPanel>
                       <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
-                        <Border Width="8" Height="8" CornerRadius="2"
+                        <Border Width="8" Height="8" CornerRadius="{DynamicResource Radius.Xs}"
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource Memory.BarGame}" />
                         <TextBlock Text="本实例分配" Classes="muted" VerticalAlignment="Center" />

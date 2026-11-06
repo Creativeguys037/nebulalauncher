@@ -228,7 +228,7 @@
               <StackPanel Spacing="10">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <TextBlock Text="{Binding ImportPreview.Name}"
-                             FontSize="16"
+                             FontSize="{DynamicResource FontSize.Subtitle}"
                              FontWeight="SemiBold"
                              TextWrapping="Wrap" />
                   <Border Classes="badge" VerticalAlignment="Center">
@@ -467,7 +467,7 @@
                                   IsVisible="{Binding !HasIconImage}">
                             <TextBlock Text="—"
                                        Classes="muted"
-                                       FontSize="18"
+                                       FontSize="{DynamicResource FontSize.Subtitle}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center" />
                           </Border>
@@ -480,7 +480,7 @@
                       <StackPanel Grid.Column="1" Spacing="10">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                           <TextBlock Text="{Binding Name}"
-                                     FontSize="16"
+                                     FontSize="{DynamicResource FontSize.Subtitle}"
                                      FontWeight="SemiBold"
                                      TextTrimming="CharacterEllipsis"
                                      VerticalAlignment="Center" />
