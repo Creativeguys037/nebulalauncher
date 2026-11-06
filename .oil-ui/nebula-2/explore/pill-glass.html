@@ -117,7 +117,10 @@
 .prow0{height:40px;display:flex;align-items:center;gap:14px;min-width:0}
 .prow3{height:44px;display:flex;align-items:center;gap:10px;min-width:0}
 
-/* 主页：欢迎行 + 继续游戏大卡 + 实例库 */
+/* 主页 Row2：大卡与实例库同在一行里纵向排（#86 的结构），不要再各占一行 */
+.homemain{display:flex;flex-direction:column;gap:12px;min-height:0}
+.homemain .hero{flex:0 0 auto}
+.homemain .panebox{flex:1 1 auto;min-height:0}
 .hero{
   border-radius:var(--r-lg);display:flex;align-items:stretch;overflow:hidden;height:246px;
   background:rgba(255,255,255,.30);border:1px solid rgba(255,255,255,.9);
@@ -222,6 +225,7 @@
             <div class="segs"><a class="on">最近</a><a>收藏</a></div>
           </div>
           <div></div>
+          <div class="homemain">
           <div class="hero">
             <div class="txt">
               <div class="eyebrow">Continue</div>
@@ -272,6 +276,7 @@
               </div>
             </div>
           </section>
+          </div>
           <div></div>
         </div>
 
