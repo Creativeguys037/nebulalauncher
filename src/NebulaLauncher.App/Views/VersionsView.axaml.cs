@@ -37,7 +37,10 @@ public partial class VersionsView : UserControl
 
         // 三份列表各自上报偏移：用 AttachedToVisualTree 而不是构造函数，
         // 因为 ScrollViewer 的模板要到挂进可视树之后才存在。
-        AttachedToVisualTree += (_, _) => AttachScrollTracking();
+        AttachedToVisualTree += (_, _) =>
+        {
+            AttachScrollTracking();
+        };
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -64,7 +67,7 @@ public partial class VersionsView : UserControl
     /// </summary>
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(VersionsViewModel.CurrentView) || _viewModel is null)
+        if (_viewModel is null || e.PropertyName != nameof(VersionsViewModel.CurrentView))
         {
             return;
         }
@@ -157,6 +160,70 @@ public partial class VersionsView : UserControl
 
     private static ScrollViewer? FindScrollViewer(ListBox? list) =>
         list?.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+
+    /// <summary>
+    /// 文件选择器的类型过滤。抽成静态字段而不是每次调用现造：
+    /// 这个列表在每次点击时都一样，逐次分配只是白给 GC 添活。
+    /// </summary>
+    private static readonly FilePickerFileType[] JavaFileTypes =
+    {
+        new("Java 可执行文件")
+        {
+            Patterns = new[] { "java", "java.exe", "javaw.exe" },
+        },
+        new("所有文件")
+        {
+            Patterns = new[] { "*" },
+        },
+    };
+
+    /// <summary>
+    /// 实例设置浮层里「选择 java」按钮。
+    ///
+    /// 必须在 code-behind：<see cref="TopLevel"/> 是视图层的东西（<c>StorageProvider</c> 挂在它上面），
+    /// 而仓库约定「测试里不得触碰 Avalonia 类型」，选路径不能下沉到 ViewModel。
+    /// 选中后只写进草稿、不自动保存——用户可能还想同时改内存。
+    /// </summary>
+    private async void OnPickJavaClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not VersionsViewModel viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+
+            if (topLevel?.StorageProvider is null)
+            {
+                viewModel.InstanceEditorStatus = "当前窗口无法打开文件选择器，请直接填写路径。";
+                return;
+            }
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择 java 可执行文件",
+                AllowMultiple = false,
+                FileTypeFilter = JavaFileTypes,
+            });
+
+            var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                // 用户取消了：什么都不做，草稿保持原样。
+                return;
+            }
+
+            viewModel.Detail.JavaPathText = path!;
+        }
+        catch (Exception ex)
+        {
+            // 个别平台没有 portal 或权限不足时选择器会抛；不能让它冒到未处理异常。
+            viewModel.InstanceEditorStatus = $"打开文件选择器失败：{ex.Message}";
+        }
+    }
 
     /// <summary>双击版本行启动。命令内部处理账户缺失、重复启动与异常。</summary>
     private void OnVersionsDoubleTapped(object? sender, TappedEventArgs e)

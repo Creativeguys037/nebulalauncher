@@ -1072,6 +1072,7 @@ public partial class VersionsViewModel : PageViewModelBase
     public override Task OnNavigatedFromAsync()
     {
         CancelJavaInstall();
+
         return Task.CompletedTask;
     }
 
@@ -1175,6 +1176,14 @@ public partial class VersionsViewModel : PageViewModelBase
                 // 芯片的「存在 / 不存在」是磁盘快照，必须跟实例列表一起重建：
                 // 单建一次会让「刚点开截图目录」的实例在下次刷新前一直显示弱化态。
                 FillInstanceFolders(row);
+
+                // 内存 / Java 摘要与目录路径都要在构建期算好：详情面板保存后走
+                // RefreshLaunchTuning 刷新，但首帧与「别的页面改了全局设置」只能靠这里。
+                row.RefreshLaunchTuning(
+                    _settings?.Current.MaxMemoryMb ?? InstanceLaunchTuning.FallbackMaxMemoryMb,
+                    _settings?.Current.JavaPath);
+                row.GameDirectory = GetInstanceGameDirectory(row);
+
                 Instances.Add(row);
             }
 
@@ -1197,6 +1206,15 @@ public partial class VersionsViewModel : PageViewModelBase
         // 运行状态必须按磁盘事实重查：用户可能在另一个启动器窗口里启动过，
         // 也可能刚在任务管理器里结束掉游戏；只信内存状态会让卡片上的「运行中」一直错着。
         await RefreshRunningStateAsync();
+
+        // 详情面板在这里再同步一次，不依赖 OnSelectedInstanceChanged 的触发时序。
+        //
+        // 为什么必须显式做：SelectedInstance 的赋值发生在 Instances.Clear() + 逐条 Add 之后，
+        // 而「新值是否与旧值引用不同」取决于上一轮留下的行对象——
+        // 首屏、刷新、截图三种路径里各有一种情况让 setter 判定为「没变」，
+        // 于是 OnSelectedInstanceChanged 不触发，右栏就停在空态（头部与全部字段都不渲染）。
+        // 这个坑在截图里表现为「只有内存与 Java 那一段在，身份信息整块消失」。
+        RefreshDetailForSelection();
 
         await ApplyScreenshotStateAsync();
     }
@@ -1255,6 +1273,12 @@ public partial class VersionsViewModel : PageViewModelBase
         // 每个实例卡片各问各的：多开时列表里可以同时出现两行「运行中」，
         // 停止按钮也跟着各自出现，不再由页面级单布尔决定。
         RefreshInstanceSessionStates();
+
+        // 详情面板的只读判据取「磁盘锁 或 本会话有进程」，两条都要刷新后才是最新的。
+        if (SelectedInstance is { } selected)
+        {
+            SyncDetailRunningState(selected);
+        }
 
         // 组件面板可能正开着同一个版本：运行状态一变，面板里的「只修复缺失文件」也要跟着变灰。
         if (ComponentsRow is not null)
@@ -1569,7 +1593,123 @@ public partial class VersionsViewModel : PageViewModelBase
         UpdateInstanceState();
     }
 
-    partial void OnSelectedInstanceChanged(InstanceRow? value) => UpdateInstanceState();
+    partial void OnSelectedInstanceChanged(InstanceRow? value)
+    {
+        UpdateInstanceState();
+
+        // 详情面板跟着选中实例换：回填要同步做，否则右栏会先显示上一个实例的值再跳变。
+        RefreshDetailForSelection();
+    }
+
+    // ==================== 实例详情 · 概览（票 #88） ====================
+    //
+    // 详情面板的三个分区各管一件事：身份（只读）、信息（只读，目录可复制）、
+    // 启动调优（可写：内存与 Java）。可写的部分全部落在 Instance.Detail 上，
+    // 页面只负责把命令接过来——把草稿、校验、脏检查摊在这里，
+    // 「保存时该读哪几个字段」就只能靠字段名前缀去猜。
+
+    /// <summary>概览区的编辑状态。XAML 直接绑它的属性。</summary>
+    public InstanceDetailState Detail { get; } = new();
+
+    /// <summary>
+    /// 本机可分配内存（MB），作为内存输入的硬上限。
+    ///
+    /// 注意这里**不能**用 <see cref="MemoryAdvisor.SuggestMaxMemoryMb"/>：
+    /// 那个函数的返回值是「推荐的游戏堆」，它的四段斜坡会把结果压到远低于可用内存
+    /// （16 GB 机器只推荐约 5.8 GB）。拿它当上限会带来两个真实的破坏：
+    /// <list type="number">
+    /// <item>用户在 8 GB 机器上填 6 GB 被误判为「超过可分配内存」，而文案在撒谎；</item>
+    /// <item>更糟的是回填会走 <c>ClampMemory</c> 把实例原本的 6144 静默夹成推荐值——
+    /// 用户只改了个备注、点一次保存，内存就被改掉了，且没有任何提示。</item>
+    /// </list>
+    ///
+    /// 探测不到（受限容器 / WSL 里返回 0）时返回 0，由
+    /// <see cref="InstanceLaunchTuning.EffectiveUpperBound"/> 回落到统一兜底值。
+    /// </summary>
+    private static int AvailableMemoryUpperBoundMb()
+    {
+        const long BytesPerMb = 1024L * 1024L;
+        var available = MemoryAdvisor.TotalAvailableBytes();
+
+        return available > 0 ? (int)Math.Min(available / BytesPerMb, int.MaxValue) : 0;
+    }
+
+    /// <summary>
+    /// 把当前选中的实例推进详情面板。选中变化、刷新实例列表、运行状态变化都走这里。
+    /// </summary>
+    private void RefreshDetailForSelection()
+    {
+        var row = SelectedInstance;
+
+        if (row is null)
+        {
+            Detail.Row = null;
+            Detail.RefreshReadOnlyState();
+            return;
+        }
+
+        Detail.LoadFrom(
+            row,
+            _settings?.Current.MaxMemoryMb ?? InstanceLaunchTuning.FallbackMaxMemoryMb,
+            _settings?.Current.JavaPath,
+            AvailableMemoryUpperBoundMb());
+
+        // 运行状态是只读判据的唯一来源，行上的两个布尔在刷新后可能刚变过。
+        SyncDetailRunningState(row);
+    }
+
+    /// <summary>
+    /// 把行上的运行状态同步到详情面板。
+    ///
+    /// 只读判据取「磁盘锁 或 本会话有进程」的并集：游戏刚起来、锁还没写成游戏进程的那一刻，
+    /// 内存与 Java 也不该还能改——改了那一次 JVM 也不会用。
+    /// </summary>
+    private void SyncDetailRunningState(InstanceRow row)
+    {
+        row.IsRunningNow = row.IsRunning || row.IsSessionRunning;
+        Detail.RefreshReadOnlyState();
+    }
+
+
+    /// <summary>
+    /// 复制实例目录路径到剪贴板。
+    ///
+    /// 用 <see cref="IPlatformService.TryCopyTextAsync"/> 而不是 <c>CopyTextAsync</c>：
+    /// 后者失败时不返回任何信息，界面会无条件显示「已复制」——用户到别处粘贴才发现是空的。
+    ///
+    /// 反馈写到页面底部的 <c>StatusText</c> 而不是概览里的结果条：
+    /// 概览面板没有结果条（它是只读的），而复制是一次性的短动作，状态栏足够且不占版面。
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyInstancePathAsync()
+    {
+        var directory = Detail.Row?.GameDirectory;
+
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            StatusText = "这个实例还没有可复制的目录路径。";
+            return;
+        }
+
+        if (_platform is null)
+        {
+            StatusText = "平台服务未就绪，无法复制路径。";
+            return;
+        }
+
+        try
+        {
+            var copied = await _platform.TryCopyTextAsync(directory!).ConfigureAwait(true);
+
+            StatusText = copied
+                ? $"已复制游戏目录：{directory}"
+                : $"复制失败，请手动选择路径：{directory}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"复制失败：{ex.Message}";
+        }
+    }
 
     private void ApplyFilter()
     {
@@ -2948,6 +3088,16 @@ public partial class VersionsViewModel : PageViewModelBase
         EditorServerAddress = info.ServerAddress ?? string.Empty;
         EditorNotes = info.Notes ?? string.Empty;
 
+        // 内存与 Java 走同一个详情状态对象（InstanceDetailState）：
+        // 它们是实例级覆盖字段，回填要带全局值与上限提示，校验规则也只有一处。
+        // 右栏概览不编辑这两项，但它们的状态对象在这里被复用——
+        // 「回填 / 校验 / 落盘取值」的逻辑只写一次，放在哪个界面里显示都可以。
+        Detail.LoadFrom(
+            target,
+            _settings?.Current.MaxMemoryMb ?? InstanceLaunchTuning.FallbackMaxMemoryMb,
+            _settings?.Current.JavaPath,
+            AvailableMemoryUpperBoundMb());
+
         // 回填三态：null 才是「跟随全局」，空串是「明确关闭」——不能把两者都读成空框。
         var versionType = ParseInstanceVersionType(info.VersionType);
         FollowGlobalVersionType = versionType.FollowGlobal;
@@ -2987,6 +3137,34 @@ public partial class VersionsViewModel : PageViewModelBase
             return;
         }
 
+        // 内存与 Java 先在落盘之前校验：非法值一个字段都不写（票面「非法值不写盘」）。
+        //
+        // 为什么整单不保存而不是只跳过这两项：用户点了「保存」就是要把表单里的东西都提交，
+        // 悄悄存一半会让他以为全存上了——这正是最难排查的一类问题。
+        // 校验失败时草稿原样保留（不夹值、不清空），改对再点一次即可。
+        // Java 服务缺失时跳过存在性校验，不让「探测不可用」把整张表单锁死。
+        //
+        // 先确认 Detail 指的就是正在编辑的这个实例：
+        // Detail 同时给右栏概览用，用户在浮层开着的时候点了左栏别的版本，
+        // SelectedInstance 一变就会把 Detail 换成那一行——此时若不校对着落笔，
+        // 会把 A 实例的内存放进 B 实例的 instance.json。
+        if (!ReferenceEquals(Detail.Row, row))
+        {
+            Detail.LoadFrom(
+                row,
+                _settings?.Current.MaxMemoryMb ?? InstanceLaunchTuning.FallbackMaxMemoryMb,
+                _settings?.Current.JavaPath,
+                AvailableMemoryUpperBoundMb());
+        }
+
+        var resolveJava = _java is null ? null : (Func<string?, string?>)JavaService.ResolveJavaExecutable;
+
+        if (!Detail.Validate(resolveJava))
+        {
+            InstanceEditorStatus = "内存或 Java 有误，已就地标出，修正后再保存。";
+            return;
+        }
+
         IsInstanceEditorBusy = true;
 
         try
@@ -3004,6 +3182,10 @@ public partial class VersionsViewModel : PageViewModelBase
             info.Notes = Blank(EditorNotes);
             info.GcKind = EditorGcOption?.Kind ?? GcKind.Auto;
 
+            // 内存与 Java：null 表示跟随全局 / 自动选择，与设置页同一口径。
+            info.MaxMemoryMb = Detail.ToMemoryMb();
+            info.JavaPath = Detail.ToJavaPath();
+
             // 版本信息是唯一不走 Blank() 的字段：Blank() 把空串归一成 null，
             // 而这里 null 与空串是两种语义（跟随全局 / 明确不显示），见 InstanceInfo.VersionType。
             info.VersionType = ResolveInstanceVersionType(FollowGlobalVersionType, EditorVersionType);
@@ -3019,6 +3201,10 @@ public partial class VersionsViewModel : PageViewModelBase
             await LoadInstancesAsync();
             SelectedInstance = Instances.FirstOrDefault(i => string.Equals(i.Info.Id, info.Id, StringComparison.Ordinal))
                                ?? SelectedInstance;
+
+            // 列表已重建，Detail 指向的是上一批的行对象：重新按新行回填，
+            // 否则再次打开面板时草稿仍是旧的，而且 MemoryText 里的生效值会与实际脱节。
+            RefreshDetailForSelection();
 
             InstanceEditorStatus = $"已保存 · {DateTime.Now:HH:mm:ss}";
             StatusText = $"实例「{info.Name}」的设置已保存。";
@@ -4628,8 +4814,62 @@ public sealed partial class InstanceRow : ObservableObject
     /// </summary>
     public string LoaderLabel { get; }
 
+    /// <summary>
+    /// 「版本 · 加载器」合成的一行文案，供详情头部显示。
+    ///
+    /// 在 VM 侧拼好而不是在 XAML 里用多个 <c>Run</c>：<c>Run</c> 的绑定走 Inline 上下文，
+    /// 编译期校验不到，写错时整行静默为空——而头部是票面第一条验收判据，
+    /// 「看不见」比「内容错」更难发现。
+    /// </summary>
+    public string VersionAndLoaderText => $"{VersionText} · {LoaderLabel}";
+
     public string LastPlayedText { get; }
 
+    // ==================== 启动调优元信息（票 #88） ====================
+    //
+    // 这几个字段是「保存后列表行同步刷新」的承接点：它们**可变**（不是构造期算好的 get-only），
+    // 因为详情面板保存内存 / Java 之后，用户必须在这张卡片上立刻看到变化。
+    // 其余展示字段仍然只在构造期算一次——那些字段的来源（实例名、绑定版本、加载器）
+    // 不会在详情面板的概览区被改。
+
+    /// <summary>
+    /// 内存摘要。null 表示跟随全局，此时文案里带上全局值
+    /// （只写「跟随全局」等于让用户猜实际会分配多少）。
+    /// </summary>
+    [ObservableProperty]
+    private string _memoryText = "跟随全局";
+
+    /// <summary>Java 摘要。实例未设置时说明会用什么。</summary>
+    [ObservableProperty]
+    private string _javaText = "自动选择";
+
+    /// <summary>该实例的游戏目录绝对路径（详情面板「游戏目录」一栏与「复制路径」用它）。</summary>
+    [ObservableProperty]
+    private string? _gameDirectory;
+
+    /// <summary>
+    /// 该实例当前是否运行中。
+    ///
+    /// 与 <see cref="IsRunning"/> 分开：那个是按行画的「运行中」徽标（只看磁盘运行锁），
+    /// 这个是详情面板的只读判据，需要把「本会话跑着」也算进去——
+    /// 游戏刚起来、锁还没写成游戏进程的那一刻，内存与 Java 也不该还能改。
+    /// </summary>
+    [ObservableProperty]
+    private bool _isRunningNow;
+
+    /// <summary>
+    /// 按当前的全局设置重算内存 / Java 摘要。
+    ///
+    /// 由 <see cref="VersionsViewModel"/> 在「构建行时」与「保存成功后」两处调用：
+    /// 前者保证首帧正确，后者保证不回读实例列表也能立刻看到新值。
+    /// </summary>
+    internal void RefreshLaunchTuning(int globalMemoryMb, string? globalJavaPath)
+    {
+        MemoryText = InstanceLaunchTuning.DescribeMemory(Info.MaxMemoryMb, globalMemoryMb);
+        JavaText = InstanceLaunchTuning.DescribeJava(Info.JavaPath, globalJavaPath);
+    }
+
+    /// <summary>把占用字节数写进展示文案。-1 保持「未知」。</summary>
     /// <summary>
     /// 实例备注（已 trim）。卡片上单行省略显示，完整文本由「查看备注」浮层承载——
     /// 备注可能很长，塞进卡片会把操作按钮挤走。

@@ -1,0 +1,231 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:conv="using:NebulaLauncher.Converters"
+             x:Class="NebulaLauncher.Views.InstanceDetailPane"
+             x:DataType="vm:VersionsViewModel">
+
+  <UserControl.Styles>
+    <!--
+      字段名与次要行。定义在本控件自己的样式块里而不是外层 VersionsView：
+      本控件是独立的 UserControl，拿不到外层页面的局部样式，
+      写在外面会让这些行静默退回控件默认字号与颜色。
+    -->
+    <Style Selector="TextBlock.detail-heading">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.detail-meta">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <!--
+    实例详情 · 概览（票 #88）。
+
+    ## 这个面板只负责「看」
+    它回答一个问题：**我现在选中的是哪个实例、它是什么状态**。
+    改内存与改 Java 是「编辑动作」，归二级页面（实例设置浮层）与设置页——
+    把编辑控件放在这里会让右栏变成一张表单，在 1024×660 下必定需要滚动，
+    而一旦滚动，「实例身份」就被顶出视口，用户连自己在改哪个实例都不知道。
+
+    所以这里的全部内容是只读的：
+      1. 身份：图标 / 实例名 / 「版本 · 加载器」/ 运行状态；
+      2. 信息：上次游玩、游戏目录（可复制）；
+      3. 入口：设置（二级页面，内存与 Java 在那边）、打开目录、停止、更多。
+    面板高度因此固定在一屏内，不需要滚动。
+  -->
+  <StackPanel Spacing="10">
+
+    <!-- ==================== 空态：没有选中实例 ==================== -->
+    <StackPanel Spacing="6" IsVisible="{Binding !Detail.HasInstance}">
+      <TextBlock Text="实例信息" Classes="detail-heading" />
+      <TextBlock Text="在下面的实例列表里选一个，这里会显示它的版本、状态与目录。"
+                 Classes="muted"
+                 FontSize="{DynamicResource FontSize.Caption}"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- ==================== 有实例：概览 ==================== -->
+    <StackPanel Spacing="10" IsVisible="{Binding Detail.HasInstance}">
+
+      <!-- 1. 头部：图标 + 名称 + 版本与加载器 + 状态徽标 -->
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+        <Border Width="40" Height="40"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Background="{DynamicResource Accent.Soft}"
+                VerticalAlignment="Center">
+          <Path Data="{Binding Detail.Row.IconGeometry}"
+                Stroke="{DynamicResource Accent.Primary}"
+                StrokeThickness="1.5"
+                StrokeLineCap="Round"
+                StrokeJoin="Round"
+                Stretch="Uniform"
+                Width="20" Height="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+        </Border>
+
+        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Detail.Row.Name}"
+                     FontSize="{DynamicResource FontSize.Subtitle}"
+                     FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis" />
+
+          <!--
+            版本与加载器合成一行、与状态徽标同行：分三行会把头部撑到 70+ 高，
+            而这块是纯身份信息，高度应当让给下面的信息与列表。
+          -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="{Binding Detail.Row.VersionAndLoaderText}"
+                       FontSize="{DynamicResource FontSize.Caption}"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"
+                       MaxWidth="176" />
+            <Border Classes="badge info"
+                    Padding="6,1"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding Detail.Row.IsRunningNow}">
+              <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+
+      <!-- 2. 信息：上次游玩 + 目录（可复制） -->
+      <StackPanel Spacing="2">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+          <TextBlock Text="上次游玩" Classes="detail-meta" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding Detail.Row.LastPlayedText}"
+                     Classes="detail-meta"
+                     HorizontalAlignment="Right"
+                     TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+          <TextBlock Text="目录" Classes="detail-meta" />
+          <!--
+            单行省略 + ToolTip 全文 + 复制按钮：用户要的是「能复制走」，
+            在这里逐字读完全路径既不现实，折行还会把右栏撑高。
+          -->
+          <TextBlock Grid.Column="1"
+                     Text="{Binding Detail.Row.GameDirectory}"
+                     Classes="detail-meta"
+                     HorizontalAlignment="Right"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding Detail.Row.GameDirectory}" />
+          <Button Grid.Column="2"
+                  Classes="ghost icon"
+                  Width="20" Height="20" MinHeight="20"
+                  Padding="0"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="复制游戏目录路径"
+                  Command="{Binding CopyInstancePathCommand}">
+            <!-- 图标走 Icons.axaml 的 path data（CONVENTIONS §7.9），不用 Unicode 符号：
+                 后者在不同字体下可能显示成豆腐块。 -->
+            <Path Data="{StaticResource Icon.Copy}"
+                  Stroke="{DynamicResource Text.Secondary}"
+                  StrokeThickness="1.6"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="Uniform"
+                  Width="12" Height="12"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Button>
+        </Grid>
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+          <TextBlock Text="内存" Classes="detail-meta" />
+          <!-- 只读展示；改它去「设置」。跟随全局时文案里带出生效值。 -->
+          <TextBlock Grid.Column="1"
+                     Text="{Binding Detail.Row.MemoryText}"
+                     Classes="detail-meta"
+                     HorizontalAlignment="Right"
+                     TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+          <TextBlock Text="Java" Classes="detail-meta" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding Detail.Row.JavaText}"
+                     Classes="detail-meta"
+                     HorizontalAlignment="Right"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding Detail.Row.JavaText}" />
+        </Grid>
+      </StackPanel>
+
+      <Border Classes="divider" />
+
+      <!--
+        实例动作：从列表卡片搬到这里（卡片只保留选得出来的最少信息）。
+        参数一律是 Detail.Row——用户此刻正在看的那个实例，
+        与他刚从列表里点选的是同一个。
+      -->
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <Button Classes="pill"
+                Content="设置"
+                Padding="10,3" MinHeight="26"
+                FontSize="{DynamicResource FontSize.Small}"
+                ToolTip.Tip="实例设置：内存、Java、JVM 参数、窗口与服务器"
+                Command="{Binding OpenInstanceEditorCommand}"
+                CommandParameter="{Binding Detail.Row}" />
+        <Button Classes="pill"
+                Content="打开目录"
+                Padding="10,3" MinHeight="26"
+                FontSize="{DynamicResource FontSize.Small}"
+                Command="{Binding OpenInstanceFolderCommand}"
+                CommandParameter="{Binding Detail.Row}" />
+        <Button Classes="pill danger"
+                Content="停止"
+                Padding="10,3" MinHeight="26"
+                FontSize="{DynamicResource FontSize.Small}"
+                IsVisible="{Binding Detail.Row.IsSessionRunning}"
+                Command="{Binding StopGameCommand}"
+                CommandParameter="{Binding Detail.Row}" />
+
+        <Button Classes="ghost icon"
+                Width="26" Height="26" MinHeight="26"
+                Padding="0"
+                ToolTip.Tip="更多：换加载器、克隆、重命名、图标、清理、备注、移入回收站">
+          <TextBlock Text="…" VerticalAlignment="Center" HorizontalAlignment="Center" />
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+              <MenuItem Header="换加载器…" Click="OnSwitchLoaderClick" />
+              <MenuItem Header="克隆"
+                        IsEnabled="{Binding IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
+                        Command="{Binding CloneInstanceCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+              <MenuItem Header="重命名"
+                        Command="{Binding OpenRenameCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+              <MenuItem Header="图标"
+                        Command="{Binding OpenIconPickerCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+              <MenuItem Header="清理"
+                        IsEnabled="{Binding Detail.Row.ActionsEnabled}"
+                        Command="{Binding OpenCleanupCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+              <MenuItem Header="备注"
+                        IsVisible="{Binding Detail.Row.HasNote}"
+                        Command="{Binding OpenNotesCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+              <Separator />
+              <MenuItem Header="移入回收站…"
+                        IsEnabled="{Binding Detail.Row.ActionsEnabled}"
+                        Command="{Binding RequestDeleteInstanceCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </StackPanel>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

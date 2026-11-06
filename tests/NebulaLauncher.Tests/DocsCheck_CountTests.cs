@@ -40,8 +40,18 @@ public sealed class DocsCheck_CountTests
     /// 加上云端衣柜客户端测试的 4 条（站点地址规范化 4），为 818；
     /// 票 #64 给 HD 皮肤渲染补了 3 个 InlineData（64 / 128 / 512 各一行），为 821；
     /// 票 #86 给实例库的三字段搜索补了 5 条（fabric / 1.21 / LOADER / neoforge / 空串），为 826。
+    /// 票 #88 给实例详情的内存 / Java 判定规则补了 32 条 InlineData，为 858：
+    /// `CoreInstances_LaunchTuningTests` 28 条（合法内存值 4、空输入 3、非纯整数 8、
+    /// 低于下限 3、探测失败上限回落 3、夹取 4、Java 空路径 3），
+    /// `AppInstances_DetailStateTests` 4 条（非法内存 4 种取值）。
+    /// 「空输入」与「Java 空路径」各有一条要传单个 null：C# 把只写 null 的 InlineData
+    /// 解释成**零个参数**，运行时会以「参数个数不匹配」失败而不是跑这条用例，
+    /// 必须用显式单元素对象数组包一层。
+    ///
+    /// 另一个坑：本文件是扫描器的输入，注释里出现 InlineData 的完整字面量写法
+    /// 会被算进总数（曾让基线从 858 漂到 860）。所以这条注释只描述、不举例。
     /// </summary>
-    private const int BaselineInlineData = 826;
+    private const int BaselineInlineData = 858;
 
     [Fact]
     public void 按Fact与InlineData计数()

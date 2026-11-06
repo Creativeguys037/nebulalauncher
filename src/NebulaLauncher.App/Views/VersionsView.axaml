@@ -3,6 +3,7 @@
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
              xmlns:models="using:NebulaLauncher.Core.Models"
+             xmlns:views="using:NebulaLauncher.Views"
              xmlns:sys="using:System"
              x:Class="NebulaLauncher.Views.VersionsView"
              x:DataType="vm:VersionsViewModel">
@@ -55,6 +56,17 @@
     <!-- 隐藏的版本仍然可见时（「显示已隐藏」打开）压低存在感，避免和正常版本混淆。 -->
     <Style Selector="Border.card.hidden">
       <Setter Property="Opacity" Value="0.55" />
+    </Style>
+
+    <!--
+      详情栏的字段名。
+      这个类原先在本文件里被引用却从未定义（label 只在 SettingsView 里是局部样式）：
+      依赖全局默认样式意味着文字色与字号都跟着控件默认值走，
+      换主题时看不出来，截图里也只能凭感觉判断。
+    -->
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
   </UserControl.Styles>
 
@@ -729,67 +741,27 @@
         这里先把它做成「选中什么就显示什么」的稳定容器：切视图时内容跟着换，宽度不跟着变。
       -->
       <Border Grid.Column="1" Classes="card detail-pane" Padding="20,18">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="DetailScroller" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="14">
             <TextBlock Text="{Binding CurrentViewTitle}" Classes="label" />
 
-            <!-- 已安装：版本概览 + 实例快捷入口 -->
-            <StackPanel Spacing="10" IsVisible="{Binding IsInstalledView}">
-              <StackPanel Orientation="Horizontal" Spacing="12">
-                <Border Width="48" Height="48"
-                        CornerRadius="{DynamicResource Radius.Lg}"
-                        Background="{DynamicResource Accent.Soft}">
-                  <Path Data="{StaticResource Icon.Versions}"
-                        Stroke="{DynamicResource Accent.Primary}"
-                        StrokeThickness="1.5"
-                        StrokeLineCap="Round"
-                        StrokeJoin="Round"
-                        Stretch="Uniform"
-                        Width="22" Height="22"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center" />
-                </Border>
-                <StackPanel Spacing="2" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding SelectedRow.Name, FallbackValue=未选择版本}"
-                             FontSize="{DynamicResource FontSize.Title}"
-                             FontWeight="SemiBold"
-                             TextTrimming="CharacterEllipsis"
-                             MaxWidth="260" />
-                  <TextBlock Text="{Binding SelectedRow.LoaderText}"
-                             FontSize="{DynamicResource FontSize.Body}"
-                             Classes="muted"
-                             TextTrimming="CharacterEllipsis"
-                             MaxWidth="260" />
-                </StackPanel>
-              </StackPanel>
+            <!--
+              已安装：实例详情（票 #88）。
+              概览的头部 / 信息 / 内存与 Java 全部收进独立控件 InstanceDetailPane：
+              它自己就是一个 UserControl，右栏只负责给它位置。
+              下面「独立实例」那一段仍留在页面里——它是列表，不是详情。
 
+              直接放控件、不套 ContentControl：套一层会让 DataContext 在内容边界上
+              走一次继承，内层控件的 x:DataType 与实际上下文错位，
+              表现为「绑定静默为空」——头部整块不渲染，且编译器不报错。
+            -->
+            <views:InstanceDetailPane IsVisible="{Binding IsInstalledView}" />
+
+            <!-- 已安装：实例列表（固定高度框住，内部滚动）+ 新建实例 -->
+            <StackPanel Spacing="8" IsVisible="{Binding IsInstalledView}">
               <Border Classes="divider" />
-
-              <StackPanel Spacing="6">
-                <TextBlock Text="版本信息" Classes="label" />
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="6">
-                  <TextBlock Text="最后游玩" Classes="muted" />
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding SelectedRow.LastPlayedText}"
-                             HorizontalAlignment="Right" />
-                  <TextBlock Grid.Row="1" Text="占用" Classes="muted" />
-                  <TextBlock Grid.Row="1" Grid.Column="1"
-                             Text="{Binding SelectedRow.SizeText}"
-                             Classes="mono"
-                             HorizontalAlignment="Right" />
-                  <TextBlock Grid.Row="2" Text="渠道" Classes="muted" />
-                  <TextBlock Grid.Row="2" Grid.Column="1"
-                             Text="{Binding SelectedRow.ChannelText}"
-                             HorizontalAlignment="Right" />
-                </Grid>
-              </StackPanel>
-
-              <!-- 实例区：从原来的整块卡片收进详情，把左列表的高度让给「≥4 行」。 -->
-              <Border Classes="divider" />
-
-              <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                  <TextBlock Text="独立实例" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="实例" FontWeight="SemiBold" VerticalAlignment="Center" />
                   <Button Grid.Column="1"
                           Classes="ghost icon"
                           Width="24" Height="24" MinHeight="24"
@@ -800,116 +772,78 @@
                   </Button>
                 </Grid>
 
-                <TextBlock Text="{Binding InstanceSummary}"
-                           Classes="muted"
-                           TextWrapping="Wrap" />
-
-                <ListBox Classes="instances"
-                         ItemsSource="{Binding Instances}"
-                         SelectedItem="{Binding SelectedInstance}"
-                         MaxHeight="200"
-                         IsVisible="{Binding HasInstances}"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:InstanceRow">
-                      <Border Classes="sunken"
-                              Classes.accentEdge="{Binding $parent[ListBoxItem].IsSelected}"
-                              Padding="10,8">
-                        <StackPanel Spacing="6">
-                          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                            <Border Width="24" Height="24"
-                                    CornerRadius="{DynamicResource Radius.Sm}"
-                                    Background="{DynamicResource Accent.Soft}"
-                                    VerticalAlignment="Center">
-                              <Path Data="{Binding IconGeometry}"
-                                    Stroke="{DynamicResource Accent.Primary}"
-                                    StrokeThickness="1.4"
-                                    StrokeLineCap="Round"
-                                    StrokeJoin="Round"
-                                    Stretch="Uniform"
-                                    Width="14" Height="14"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                            </Border>
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding Name}"
-                                       FontWeight="Medium"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis" />
-                            <Border Grid.Column="2"
-                                    Classes="badge success"
-                                    VerticalAlignment="Center"
-                                    IsVisible="{Binding IsRunning}">
-                              <TextBlock Text="运行中" />
-                            </Border>
-                          </Grid>
-
-                          <TextBlock Text="{Binding LastPlayedText}" Classes="muted" />
-
-                          <!-- 高频动作留在卡片内，破坏性动作进溢出菜单。 -->
-                          <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Button Classes="pill"
-                                    Content="设置"
-                                    Padding="8,2" MinHeight="24"
-                                    FontSize="{DynamicResource FontSize.Small}"
-                                    Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).OpenInstanceEditorCommand}"
-                                    CommandParameter="{Binding}" />
-                            <Button Classes="pill"
-                                    Content="打开目录"
-                                    Padding="8,2" MinHeight="24"
-                                    FontSize="{DynamicResource FontSize.Small}"
-                                    Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).OpenInstanceFolderCommand}"
-                                    CommandParameter="{Binding}" />
-                            <Button Classes="pill danger"
-                                    Content="停止"
-                                    Padding="8,2" MinHeight="24"
-                                    FontSize="{DynamicResource FontSize.Small}"
-                                    IsVisible="{Binding IsSessionRunning}"
-                                    Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).StopGameCommand}"
-                                    CommandParameter="{Binding}" />
-                            <Button Classes="ghost icon"
-                                    Width="24" Height="24" MinHeight="24"
-                                    Padding="0"
-                                    ToolTip.Tip="更多：换加载器、克隆、重命名、图标、清理、备注、移入回收站">
-                              <TextBlock Text="…" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                              <Button.Flyout>
-                                <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                  <MenuItem Header="换加载器…" Click="OnSwitchLoaderClick" />
-                                  <MenuItem Header="克隆"
-                                            IsEnabled="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
-                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).CloneInstanceCommand}"
-                                            CommandParameter="{Binding}" />
-                                  <MenuItem Header="重命名"
-                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).OpenRenameCommand}"
-                                            CommandParameter="{Binding}" />
-                                  <MenuItem Header="图标"
-                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).OpenIconPickerCommand}"
-                                            CommandParameter="{Binding}" />
-                                  <MenuItem Header="清理"
-                                            IsEnabled="{Binding ActionsEnabled}"
-                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).OpenCleanupCommand}"
-                                            CommandParameter="{Binding}" />
-                                  <MenuItem Header="备注"
-                                            IsVisible="{Binding HasNote}"
-                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).OpenNotesCommand}"
-                                            CommandParameter="{Binding}" />
-                                  <Separator />
-                                  <MenuItem Header="移入回收站…"
-                                            IsEnabled="{Binding ActionsEnabled}"
-                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).RequestDeleteInstanceCommand}"
-                                            CommandParameter="{Binding}" />
-                                </MenuFlyout>
-                              </Button.Flyout>
-                            </Button>
-                          </StackPanel>
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
+                <!--
+                  列表被一个固定高度的框子框住，滚动只发生在框内。
+                  为什么不让它自然撑高：实例数量是用户数据，10 个实例就会把右栏顶出屏幕，
+                  于是整个右栏出现滚动条、把上面的「实例身份」挤走。
+                  框住之后右栏总高度只取决于「概览 + 框子」，与实例数量无关。
+                -->
+                <Border Classes="sunken"
+                        Height="132"
+                        Padding="4"
+                        IsVisible="{Binding HasInstances}">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Disabled">
+                    <ListBox Classes="instances"
+                             ItemsSource="{Binding Instances}"
+                             SelectedItem="{Binding SelectedInstance}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:InstanceRow">
+                          <!--
+                            卡片只保留「选得出来」所需的最少信息：图标 / 名称 / 运行中徽标 / 最后启动。
+                            第一版在每张卡里塞了「设置 / 打开目录 / 停止 / 更多」四个按钮，
+                            两个实例就把右栏撑到需要滚动——动作改由上方概览区那排按钮承担。
+                          -->
+                          <Border Classes="sunken"
+                                  Classes.accentEdge="{Binding $parent[ListBoxItem].IsSelected}"
+                                  Padding="6,4">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                              <Border Width="20" Height="20"
+                                      CornerRadius="{DynamicResource Radius.Xs}"
+                                      Background="{DynamicResource Accent.Soft}"
+                                      VerticalAlignment="Center">
+                                <Path Data="{Binding IconGeometry}"
+                                      Stroke="{DynamicResource Accent.Primary}"
+                                      StrokeThickness="1.4"
+                                      StrokeLineCap="Round"
+                                      StrokeJoin="Round"
+                                      Stretch="Uniform"
+                                      Width="12" Height="12"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                              </Border>
+                              <StackPanel Grid.Column="1" Spacing="0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}"
+                                           FontWeight="Medium"
+                                           FontSize="{DynamicResource FontSize.Body}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding LastPlayedText}"
+                                           Classes="muted"
+                                           FontSize="{DynamicResource FontSize.Caption}"
+                                           TextTrimming="CharacterEllipsis" />
+                              </StackPanel>
+                              <Border Grid.Column="2"
+                                      Classes="badge success"
+                                      Padding="6,1"
+                                      VerticalAlignment="Center"
+                                      IsVisible="{Binding IsRunning}">
+                                <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
+                              </Border>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </ScrollViewer>
+                </Border>
 
                 <TextBlock Text="选中一个版本后点下面的「新建实例」，它就会拥有独立的 mods / saves / config。"
                            Classes="muted"
+                           FontSize="{DynamicResource FontSize.Caption}"
                            TextWrapping="Wrap"
                            IsVisible="{Binding !HasInstances}" />
 
@@ -917,15 +851,19 @@
                   次要样式而不是 accent：每个版本行已经有一个红色「启动」，
                   详情栏再放一个红色主行动会让一屏出现两个同等权重的强调块，
                   而「新建实例」不是这一页的主任务（票 #87 与 ui-audit 的同一结论）。
+
+                  只在「一个实例都没有」时出现：已经有实例时这个按钮点了也不会新建
+                  （同一版本目录只能有一个实例，CreateAsync 是幂等的），
+                  留着它只会在右栏白占一行高度、把下面的内容顶出视口。
                 -->
                 <Button Classes="ghost"
                         Content="为选中版本新建实例"
-                        MinHeight="36"
+                        MinHeight="34"
                         HorizontalAlignment="Stretch"
+                        IsVisible="{Binding !HasInstances}"
                         IsEnabled="{Binding IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
                         Command="{Binding CreateInstanceCommand}"
                         CommandParameter="{Binding SelectedRow}" />
-              </StackPanel>
             </StackPanel>
 
             <!-- 可下载：选中版本的详情 -->
@@ -1523,21 +1461,94 @@
                 </StackPanel>
               </Grid>
 
-              <Grid ColumnDefinitions="150,*" ColumnSpacing="10" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Text="JVM 参数" Classes="label" VerticalAlignment="Center" />
-                <TextBox Grid.Column="1"
+              <Grid ColumnDefinitions="150,*" ColumnSpacing="10" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                <!--
+                  内存与 Java（票 #88）住在二级页面而不是右栏概览里：
+                  右栏只回答「我在看哪个实例」，编辑动作放在这里才不会把概览撑成表单。
+                  两者都可「跟随全局」：勾上即不覆盖（落盘 null），取消勾选才用本实例的值。
+                -->
+                <TextBlock Text="内存" Classes="label" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <!-- 运行中：内存与 Java 只读并说明原因（票面「运行中字段只读且有说明」）。 -->
+                  <Border Classes="badge warning"
+                          Padding="8,4"
+                          HorizontalAlignment="Stretch"
+                          IsVisible="{Binding Detail.IsReadOnly}">
+                    <TextBlock Text="{Binding Detail.ReadOnlyHint}"
+                               FontSize="{DynamicResource FontSize.Caption}"
+                               TextWrapping="Wrap" />
+                  </Border>
+
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <CheckBox Content="跟随全局"
+                              IsChecked="{Binding Detail.FollowGlobalMemory, Mode=TwoWay}"
+                              IsEnabled="{Binding Detail.FieldEnabled}"
+                              MinHeight="28"
+                              VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1"
+                             Text="{Binding Detail.MemoryText, Mode=TwoWay}"
+                             IsEnabled="{Binding Detail.IsMemoryEditable}"
+                             Classes="mono"
+                             TextAlignment="Right"
+                             MaxLength="{Binding Detail.MemoryMaxLength}"
+                             MinHeight="32"
+                             IsVisible="{Binding Detail.FollowGlobalMemory, Converter={x:Static conv:Converters.InverseBool}}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Detail.MemoryText}"
+                               Classes="mono"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"
+                               IsVisible="{Binding Detail.FollowGlobalMemory}" />
+                    <TextBlock Grid.Column="2" Text="MB" Classes="label" />
+                  </Grid>
+                  <TextBlock Text="{Binding Detail.MemoryError}"
+                             Foreground="{DynamicResource Status.Danger}"
+                             FontSize="{DynamicResource FontSize.Caption}"
+                             TextWrapping="Wrap"
+                             IsVisible="{Binding Detail.HasMemoryError}" />
+                  <TextBlock Text="{Binding Detail.MemoryHint}"
+                             Classes="muted"
+                             FontSize="{DynamicResource FontSize.Caption}"
+                             TextWrapping="Wrap"
+                             IsVisible="{Binding Detail.HasMemoryError, Converter={x:Static conv:Converters.InverseBool}}" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="1" Text="Java" Classes="label" Margin="0,8,0,0" VerticalAlignment="Top" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,8,0,0" Spacing="4">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                    <TextBox Text="{Binding Detail.JavaPathText, Mode=TwoWay}"
+                             IsEnabled="{Binding Detail.FieldEnabled}"
+                             Watermark="留空则自动选择"
+                             MinHeight="32"
+                             ToolTip.Tip="{Binding Detail.JavaHint}" />
+                    <Button Grid.Column="1"
+                            Classes="ghost"
+                            Content="选择…"
+                            MinHeight="32"
+                            Padding="10,0"
+                            Click="OnPickJavaClick" />
+                  </Grid>
+                  <TextBlock Text="{Binding Detail.JavaError}"
+                             Foreground="{DynamicResource Status.Danger}"
+                             FontSize="{DynamicResource FontSize.Caption}"
+                             TextWrapping="Wrap"
+                             IsVisible="{Binding Detail.HasJavaError}" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="2" Text="JVM 参数" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Margin="0,8,0,0"
                          Text="{Binding EditorJvmArguments}"
                          Classes="mono"
                          Watermark="留空 = 跟随全局；例如 -XX:+UseG1GC" />
 
-                <TextBlock Grid.Row="1" Text="游戏参数" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
-                <TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,0,0"
+                <TextBlock Grid.Row="3" Text="游戏参数" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
+                <TextBox Grid.Row="3" Grid.Column="1" Margin="0,8,0,0"
                          Text="{Binding EditorGameArguments}"
                          Classes="mono"
                          Watermark="例如 --demo" />
 
-                <TextBlock Grid.Row="2" Text="窗口标题" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
-                <TextBox Grid.Row="2" Grid.Column="1" Margin="0,8,0,0"
+                <TextBlock Grid.Row="4" Text="窗口标题" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
+                <TextBox Grid.Row="4" Grid.Column="1" Margin="0,8,0,0"
                          Text="{Binding EditorWindowTitle}"
                          Watermark="支持 {version} {user} {date} {time}" />
 
@@ -1545,8 +1556,8 @@
                   版本信息是三态：勾「跟随全局」= 不覆盖；取消勾选后留空 = 明确不显示。
                   没有这个勾选框，用户就无法在全局填了整合包名的前提下把本实例单独关掉。
                 -->
-                <TextBlock Grid.Row="3" Text="版本信息" Classes="label" Margin="0,8,0,0" VerticalAlignment="Top" />
-                <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,8,0,0" Spacing="4">
+                <TextBlock Grid.Row="5" Text="版本信息" Classes="label" Margin="0,8,0,0" VerticalAlignment="Top" />
+                <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,8,0,0" Spacing="4">
                   <TextBox Text="{Binding EditorVersionType}"
                            MaxLength="32"
                            IsEnabled="{Binding !FollowGlobalVersionType}"
@@ -1558,14 +1569,14 @@
                              TextWrapping="Wrap" />
                 </StackPanel>
 
-                <TextBlock Grid.Row="4" Text="服务器地址" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
-                <TextBox Grid.Row="4" Grid.Column="1" Margin="0,8,0,0"
+                <TextBlock Grid.Row="6" Text="服务器地址" Classes="label" Margin="0,8,0,0" VerticalAlignment="Center" />
+                <TextBox Grid.Row="6" Grid.Column="1" Margin="0,8,0,0"
                          Text="{Binding EditorServerAddress}"
                          Watermark="例如 play.example.com:25565；留空进主菜单" />
 
                 <!-- 备注是多行自由文本：AcceptReturn + Wrap，否则用户写的换行会被吞掉且看不到全文。 -->
-                <TextBlock Grid.Row="5" Text="备注" Classes="label" Margin="0,8,0,0" VerticalAlignment="Top" />
-                <TextBox Grid.Row="5" Grid.Column="1" Margin="0,8,0,0"
+                <TextBlock Grid.Row="7" Text="备注" Classes="label" Margin="0,8,0,0" VerticalAlignment="Top" />
+                <TextBox Grid.Row="7" Grid.Column="1" Margin="0,8,0,0"
                          Text="{Binding EditorNotes}"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"

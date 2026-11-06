@@ -40,5 +40,8 @@
   <StreamGeometry x:Key="Icon.WindowMinimize">M5 12h14</StreamGeometry>
   <StreamGeometry x:Key="Icon.WindowMaximize">M6.5 6.5h11v11h-11z</StreamGeometry>
   <StreamGeometry x:Key="Icon.WindowClose">M6 6l12 12M18 6 6 18</StreamGeometry>
+  
+  <!-- 复制：两张错位的方框 -->
+  <StreamGeometry x:Key="Icon.Copy">M9 9V6.5A1.5 1.5 0 0 1 10.5 5h7A1.5 1.5 0 0 1 19 6.5v7a1.5 1.5 0 0 1-1.5 1.5H15M5 9.5A1.5 1.5 0 0 1 6.5 8h7A1.5 1.5 0 0 1 15 9.5v7a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 5 16.5z</StreamGeometry>
 
 </ResourceDictionary>
