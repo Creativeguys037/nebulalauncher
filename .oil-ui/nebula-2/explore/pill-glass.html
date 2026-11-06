@@ -334,8 +334,9 @@
   var dbgdur = document.getElementById('dbgdur');
 
   var TITLES = { home: ['继续游戏', '欢迎回来'], versions: ['版本与实例', '5 已安装 · 1024 可下载'] };
-  var DUR_FORWARD = 260;   // 主页 → 其它页
-  var DUR_BACK = 220;      // 其它页 → 主页（回退轻一档）
+  // 两个方向同长同曲线：与 PageHost 的 220ms 淡入对齐（契约 §13.3 已统一）
+  var DUR_FORWARD = 220;
+  var DUR_BACK = 220;
 
   var current = 'home';
   var activeNav = navbs[0];

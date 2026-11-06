@@ -728,6 +728,7 @@
   <!-- 图标默认描边必须在样式里：Path 上的本地值会压过 :pointerover 的样式 setter。 -->
   <Style Selector="Button.window-btn Path">
     <Setter Property="Stroke" Value="{DynamicResource Text.Secondary}" />
+    <Setter Property="StrokeThickness" Value="1.1" />
   </Style>
 
   <Style Selector="Button.window-btn:pointerover">
@@ -742,6 +743,54 @@
   <!-- 红色底上浅灰叉号在浅色主题里对比度不足，悬停时统一转成反白色（两种主题都是白）。 -->
   <Style Selector="Button.window-btn.close:pointerover Path">
     <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
+  </Style>
+
+  <!-- ================= 三键胶囊（票 #107） =================
+       三键收进一枚 L2 玻璃胶囊：主页停在 TitleBar 搜索框右侧，其余页贴右。
+       按钮沿用 Button.window-btn 的尺寸与六态，只加 .solid 修饰类换实块背景；
+       演示页（ControlsGalleryView）仍用不带 .solid 的透明形态。 -->
+  <Style Selector="Border.winpill">
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Glass}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BoxShadow" Value="{DynamicResource Shadow.Glass}" />
+  </Style>
+
+  <Style Selector="Button.window-btn.solid">
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+  </Style>
+
+  <!-- 实块上图标要更重一档：10px 缩放下 1.1 的线在白块上几乎看不见 -->
+  <Style Selector="Button.window-btn.solid Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="StrokeThickness" Value="1.5" />
+  </Style>
+
+  <Style Selector="Button.window-btn.solid:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+  </Style>
+
+  <Style Selector="Button.window-btn.solid:pointerover Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.OnAccent}" />
+  </Style>
+
+  <Style Selector="Button.window-btn.close.solid:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Window.CloseHover}" />
+  </Style>
+
+  <Style Selector="Button.window-btn.solid:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.94)" />
+  </Style>
+
+  <!-- 主页专属搜索框：只在主页出现，其余页 IsVisible=false 不占位 -->
+  <Style Selector="Border.titlesearch">
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="15,0" />
   </Style>
 
   <!-- ================= 滚动容器 ================= -->

@@ -12,6 +12,7 @@
         xmlns:vm="using:NebulaLauncher.ViewModels"
         xmlns:controls="using:NebulaLauncher.Controls"
         xmlns:conv="using:NebulaLauncher.Converters"
+        xmlns:svc="using:NebulaLauncher.Services"
         x:Class="NebulaLauncher.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Nebula Launcher"
@@ -144,16 +145,21 @@
       <!-- ==================== 右侧主列 ==================== -->
       <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="18,0,0,0">
 
-        <!-- 标题栏：窗口三键与页面抬头同在这一条上，拖动区随整条走 -->
+        <!-- 标题栏：窗口三键与页面抬头同在这一条上，拖动区随整条走。
+             票 #107：主页多一条搜索框，三键收进胶囊；胶囊按页面切换横移（位移在代码里算）。 -->
         <Grid Grid.Row="0"
-              Name="TitleBar"
+              x:Name="TitleBar"
               Height="46"
               Background="Transparent"
-              PointerPressed="OnTitleBarPointerPressed">
-          <StackPanel Orientation="Horizontal"
+              PointerPressed="OnTitleBarPointerPressed"
+              ColumnDefinitions="Auto,Auto,*,Auto">
+
+          <!-- 左：页面抬头 -->
+          <StackPanel Grid.Column="0"
+                      Orientation="Horizontal"
                       Spacing="12"
                       VerticalAlignment="Center"
-                      Margin="4,0,140,0">
+                      Margin="4,0,0,0">
             <TextBlock Text="{Binding CurrentPage.Title}"
                        Classes="page-title"
                        VerticalAlignment="Center" />
@@ -164,48 +170,86 @@
                        TextTrimming="CharacterEllipsis" />
           </StackPanel>
 
-          <!--
-            窗口三键。图标尺寸 10px、键 33×29（1024 下 29×25），关闭键 hover 转危险色 + 白图标。
-            Path 上不写内联 Stroke：本地值会压过 :pointerover 的样式 setter（PITFALLS 4.2）。
-          -->
-          <StackPanel Orientation="Horizontal"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Center"
-                      Spacing="4">
-            <Button Classes="window-btn"
-                    Click="OnMinimizeClick"
-                    ToolTip.Tip="最小化"
-                    AutomationProperties.Name="最小化">
-              <Path Data="{StaticResource Icon.WindowMinimize}"
-                    StrokeThickness="1.1"
+          <!-- 中：主页专属搜索框。其余页 IsVisible=false，不占位。 -->
+          <Border Grid.Column="1"
+                  x:Name="HomeSearch"
+                  Classes="titlesearch"
+                  Width="320"
+                  Height="34"
+                  Margin="12,0,0,0"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding IsHomePage}">
+            <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+              <Path Data="{StaticResource Icon.Search}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
                     StrokeLineCap="Round"
                     StrokeJoin="Round"
                     Stretch="Uniform"
-                    Width="10" Height="10" />
-            </Button>
-            <Button Classes="window-btn"
-                    Click="OnMaximizeClick"
-                    ToolTip.Tip="最大化"
-                    AutomationProperties.Name="最大化">
-              <Path Data="{StaticResource Icon.WindowMaximize}"
-                    StrokeThickness="1.1"
-                    StrokeLineCap="Round"
-                    StrokeJoin="Round"
-                    Stretch="Uniform"
-                    Width="10" Height="10" />
-            </Button>
-            <Button Classes="window-btn close"
-                    Click="OnCloseClick"
-                    ToolTip.Tip="关闭"
-                    AutomationProperties.Name="关闭">
-              <Path Data="{StaticResource Icon.WindowClose}"
-                    StrokeThickness="1.1"
-                    StrokeLineCap="Round"
-                    StrokeJoin="Round"
-                    Stretch="Uniform"
-                    Width="10" Height="10" />
-            </Button>
-          </StackPanel>
+                    Width="15" Height="15"
+                    VerticalAlignment="Center" />
+              <TextBlock Text="搜索实例、模组、版本…"
+                         Classes="muted"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <!-- 右：三键胶囊。X 位移由 UpdatePillOffset 计算：主页停在搜索框右侧，其余页为 0（贴右）。 -->
+          <Border Grid.Column="3"
+                  x:Name="WindowPill"
+                  Classes="winpill"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center">
+            <Border.RenderTransform>
+              <TranslateTransform X="0">
+                <TranslateTransform.Transitions>
+                  <Transitions>
+                    <!-- 时长与曲线只从 Motion 词表取，XAML 里不写 0:0:0.22 这类字面量 -->
+                    <DoubleTransition Property="X"
+                                      Duration="{x:Static svc:Motion.Normal}"
+                                      Easing="{x:Static svc:Motion.EaseOut}" />
+                  </Transitions>
+                </TranslateTransform.Transitions>
+              </TranslateTransform>
+            </Border.RenderTransform>
+
+            <!--
+              三键实块：图标 10px、键 33×29（1024 下 29×25），关闭键 hover 转危险色 + 白图标。
+              Path 上不写内联 Stroke：本地值会压过 :pointerover 的样式 setter（PITFALLS 4.2）。
+            -->
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Button Classes="window-btn solid"
+                      Click="OnMinimizeClick"
+                      ToolTip.Tip="最小化"
+                      AutomationProperties.Name="最小化">
+                <Path Data="{StaticResource Icon.WindowMinimize}"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Stretch="Uniform"
+                      Width="10" Height="10" />
+              </Button>
+              <Button Classes="window-btn solid"
+                      Click="OnMaximizeClick"
+                      ToolTip.Tip="最大化"
+                      AutomationProperties.Name="最大化">
+                <Path Data="{StaticResource Icon.WindowMaximize}"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Stretch="Uniform"
+                      Width="10" Height="10" />
+              </Button>
+              <Button Classes="window-btn solid close"
+                      Click="OnCloseClick"
+                      ToolTip.Tip="关闭"
+                      AutomationProperties.Name="关闭">
+                <Path Data="{StaticResource Icon.WindowClose}"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Stretch="Uniform"
+                      Width="10" Height="10" />
+              </Button>
+            </StackPanel>
+          </Border>
         </Grid>
 
         <!-- 内容区：Main 地标 -->

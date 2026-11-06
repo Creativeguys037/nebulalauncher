@@ -327,11 +327,12 @@ TitleBar (46, 可拖动)
 
 | 动作 | 时长 | 曲线 | 说明 |
 |---|---|---|---|
-| 主页 → 其它页（胶囊右移） | **260ms** | `cubic-bezier(.22,.9,.24,1)` | 与 `glass.css` 的 `--ease` 同一条 |
-| 其它页 → 主页（胶囊复位） | **220ms** | 同上 | 回退轻一档，与 PageHost 淡入同长 |
+| 胶囊横移（两个方向） | **220ms** = `Motion.Normal` | `Motion.EaseOut` = `cubic-bezier(.22,.9,.24,1)` | 与 PageHost 淡入**同长同曲线**，两个方向同值——之前草案里前进 260 / 复位 220 已统一到 220 |
 | 页面内容淡入 | 220ms | 同上 | 沿用已有值，不动 |
-| 搜索框收放 | **跟随胶囊时长** | 同上 | 用同一个 `--pill-dur` 变量，别各写一个 |
+| 搜索框淡入 / 淡出 | 跟随胶囊 | 同上 | 搜索框只做 `IsVisible` 与透明度，**不做宽度动画**（见 §13.2 的测量坑） |
 | 三键 hover 换色 | 120ms | 同上 | 不抢位移的注意力 |
+
+时长与曲线只从 `src/NebulaLauncher.App/Services/Motion.cs` 取，XAML 里用 `{x:Static svc:Motion.Normal}` / `EaseOut`，不写字面量——`MainWindow_HasNoPageLevelDesignLiterals` 会抓。
 
 ### 13.4 同步规则
 

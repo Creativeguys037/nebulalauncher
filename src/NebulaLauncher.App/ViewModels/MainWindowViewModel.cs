@@ -350,6 +350,15 @@ public partial class MainWindowViewModel : ObservableObject, INavigationService
     [ObservableProperty]
     private PageViewModelBase? _currentPage;
 
+    /// <summary>
+    /// 当前页是否主页。TitleBar 的主页搜索框与三键胶囊按它切换位置（票 #107）。
+    /// 主页时胶囊停在搜索框右侧，其余页贴右。
+    /// </summary>
+    public bool IsHomePage => CurrentPage?.Key == NavigationKeys.Home;
+
+    partial void OnCurrentPageChanged(PageViewModelBase? value) =>
+        OnPropertyChanged(nameof(IsHomePage));
+
     [ObservableProperty]
     private string _statusText = "就绪";
 

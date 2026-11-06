@@ -176,8 +176,11 @@ public class AppShell_NavigationContractTests
             Assert.Contains($"AutomationProperties.Name=\"{name}\"", text);
         }
 
-        Assert.Contains("Classes=\"window-btn\"", text);
-        Assert.Contains("Classes=\"window-btn close\"", text);
+        // 票 #107：三键收进胶囊后带 .solid 修饰类，这里只钉「是 Button 且类名以 window-btn 起头」，
+        // 不锁死完整类名——否则每次加修饰类都要改测试。
+        Assert.Contains("<Button Classes=\"window-btn", text);
+        Assert.Matches("Classes=\"window-btn[^\"]*\"", text);
+        Assert.Matches("Classes=\"window-btn[^\"]*close[^\"]*\"", text);
         Assert.Contains("Icon.WindowMinimize", text);
         Assert.Contains("Icon.WindowMaximize", text);
         Assert.Contains("Icon.WindowClose", text);

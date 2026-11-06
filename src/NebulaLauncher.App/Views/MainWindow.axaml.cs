@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -46,6 +49,22 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _pendingWindowStateChanged;
 
+    // ================= 三键胶囊（票 #107） =================
+
+    /// <summary>胶囊的位移变换。X 为 0 时贴右，负数表示左移到搜索框右侧。</summary>
+    private TranslateTransform? _pillTransform;
+
+    /// <summary>驱动 X 的过渡。前进 260ms、回主页 220ms，时长按方向改写。</summary>
+    private DoubleTransition? _pillXTransition;
+
+    /// <summary>首帧落位不走动画：打开就在主页，不该看到胶囊自己滑过去。</summary>
+    private bool _pillInitialized;
+
+    private MainWindowViewModel? _pillShell;
+
+    /// <summary>胶囊与搜索框之间的间距，与样板 pill-glass.html 一致。</summary>
+    private const double PillGap = 12;
+
     /// <summary>
     /// 托盘服务。由 <see cref="TrayService.TryCreate"/> 在应用启动时挂上来；
     /// 截图模式或托盘建不出来时为 <c>null</c>，此时关闭窗口保持旧行为（直接退出）。
@@ -56,8 +75,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainWindowViewModel();
+        var shell = new MainWindowViewModel();
+        DataContext = shell;
         AttachDragDrop();
+        AttachWindowPill(shell);
         RestoreWindowState();
         RegisterShortcuts();
         SizeChanged += OnSizeChanged;
@@ -81,6 +102,7 @@ public partial class MainWindow : Window
         RestoreWindowState();
         RegisterShortcuts();
         AttachAdaptiveMinimumSizeTriggers(shell);
+        AttachWindowPill(shell);
         SizeChanged += OnSizeChanged;
         ApplyDensityClass();
 
@@ -149,13 +171,28 @@ public partial class MainWindow : Window
         _log?.Info($"启动器窗口已打开：{Bounds.Width:0}x{Bounds.Height:0}，状态={WindowState}");
         ApplyDensityClass();
         ScheduleAdaptiveMinimumSize();
+
+        // 首帧布局跑完才有可信的 TitleBar / 胶囊宽度，胶囊在这里落第一次位。
+        if (!_pillInitialized)
+        {
+            SchedulePillUpdate(animate: false);
+        }
     }
 
     /// <summary>
     /// 窗口宽度跨过 1120 时切换紧凑档：侧栏 68（栏内项 46×40、图标 17）、三键 29×25、标题 26。
     /// 栏宽跟着走的是 Stage 的第一列，不是整高侧栏。
     /// </summary>
-    private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyDensityClass();
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        ApplyDensityClass();
+
+        // 宽度变了，胶囊贴右的位置也跟着变；拖窗口时不播动画，否则它会一路跟着晃。
+        if (_pillInitialized)
+        {
+            SchedulePillUpdate(animate: false);
+        }
+    }
 
     private void ApplyDensityClass()
     {
@@ -173,6 +210,78 @@ public partial class MainWindow : Window
         {
             Stage.ColumnDefinitions[0].Width = new GridLength(width);
         }
+    }
+
+    /// <summary>
+    /// 接上三键胶囊：订阅主页态变化，并在首帧后按最终布局落一次位。
+    /// </summary>
+    private void AttachWindowPill(MainWindowViewModel shell)
+    {
+        _pillShell = shell;
+        _pillTransform = WindowPill.RenderTransform as TranslateTransform;
+        _pillXTransition = _pillTransform?.Transitions?.OfType<DoubleTransition>().FirstOrDefault();
+
+        shell.PropertyChanged += OnShellPropertyChanged;
+        SchedulePillUpdate(animate: false);
+    }
+
+    private void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // CurrentPage 与 IsHomePage 会连着发两次，这里只认一次即可——
+        // 两次都排到 Loaded，后一次覆盖前一次，位移只算一遍。
+        if (e.PropertyName is nameof(MainWindowViewModel.IsHomePage)
+            or nameof(MainWindowViewModel.CurrentPage))
+        {
+            SchedulePillUpdate(animate: true);
+        }
+    }
+
+    /// <summary>
+    /// 排到布局轮次之后再量。搜索框的 IsVisible 在切页那一帧才刚变，
+    /// 当场量拿到的是上一轮的 Bounds。
+    /// </summary>
+    private void SchedulePillUpdate(bool animate)
+        => Dispatcher.UIThread.Post(() => UpdatePillOffset(animate), DispatcherPriority.Loaded);
+
+    /// <summary>
+    /// 算胶囊位移：主页停在搜索框右侧，其余页贴右（X = 0）。
+    ///
+    /// 只量 <see cref="HomeSearch"/> 的位置，**不量它的宽度过渡**——搜索框宽 320 固定、
+    /// 不做宽度动画，所以布局完就是最终值。若哪天给它加了宽度动画，这里会读到起始宽度，
+    /// 胶囊会停在搜索框左缘（样本 pill-glass.html 第一版就是这么错的，位移算成 -874 而非 -551）。
+    /// </summary>
+    private void UpdatePillOffset(bool animate)
+    {
+        if (_pillTransform is null || _pillShell is null)
+        {
+            return;
+        }
+
+        var isHome = _pillShell.IsHomePage;
+
+        // 贴右时胶囊左缘。胶囊在 Grid 最后一列且 HorizontalAlignment=Right，没有外边距。
+        var baseLeft = TitleBar.Bounds.Width - WindowPill.Bounds.Width;
+
+        var target = 0d;
+        if (isHome && HomeSearch.Bounds.Width > 0)
+        {
+            target = HomeSearch.Bounds.Left + HomeSearch.Bounds.Width + PillGap - baseLeft;
+        }
+
+        if (!_pillInitialized)
+        {
+            animate = false;
+            _pillInitialized = true;
+        }
+
+        if (_pillXTransition is not null)
+        {
+            // 前进与回退同长同曲线（Motion.Normal + Motion.EaseOut），与 PageHost 的淡入对齐；
+            // 首帧落位不要动画，时长临时压成 0。
+            _pillXTransition.Duration = animate ? Motion.Normal : TimeSpan.Zero;
+        }
+
+        _pillTransform.X = target;
     }
 
     /// <summary>
