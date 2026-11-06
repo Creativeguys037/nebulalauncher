@@ -86,4 +86,27 @@
     </Setter>
   </ControlTheme>
 
+  <!--
+    只管页签条、不渲染选中内容的变体（类名 strip，见 Controls.axaml 的 TabControl.strip）。
+
+    为什么需要它：`TabControl` 默认只为选中项实例化 content，切走的那一份会从可视树摘下、
+    切回时重建——滚动位置与列表的虚拟化状态一起丢。版本页三个视图（已安装 / 可下载 / 整合包）
+    必须满足「切走再切回原样恢复」，所以三份列表同时留在可视树、靠 IsVisible 切换，
+    页签条单独用这里的 strip 变体。页签语义与六态与完整版完全一致，只是不承担内容宿主。
+  -->
+  <ControlTheme x:Key="TabControlStrip" TargetType="TabControl">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="PART_TabStrip"
+                Background="{DynamicResource Surface.Sunken}"
+                CornerRadius="{DynamicResource Radius.Pill}"
+                Padding="4"
+                HorizontalAlignment="Left">
+          <ItemsPresenter Name="PART_ItemsPresenter"
+                          ItemsPanel="{TemplateBinding ItemsPanel}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
 </ResourceDictionary>

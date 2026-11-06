@@ -749,4 +749,31 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
 
+  <!-- ================= 页签条（只切视图，不承载内容） ================= -->
+  <!--
+    版本页的三视图要求「切走再切回原样恢复」筛选与滚动位置。TabControl 默认只为选中项
+    实例化 content，切走的那份会被从可视树摘下并在回来时重建，滚动位置随之归零；
+    所以三份列表同时留在可视树、靠 IsVisible 切换，页签条单独用这个 strip 变体。
+    主题模板在 ControlThemes/TabControl.axaml，这里只把类名接到它上面。
+  -->
+  <Style Selector="TabControl.strip">
+    <Setter Property="Theme" Value="{StaticResource TabControlStrip}" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- ================= 版本页详情栏 ================= -->
+  <!--
+    设计稿要求详情宽 380、1024 档收成 320。宽度必须写在样式里而不是内联：
+    内联 Width 是本地值，会压过这里的 Window.compact 档（PITFALLS 4.2）。
+    阈值与外壳同一档（1120）：两处各写一个阈值时，窗口停在两者之间会出现
+    「侧栏已经是紧凑档、详情还是宽档」的错配。
+  -->
+  <Style Selector="Border.detail-pane">
+    <Setter Property="Width" Value="380" />
+  </Style>
+
+  <Style Selector="Window.compact Border.detail-pane">
+    <Setter Property="Width" Value="320" />
+  </Style>
+
 </Styles>

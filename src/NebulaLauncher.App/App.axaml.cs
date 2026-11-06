@@ -249,6 +249,30 @@ public partial class App : Application
                     await logsViewModel.ApplyLogFollowDemoAsync();
                 }
 
+                // 版本页：切到指定视图（available / modpacks）。
+                // 页签切换在截图模式里点不到，而三视图本来就是这张票的验收对象。
+                // 走现成的 --section 而不是新加开关，tools/shot.ps1 已经把 -Section 透传过来。
+                if (window.DataContext is MainWindowViewModel shell7
+                    && shell7.CurrentPage is VersionsViewModel versionsForView
+                    && ScreenshotMode.SectionKey is { } viewKey)
+                {
+                    var wanted = viewKey.ToLowerInvariant() switch
+                    {
+                        "available" => VersionsViewKind.Available,
+                        "modpacks" => VersionsViewKind.Modpacks,
+                        _ => (VersionsViewKind?)null,
+                    };
+
+                    if (wanted is { } target && versionsForView.CurrentView != target)
+                    {
+                        versionsForView.SelectViewCommand.Execute(target);
+
+                        // 切视图会拉起一次网络请求（Mojang 清单 / Modrinth 搜索），
+                        // 不等它就截图只能拍到骨架。
+                        await Task.Delay(4000);
+                    }
+                }
+
                 var size = window.Bounds.Size;
                 var pixelSize = new PixelSize(
                     Math.Max(1, (int)Math.Round(size.Width)),

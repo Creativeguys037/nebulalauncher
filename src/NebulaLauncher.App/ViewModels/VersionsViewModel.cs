@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -10,10 +11,12 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NebulaLauncher.Core.Abstractions;
+using NebulaLauncher.Core.Downloads;
 using NebulaLauncher.Core.Instances;
 using NebulaLauncher.Core.Java;
 using NebulaLauncher.Core.Launching;
 using NebulaLauncher.Core.Models;
+using NebulaLauncher.Core.Mods;
 using NebulaLauncher.Core.Versions;
 using NebulaLauncher.Services;
 using Conv = NebulaLauncher.Converters.Converters;
@@ -60,6 +63,24 @@ public partial class VersionsViewModel : PageViewModelBase
     /// </summary>
     private readonly IJavaService? _java;
 
+    /// <summary>
+    /// 整合包导入服务（「整合包」视图用）。「可下载」视图不需要它：
+    /// 整合包装的是实例而不是往当前版本里塞文件，两条链路不能合并。
+    /// </summary>
+    private readonly IModpackService? _modpack;
+
+    /// <summary>Modrinth 整合包目录。只做「搜项目」，版本与下载仍走既有服务。</summary>
+    private readonly ModpackCatalogClient? _modpackCatalog;
+
+    /// <summary>整合包归档的下载通道。与内容页共用同一个队列，进度与失败重试不必再造一套。</summary>
+    private readonly DownloadQueue? _downloadQueue;
+
+    /// <summary>整合包版本的接口：列表页只知道「有这个包」，下载地址要按版本取。</summary>
+    private readonly IModrinthService? _modrinth;
+
+    /// <summary>「整合包」视图每页条数。与内容页同一口径（Modrinth 单页上限 100，取 20 够扫）。</summary>
+    internal const int ModpackPageSize = 20;
+
     private bool _loadGate;
 
     public VersionsViewModel(
@@ -77,7 +98,11 @@ public partial class VersionsViewModel : PageViewModelBase
         IComponentInspector? componentInspector = null,
         IInstanceLockService? instanceLockService = null,
         IInstanceFolderService? instanceFolderService = null,
-        IJavaService? javaService = null)
+        IJavaService? javaService = null,
+        IModpackService? modpackService = null,
+        ModpackCatalogClient? modpackCatalog = null,
+        DownloadQueue? downloadQueue = null,
+        IModrinthService? modrinthService = null)
     {
         _versions = versionService;
         _install = installService;
@@ -94,6 +119,10 @@ public partial class VersionsViewModel : PageViewModelBase
         _instanceLocks = instanceLockService;
         _instanceFolders = instanceFolderService;
         _java = javaService;
+        _modpack = modpackService;
+        _modpackCatalog = modpackCatalog;
+        _downloadQueue = downloadQueue;
+        _modrinth = modrinthService;
 
         // 与首页共用同一套状态机实现，但各持一个实例：两页的「缺 Java」是两次独立的
         // 启动失败上下文，共享一份状态会让一边的失败清掉另一边正在下载的进度。
@@ -117,7 +146,136 @@ public partial class VersionsViewModel : PageViewModelBase
         // 清理范围默认「全部文件」：面板一打开就该有合法值，而不是空的下拉框。
         _cleanupRange = CleanupRanges[0];
 
+        // 「已安装」视图的状态对象是唯一真相来源：它的筛选 / 选中 / 空态一变，
+        // 页面这一层要把同名转发属性一起通知出去，否则 XAML 上绑的还是上一次的值。
+        Installed.PropertyChanged += OnInstalledStateChanged;
+
+        // 筛选的三个输入（搜索词、筛选键、显示已隐藏）都在状态对象上，
+        // 订阅在这里而不是 partial 方法上：状态对象可能被「回到已安装视图时还原」改写，
+        // 那条路径不经过属性 setter，partial 方法收不到通知，列表就不刷新了。
+        Installed.PropertyChanged += OnInstalledFilterInputChanged;
+
+        // 「可下载」视图同样要能响应自己的搜索与筛选。
+        Available.PropertyChanged += OnAvailableFilterInputChanged;
+
+        // 行集合本身变了也要重算可见行与计数：清单是重拉一次就整批换掉的，
+        // 只订阅筛选输入的话，新拉到的清单要等用户再动一次筛选才会出现在列表里。
+        // 直接往 Rows 里加行的任何路径（包括单测与将来的增量刷新）都该得到同样的结果。
+        //
+        // 这里用 Reset 而不是逐条重算：LoadAvailableAsync 是「Clear + N 次 Add」，
+        // 逐条触发会把一次重算变成 N+1 次——几百个版本就是几百次全量过滤。
+        Available.Rows.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                ApplyAvailableFilter();
+            }
+        };
+
+        // 「整合包」视图的搜索要真的触发重新搜索：它的数据不在内存里，
+        // 只有换关键词时重新问 Modrinth 才有结果。漏掉这个订阅会让搜索框看起来能打字、
+        // 列表却一直停在上一批结果上（列表非空时尤其难察觉）。
+        Modpacks.PropertyChanged += OnModpacksSearchInputChanged;
+
         ServiceWarning = DescribeMissingServices();
+    }
+
+    /// <summary>
+    /// 「可下载」视图的搜索 / 筛选输入变了之后的回填。
+    ///
+    /// 与「已安装」分开一个订阅：两个视图的过滤函数与数据源都不同，
+    /// 合在一个 handler 里靠 if 分叉，读起来会像「同一个状态被两处改写」。
+    /// </summary>
+    private void OnAvailableFilterInputChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(AvailableViewState.SearchText):
+            case nameof(AvailableViewState.FilterKind):
+            case nameof(AvailableViewState.ReleaseOnly):
+                ApplyAvailableFilter();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 整合包搜索词变了就重新搜一次。
+    ///
+    /// 与另两个视图不同：它们的过滤是纯内存操作，可以每个键都重算；
+    /// 这里每次都要发一次网络请求，所以只在当前正停在这个视图时才发——
+    /// 否则用户在别的视图里打字也会打出一串后台请求。
+    /// </summary>
+    private void OnModpacksSearchInputChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ModpacksViewState.SearchText) || !IsModpacksView)
+        {
+            return;
+        }
+
+        _ = SearchModpacksAsync(reset: true);
+    }
+
+    /// <summary>
+    /// 筛选输入变了就重算列表。
+    ///
+    /// 三个输入各自重算，而不是「等它们都稳定」：<see cref="ApplyFilter"/> 是纯内存过滤，
+    /// 对几百个版本的开销远小于一次布局，省这个复杂度的收益抵不上「漏刷新」的风险。
+    /// </summary>
+    private void OnInstalledFilterInputChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(InstalledViewState.SearchText):
+            case nameof(InstalledViewState.FilterKind):
+            case nameof(InstalledViewState.ShowHidden):
+                ApplyFilter();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 「已安装」视图状态 → 页面转发属性。
+    ///
+    /// 只转名字真正变化的那几个：筛选键一次性牵动四个 <c>IsFilter*</c> 与整份列表，
+    /// 漏转一个就是「点了筛选但按钮不高亮」。
+    /// </summary>
+    private void OnInstalledStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(InstalledViewState.SearchText):
+                OnPropertyChanged(nameof(SearchText));
+                break;
+
+            case nameof(InstalledViewState.FilterKind):
+                OnPropertyChanged(nameof(FilterKind));
+                OnPropertyChanged(nameof(IsFilterAll));
+                OnPropertyChanged(nameof(IsFilterVanilla));
+                OnPropertyChanged(nameof(IsFilterLoader));
+                OnPropertyChanged(nameof(IsFilterFavorite));
+                break;
+
+            case nameof(InstalledViewState.ShowHidden):
+                OnPropertyChanged(nameof(ShowHidden));
+                break;
+
+            case nameof(InstalledViewState.SelectedRow):
+                OnPropertyChanged(nameof(SelectedRow));
+                SyncSelectedInstanceToSelection();
+                break;
+
+            case nameof(InstalledViewState.IsEmpty):
+                OnPropertyChanged(nameof(IsEmpty));
+                break;
+
+            case nameof(InstalledViewState.IsFilteredEmpty):
+                OnPropertyChanged(nameof(IsFilteredEmpty));
+                break;
+
+            case nameof(InstalledViewState.IsAllHidden):
+                OnPropertyChanged(nameof(IsAllHidden));
+                break;
+        }
     }
 
     public override string Title => "版本";
@@ -126,11 +284,29 @@ public partial class VersionsViewModel : PageViewModelBase
 
     public override string Key => NavigationKeys.Versions;
 
-    /// <summary>全量版本（未过滤）。</summary>
-    public ObservableCollection<VersionRow> Versions { get; } = new();
+    /// <summary>
+    /// 「已安装」视图的私有状态：筛选、搜索、选中行与滚动位置。
+    ///
+    /// 三个视图各持一份（见 <see cref="Available"/> / <see cref="Modpacks"/>）：
+    /// 票 #87 的硬边界是「三个视图不得共用同一份筛选状态」——共用时在「可下载」里搜
+    /// <c>1.20</c>，切回「已安装」会看到被滤过的列表，用户会以为版本丢了。
+    /// </summary>
+    public InstalledViewState Installed { get; } = new();
+
+    /// <summary>「可下载」视图的私有状态。</summary>
+    public AvailableViewState Available { get; } = new();
+
+    /// <summary>「整合包」视图的私有状态。</summary>
+    public ModpacksViewState Modpacks { get; } = new();
+
+    /// <summary>
+    /// 全量版本（未过滤）。转发到 <see cref="Installed"/>：现有列表、实例区与单测都按这个名字读，
+    /// 迁到状态对象里之后保留这一层转发，改动面才不会扩散到整页。
+    /// </summary>
+    public ObservableCollection<VersionRow> Versions => Installed.Rows;
 
     /// <summary>过滤后绑定到列表的版本。</summary>
-    public ObservableCollection<VersionRow> VisibleVersions { get; } = new();
+    public ObservableCollection<VersionRow> VisibleVersions => Installed.VisibleRows;
 
     /// <summary>已创建的实例（独立游戏目录）。与版本列表来自同一个 <see cref="IInstanceService"/>。</summary>
     public ObservableCollection<InstanceRow> Instances { get; } = new();
@@ -149,44 +325,666 @@ public partial class VersionsViewModel : PageViewModelBase
     [ObservableProperty]
     private string? _statusText;
 
-    [ObservableProperty]
-    private string _searchText = string.Empty;
+    // ==================== 三视图切换 ====================
+    //
+    // 视图标识只存在这一处：页签、列表可见性、工具条筛选与详情面板都从它派生。
+    // 三份列表同时留在可视树里、靠 IsVisible 切换，是为了保住滚动位置——
+    // TabControl 默认只实例化选中项的内容，切走的那份会被摘下并重建，滚动就归零了。
 
     [ObservableProperty]
-    private string _filterKind = FilterAll;
+    [NotifyPropertyChangedFor(nameof(IsInstalledView))]
+    [NotifyPropertyChangedFor(nameof(IsAvailableView))]
+    [NotifyPropertyChangedFor(nameof(IsModpacksView))]
+    [NotifyPropertyChangedFor(nameof(CurrentViewTitle))]
+    [NotifyPropertyChangedFor(nameof(CurrentViewIndex))]
+    [NotifyPropertyChangedFor(nameof(SearchWatermark))]
+    [NotifyPropertyChangedFor(nameof(CurrentSearchText))]
+    [NotifyPropertyChangedFor(nameof(VersionCountText))]
+    private VersionsViewKind _currentView = VersionsViewKind.Installed;
 
-    [ObservableProperty]
-    private bool _isFilterAll = true;
+    /// <summary>当前是否「已安装」视图。</summary>
+    public bool IsInstalledView => CurrentView == VersionsViewKind.Installed;
 
-    [ObservableProperty]
-    private bool _isFilterVanilla;
+    /// <summary>当前是否「可下载」视图。</summary>
+    public bool IsAvailableView => CurrentView == VersionsViewKind.Available;
 
-    [ObservableProperty]
-    private bool _isFilterLoader;
+    /// <summary>当前是否「整合包」视图。</summary>
+    public bool IsModpacksView => CurrentView == VersionsViewKind.Modpacks;
 
-    [ObservableProperty]
-    private bool _isFilterFavorite;
+    /// <summary>左列表当前展示视图的标题，用于空态与详情面板抬头。</summary>
+    public string CurrentViewTitle => CurrentView switch
+    {
+        VersionsViewKind.Available => "可下载",
+        VersionsViewKind.Modpacks => "整合包",
+        _ => "已安装",
+    };
+
+    /// <summary>
+    /// 页签的选中索引。页签用 <see cref="TabControl"/> 是因为它自带键盘导航、
+    /// 选中态与 220ms 滑块；而内容由下面三份常驻列表承担，所以这里只做「枚举 ↔ 索引」的双向映射。
+    /// </summary>
+    public int CurrentViewIndex
+    {
+        get => (int)CurrentView;
+        set
+        {
+            if (value < 0 || value > (int)VersionsViewKind.Modpacks)
+            {
+                return;
+            }
+
+            SelectView((VersionsViewKind)value);
+        }
+    }
+
+    /// <summary>搜索框的占位文案：三个视图搜的东西不同，文案必须跟着换。</summary>
+    public string SearchWatermark => CurrentView switch
+    {
+        VersionsViewKind.Available => "搜索版本号…",
+        VersionsViewKind.Modpacks => "搜索整合包…",
+        _ => "搜索版本名…",
+    };
+
+    /// <summary>
+    /// 搜索框的绑定目标：写到当前视图自己的状态对象上。
+    ///
+    /// 这是「三个视图不共用筛选状态」在 UI 层的落点——同一个输入框，切到哪里就编辑哪一份。
+    /// </summary>
+    public string CurrentSearchText
+    {
+        get => CurrentView switch
+        {
+            VersionsViewKind.Available => Available.SearchText,
+            VersionsViewKind.Modpacks => Modpacks.SearchText,
+            _ => Installed.SearchText,
+        };
+        set
+        {
+            switch (CurrentView)
+            {
+                case VersionsViewKind.Available:
+                    Available.SearchText = value;
+                    break;
+                case VersionsViewKind.Modpacks:
+                    Modpacks.SearchText = value;
+                    break;
+                default:
+                    Installed.SearchText = value;
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 切视图。切走时把出访视图的滚动位置记进它自己的状态（视图层在 ScrollChanged 里持续写入），
+    /// 切回时由视图层读出来还原。
+    /// </summary>
+    [RelayCommand]
+    private void SelectView(VersionsViewKind view)
+    {
+        if (CurrentView == view)
+        {
+            return;
+        }
+
+        CurrentView = view;
+
+        // 首次进入某视图时才拉它的数据：三个视图的数据源完全不同
+        // （磁盘 / Mojang 清单 / Modrinth），进页面就全拉一遍会白付两次网络与一次扫描。
+        _ = EnsureViewLoadedAsync(view);
+    }
+
+    /// <summary>按视图懒加载。已加载过的不重复拉；失败只写本视图的错误文案。</summary>
+    private async Task EnsureViewLoadedAsync(VersionsViewKind view)
+    {
+        switch (view)
+        {
+            case VersionsViewKind.Available when !Available.IsLoaded:
+                await LoadAvailableAsync();
+                break;
+            case VersionsViewKind.Modpacks when !Modpacks.IsLoaded:
+                await SearchModpacksAsync(reset: true);
+                break;
+        }
+    }
+
+    // ==================== 可下载视图 ====================
+
+    /// <summary>
+    /// 拉 Mojang 版本清单并填进「可下载」视图。
+    ///
+    /// 已安装的版本仍然列出来（徽标写「已安装」）而不是过滤掉：玩家的心智是
+    /// 「1.20.1 在哪」，把装过的藏起来会让人以为清单不全。
+    /// </summary>
+    private async Task LoadAvailableAsync()
+    {
+        if (_versions is null)
+        {
+            Available.ErrorText = "版本服务未就绪，无法读取可下载列表。";
+            Available.IsLoaded = true;
+            ApplyAvailableFilter();
+            return;
+        }
+
+        Available.IsLoading = true;
+        Available.ErrorText = null;
+
+        // 加载期间先收起空态：空态与骨架叠在同一个 Grid 里，
+        // 两个 IsVisible 同时为真会让「没有可下载的版本」压在半透明的骨架行上。
+        Available.IsEmpty = false;
+        Available.IsFilteredEmpty = false;
+
+        try
+        {
+            var remote = await _versions.GetRemoteAsync().ConfigureAwait(true);
+
+            // 已安装集合用来给每行打「已安装」徽标：它是判断安装与否的唯一依据。
+            var installedNames = new HashSet<string>(
+                Versions.Select(row => row.Name),
+                StringComparer.OrdinalIgnoreCase);
+
+            var previousTop = Available.SelectedRow?.Id;
+
+            Available.Rows.Clear();
+
+            foreach (var version in remote)
+            {
+                Available.Rows.Add(new RemoteVersionRow(version, installedNames.Contains(version.Id)));
+            }
+
+            ApplyAvailableFilter();
+
+            // 选中行按 Id 恢复：重拉清单之后行对象是新的，靠名字找回原选中的那一个。
+            Available.SelectedRow = Available.Rows.FirstOrDefault(row =>
+                                        string.Equals(row.Id, previousTop, StringComparison.Ordinal))
+                                    ?? Available.Rows.FirstOrDefault(row => row.IsRelease)
+                                    ?? Available.Rows.FirstOrDefault();
+
+            Available.IsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Available.ErrorText = $"读取可下载版本失败：{ex.Message}";
+            Available.IsLoaded = true;
+        }
+        finally
+        {
+            Available.IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 「可下载」视图的过滤。与「已安装」共用同一套筛选键口径
+    /// （<see cref="FilterAll"/> / <see cref="FilterVanilla"/> / <see cref="FilterLoader"/> / <see cref="FilterFavorite"/>），
+    /// 但状态完全独立：搜索词与筛选键都取自 <see cref="Available"/>。
+    /// </summary>
+    private void ApplyAvailableFilter()
+    {
+        var query = Available.SearchText.Trim();
+        var filtered = new List<RemoteVersionRow>();
+
+        foreach (var row in Available.Rows)
+        {
+            // 「原版」对可下载清单恒成立，所以不需要按加载器筛：
+            // 远程清单里没有加载器概念，加载器是在安装时选的。这里刻意不写
+            // 「FilterKind == FilterLoader 就清空」那种分支——本视图根本没有设置筛选键的入口，
+            // 留着它只会是一条永远走不到的死路。
+
+            // 默认只看正式版：清单里快照占比极高，不筛会把正式版挤到几十屏之后。
+            if (Available.ReleaseOnly && !row.IsRelease)
+            {
+                continue;
+            }
+
+            if (query.Length > 0 && !row.Id.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            filtered.Add(row);
+        }
+
+        Available.VisibleRows.Clear();
+        foreach (var row in filtered)
+        {
+            Available.VisibleRows.Add(row);
+        }
+
+        Available.IsEmpty = Available.Rows.Count == 0;
+        Available.IsFilteredEmpty = Available.Rows.Count > 0 && Available.VisibleRows.Count == 0;
+
+        // 计数由 VersionCountText 派生，它的输入变了必须显式通知。
+        OnPropertyChanged(nameof(VersionCountText));
+    }
+
+    /// <summary>装一个原版版本。入口在「可下载」列表行唯一的主行动。</summary>
+    [RelayCommand]
+    private async Task InstallRemoteVersionAsync(RemoteVersionRow? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        if (_install is null)
+        {
+            StatusText = "安装服务未就绪，无法安装版本。";
+            return;
+        }
+
+        if (row.IsInstalled)
+        {
+            StatusText = $"{row.Id} 已经装过了，到「已安装」里启动它即可。";
+            return;
+        }
+
+        StatusText = $"正在安装 {row.Id}…";
+
+        try
+        {
+            var request = new InstallRequest
+            {
+                MinecraftVersion = row.Id,
+                Loader = LoaderKind.Vanilla,
+                LoaderVersion = null,
+                Source = _install.Source,
+            };
+
+            var progress = new Progress<DownloadProgress>(p =>
+                StatusText = $"正在安装 {row.Id} · {p.Ratio * 100:0}%");
+
+            await _install.InstallAsync(request, progress).ConfigureAwait(true);
+
+            StatusText = $"已安装 {row.Id}。切换到「已安装」即可启动。";
+
+            // 装完必须重读磁盘：新版本要立刻出现在「已安装」里，「可下载」那一行的徽标也要变。
+            await LoadAsync();
+            await LoadAvailableAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "安装已取消。";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"安装失败：{ex.Message}";
+        }
+    }
+
+    // ==================== 整合包视图 ====================
+
+    /// <summary>
+    /// 搜/浏览 Modrinth 整合包。
+    ///
+    /// 为什么要 <see cref="ModpacksViewState.IsLoaded"/> 之外的 <paramref name="reset"/>：
+    /// 换关键词时要从第 0 条重来，而「加载更多」要接着上一页往后翻。
+    /// </summary>
+    private async Task SearchModpacksAsync(bool reset)
+    {
+        if (_modpackCatalog is null)
+        {
+            Modpacks.ErrorText = "整合包目录未就绪，无法搜索。";
+            Modpacks.IsLoaded = true;
+            return;
+        }
+
+        var offset = reset ? 0 : Modpacks.NextOffset;
+
+        // 换关键词（reset）时要记住上一个选中项目的 Id 再按它找回：
+        // Rows.Clear() 之后旧行对象已经不在列表里，而 ??= 看到非 null 就不会换，
+        // 右侧详情会继续显示上一批的包，连「导入」的 CommandParameter 也还是那个旧行。
+        var previousProjectId = reset ? Modpacks.SelectedRow?.Project.ProjectId : null;
+
+        Modpacks.IsLoading = true;
+        Modpacks.ErrorText = null;
+
+        // 同 <see cref="LoadAvailableAsync"/>：加载期间先收起空态，避免与骨架叠在一起。
+        Modpacks.IsEmpty = false;
+
+        try
+        {
+            var projects = await _modpackCatalog
+                .SearchAsync(Modpacks.SearchText, offset, ModpackPageSize)
+                .ConfigureAwait(true);
+
+            if (reset)
+            {
+                Modpacks.Rows.Clear();
+            }
+
+            foreach (var project in projects)
+            {
+                Modpacks.Rows.Add(new ModpackRow(project));
+            }
+
+            Modpacks.NextOffset = offset + projects.Count;
+
+            // 目录自己会把失败写成中文原因（不抛）：这里只把它搬到本视图，不污染页面的错误条。
+            if (_modpackCatalog.LastError is { } error)
+            {
+                Modpacks.ErrorText = error;
+            }
+
+            Modpacks.IsEmpty = Modpacks.Rows.Count == 0;
+            Modpacks.IsFilteredEmpty = false;
+
+            Modpacks.IsLoaded = true;
+
+            // 按 Id 找回原选中项；找不回就退回第一条（而不是继续指向已不在列表里的旧行）。
+            Modpacks.SelectedRow = Modpacks.Rows.FirstOrDefault(row =>
+                                       string.Equals(row.Project.ProjectId, previousProjectId, StringComparison.Ordinal))
+                                   ?? Modpacks.Rows.FirstOrDefault();
+
+            OnPropertyChanged(nameof(VersionCountText));
+        }
+        catch (OperationCanceledException)
+        {
+            // 切页或换关键词时的取消不是错误。
+        }
+        catch (Exception ex)
+        {
+            Modpacks.ErrorText = $"搜索整合包失败：{ex.Message}";
+            Modpacks.IsLoaded = true;
+        }
+        finally
+        {
+            Modpacks.IsLoading = false;
+        }
+    }
+
+    /// <summary>「加载更多」：接着上一页往后翻。</summary>
+    [RelayCommand]
+    private async Task LoadMoreModpacksAsync() => await SearchModpacksAsync(reset: false);
+
+    /// <summary>重新拉 Mojang 版本清单（工具条与「可下载」空态共用）。</summary>
+    [RelayCommand]
+    private async Task ReloadAvailableAsync() => await LoadAvailableAsync();
+
+    /// <summary>「可下载」行上已安装的那一版：切回「已安装」去看它。</summary>
+    [RelayCommand]
+    private void GoToInstalled() => SelectView(VersionsViewKind.Installed);
+
+    /// <summary>切换「只看正式版」。默认开，关掉才看得到快照。</summary>
+    [RelayCommand]
+    private void ToggleReleaseOnly() => Available.ReleaseOnly = !Available.ReleaseOnly;
+
+    /// <summary>整合包搜索框回车 / 工具条搜索触发的重新搜索。</summary>
+    [RelayCommand]
+    private async Task ReloadModpacksAsync() => await SearchModpacksAsync(reset: true);
+
+    /// <summary>
+    /// 导入一个整合包项目：下载归档再到 <see cref="IModpackService.ImportAsync"/> 装成独立实例。
+    ///
+    /// 两步而不是「下载后直接流式导入」：导入会先装游戏与加载器，失败时必须能回滚成
+    /// 「什么都没留下」，而回滚要成立的前提是归档已经在磁盘上。
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportModpackAsync(ModpackRow? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        if (_modpack is null || _downloadQueue is null || _modrinth is null)
+        {
+            StatusText = "整合包服务未就绪，无法导入。";
+            return;
+        }
+
+        if (row.IsImporting)
+        {
+            return;
+        }
+
+        row.IsImporting = true;
+        row.ImportProgress = 0;
+        row.ImportStatusText = "正在读取版本列表…";
+
+        try
+        {
+            // 先取该项目最新的可安装版本：列表页只知道「有这个包」，下载地址在版本接口里。
+            var versions = await _modrinth
+                .GetVersionsAsync(row.Project.ProjectId, gameVersion: null, LoaderKind.Vanilla)
+                .ConfigureAwait(true);
+
+            var target = versions.Count > 0 ? versions[0] : null;
+
+            if (target is null)
+            {
+                row.ImportStatusText = "这个包还没有可下载的版本。";
+                StatusText = $"整合包「{row.Title}」没有可下载的版本。";
+                return;
+            }
+
+            var instanceName = BuildModpackInstanceName(row.Title, target.VersionNumber);
+            var archivePath = ResolveModpackArchivePath(_paths?.CacheDirectory, target.FileName, instanceName);
+
+            // 记在行上：finally 里要删的必须是这一个文件，用局部变量会漏掉取消路径。
+            row.ArchivePath = archivePath;
+
+            var directory = Path.GetDirectoryName(archivePath);
+
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            row.ImportStatusText = "正在下载整合包…";
+
+            var progress = new Progress<DownloadProgress>(p =>
+            {
+                row.ImportProgress = Math.Clamp(p.Ratio, 0, 1);
+                StatusText = $"正在下载整合包「{row.Title}」· {row.ImportProgress * 100:0}%";
+            });
+
+            var batch = await _downloadQueue
+                .DownloadAsync(
+                    [
+                        new DownloadItem
+                        {
+                            Url = target.DownloadUrl,
+                            DestinationPath = archivePath,
+                            Id = target.FileName,
+                            Group = "modpack",
+                            ExpectedSize = target.FileSize,
+                            ExpectedSha1 = target.Sha1,
+                        },
+                    ],
+                    progress)
+                .ConfigureAwait(true);
+
+            if (!batch.Success || !File.Exists(archivePath))
+            {
+                row.ImportStatusText = "下载失败";
+                StatusText = $"整合包「{row.Title}」下载失败：检查网络或代理后重试。";
+                return;
+            }
+
+            row.ImportStatusText = "正在导入（安装游戏 → 解压 → 补全文件）…";
+            row.ImportProgress = 0;
+
+            var importProgress = new Progress<DownloadProgress>(p =>
+            {
+                row.ImportProgress = Math.Clamp(p.Ratio, 0, 1);
+                StatusText = string.IsNullOrWhiteSpace(p.Stage)
+                    ? $"正在导入整合包「{row.Title}」· {row.ImportProgress * 100:0}%"
+                    : $"正在导入整合包「{row.Title}」· {p.Stage}";
+            });
+
+            // 导入时顺带装游戏与加载器：关着会得到一个指向不存在版本的实例，
+            // 用户还得自己回版本页再装一次，且版本号常装错。
+            _modpack.InstallGameOnImport = true;
+
+            var instanceDirectory = await _modpack
+                .ImportAsync(archivePath, instanceName, importProgress)
+                .ConfigureAwait(true);
+
+            row.ImportStatusText = "已导入";
+            row.ImportProgress = 1;
+
+            var result = _modpack.LastImport;
+            StatusText = result is { GameInstalled: false }
+                ? $"整合包「{instanceName}」的文件已就位，但游戏没有装上：到「可下载」里补装后就能启动。"
+                : $"已把「{instanceName}」导入为独立实例：{instanceDirectory}";
+
+            // 导入会往 versions/ 里写新版本：重读之后「已安装」与「可下载」的徽标才是真的。
+            await LoadAsync();
+            await LoadAvailableAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            row.ImportStatusText = "已取消";
+        }
+        catch (Exception ex)
+        {
+            row.ImportStatusText = "导入失败";
+            StatusText = $"导入整合包失败：{ex.Message}";
+        }
+        finally
+        {
+            row.IsImporting = false;
+
+            // 归档只是中转文件：几百 MB 留着只会白占磁盘。
+            TryDeleteArchive(row);
+        }
+    }
+
+    /// <summary>删掉本次导入的中转归档。删不掉不算错误，下次导入会覆盖同名文件。</summary>
+    private void TryDeleteArchive(ModpackRow row)
+    {
+        if (string.IsNullOrWhiteSpace(row.ArchivePath))
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(row.ArchivePath))
+            {
+                File.Delete(row.ArchivePath);
+            }
+        }
+        catch (Exception)
+        {
+            // 中转文件残留不影响正确性。
+        }
+    }
+
+    /// <summary>实例名：包名 + 版本号，长度受限，避免目录名过长。</summary>
+    internal static string BuildModpackInstanceName(string? title, string? versionNumber)
+    {
+        const int MaxLength = 60;
+
+        var name = (title ?? string.Empty).Trim();
+
+        if (name.Length == 0)
+        {
+            name = "整合包";
+        }
+
+        var version = (versionNumber ?? string.Empty).Trim();
+
+        if (version.Length > 0 && !name.Contains(version, StringComparison.OrdinalIgnoreCase))
+        {
+            name = name + " " + version;
+        }
+
+        return name.Length <= MaxLength ? name : name[..MaxLength].TrimEnd();
+    }
+
+    /// <summary>
+    /// 中转归档路径。<c>cache/modpacks/</c> 而不是系统临时目录：数据根可配，
+    /// 用户换数据目录时不会把几百 MB 的中转文件留在 C 盘。
+    /// </summary>
+    internal static string ResolveModpackArchivePath(string? cacheDirectory, string? fileName, string instanceName)
+    {
+        var root = string.IsNullOrWhiteSpace(cacheDirectory)
+            ? Path.Combine(Path.GetTempPath(), "NebulaLauncher", "modpacks")
+            : Path.Combine(cacheDirectory, "modpacks");
+
+        var baseName = Core.Paths.PathSafety.SanitizeFileName(fileName, string.Empty);
+
+        if (baseName.Length == 0)
+        {
+            baseName = Core.Paths.PathSafety.SanitizeFileName(instanceName, "modpack");
+        }
+
+        if (Path.GetExtension(baseName).Length == 0)
+        {
+            baseName += ".mrpack";
+        }
+
+        return Path.Combine(root, baseName);
+    }
+
+
+    // ==================== 已安装视图的转发属性 ====================
+    //
+    // 这些名字是页面与单测的既有入口，状态落到 InstalledViewState 之后仍然保留，
+    // 由构造里订阅的 PropertyChanged 统一回填。手写而不是 [ObservableProperty]：
+    // 状态对象才是唯一真相来源，页面不能再有第二份。
+
+    /// <summary>搜索框文本（已安装视图）。</summary>
+    public string SearchText
+    {
+        get => Installed.SearchText;
+        set => Installed.SearchText = value;
+    }
+
+    /// <summary>筛选键（已安装视图）。</summary>
+    public string FilterKind
+    {
+        get => Installed.FilterKind;
+        set => Installed.FilterKind = value;
+    }
 
     /// <summary>「显示已隐藏」。默认关：被隐藏的版本不出现在列表里。</summary>
-    [ObservableProperty]
-    private bool _showHidden;
+    public bool ShowHidden
+    {
+        get => Installed.ShowHidden;
+        set => Installed.ShowHidden = value;
+    }
 
-    [ObservableProperty]
-    private bool _isEmpty = true;
+    public bool IsFilterAll => Installed.FilterKind == FilterAll;
 
-    [ObservableProperty]
-    private bool _isFilteredEmpty;
+    public bool IsFilterVanilla => Installed.FilterKind == FilterVanilla;
+
+    public bool IsFilterLoader => Installed.FilterKind == FilterLoader;
+
+    public bool IsFilterFavorite => Installed.FilterKind == FilterFavorite;
+
+    public bool IsEmpty => Installed.IsEmpty;
+
+    public bool IsFilteredEmpty => Installed.IsFilteredEmpty;
 
     /// <summary>版本全都处于隐藏状态时的空态，与「筛选无结果」分开给文案与出口。</summary>
-    [ObservableProperty]
-    private bool _isAllHidden;
+    public bool IsAllHidden => Installed.IsAllHidden;
 
-    /// <summary>工具行里的版本计数。抬头区副标题在部分窗口尺寸下不显示，这里自给自足一份。</summary>
-    [ObservableProperty]
-    private string _versionCountText = string.Empty;
+    /// <summary>
+    /// 工具行里的计数文案，按当前视图取。
+    ///
+    /// 抬头区副标题在部分窗口尺寸下不显示，这里自给自足一份。
+    /// 三个视图各算各的：把计数塞回同一个字段会让切视图时的旧数字留在屏上。
+    /// </summary>
+    public string VersionCountText => CurrentView switch
+    {
+        VersionsViewKind.Available => Available.Rows.Count == 0
+            ? string.Empty
+            : Available.VisibleRows.Count == Available.Rows.Count
+                ? $"共 {Available.Rows.Count} 个"
+                : $"显示 {Available.VisibleRows.Count}/{Available.Rows.Count}",
+        VersionsViewKind.Modpacks => Modpacks.Rows.Count == 0
+            ? string.Empty
+            : $"已加载 {Modpacks.Rows.Count} 个整合包",
+        _ => BuildCountText(),
+    };
 
-    [ObservableProperty]
-    private VersionRow? _selectedRow;
+    public VersionRow? SelectedRow
+    {
+        get => Installed.SelectedRow;
+        set => Installed.SelectedRow = value;
+    }
 
     [ObservableProperty]
     private VersionRow? _pendingDelete;
@@ -721,8 +1519,42 @@ public partial class VersionsViewModel : PageViewModelBase
                 : $"共 {Instances.Count} 个 · 当前版本没有实例，启动使用全局 .minecraft";
     }
 
-    partial void OnSelectedRowChanged(VersionRow? value)
+    private void UpdateSubtitle()
     {
+        var text = Versions.Count == 0 ? "尚未安装版本" : $"{Versions.Count} 个已安装版本";
+        if (text == _subtitle)
+        {
+            return;
+        }
+
+        _subtitle = text;
+        OnPropertyChanged(nameof(Subtitle));
+    }
+
+    private void UpdateEmptyState()
+    {
+        Installed.IsEmpty = Versions.Count == 0;
+
+        // 「全部都被隐藏了」和「筛选没结果」的出口不同：前者给「显示已隐藏」按钮，后者让用户改筛选。
+        Installed.IsAllHidden = Versions.Count > 0
+                                && !ShowHidden
+                                && VisibleVersions.Count == 0
+                                && Versions.All(row => row.IsHidden);
+
+        Installed.IsFilteredEmpty = Versions.Count > 0 && VisibleVersions.Count == 0 && !Installed.IsAllHidden;
+    }
+
+    /// <summary>
+    /// 选中行变化时把实例区跟着指过去。
+    ///
+    /// 单独抽出来是因为它有两个触发点：用户点列表（走 <see cref="OnSelectedRowChanged"/>），
+    /// 以及状态对象在别处被改写（走 <see cref="OnInstalledStateChanged"/> 的转发）。
+    /// 只挂在其中一个上，另一条路径就会出现「选了版本但实例区还指着上一行」。
+    /// </summary>
+    private void SyncSelectedInstanceToSelection()
+    {
+        var value = Installed.SelectedRow;
+
         if (value is not null)
         {
             var match = Instances.FirstOrDefault(i =>
@@ -738,44 +1570,6 @@ public partial class VersionsViewModel : PageViewModelBase
     }
 
     partial void OnSelectedInstanceChanged(InstanceRow? value) => UpdateInstanceState();
-
-    private void UpdateSubtitle()
-    {
-        var text = Versions.Count == 0 ? "尚未安装版本" : $"{Versions.Count} 个已安装版本";
-        if (text == _subtitle)
-        {
-            return;
-        }
-
-        _subtitle = text;
-        OnPropertyChanged(nameof(Subtitle));
-    }
-
-    private void UpdateEmptyState()
-    {
-        IsEmpty = Versions.Count == 0;
-
-        // 「全部都被隐藏了」和「筛选没结果」的出口不同：前者给「显示已隐藏」按钮，后者让用户改筛选。
-        IsAllHidden = Versions.Count > 0
-                      && !ShowHidden
-                      && VisibleVersions.Count == 0
-                      && Versions.All(row => row.IsHidden);
-
-        IsFilteredEmpty = Versions.Count > 0 && VisibleVersions.Count == 0 && !IsAllHidden;
-    }
-
-    partial void OnSearchTextChanged(string value) => ApplyFilter();
-
-    partial void OnShowHiddenChanged(bool value) => ApplyFilter();
-
-    partial void OnFilterKindChanged(string value)
-    {
-        IsFilterAll = value == FilterAll;
-        IsFilterVanilla = value == FilterVanilla;
-        IsFilterLoader = value == FilterLoader;
-        IsFilterFavorite = value == FilterFavorite;
-        ApplyFilter();
-    }
 
     private void ApplyFilter()
     {
@@ -815,9 +1609,10 @@ public partial class VersionsViewModel : PageViewModelBase
 
         SortVisibleVersions();
 
-        VersionCountText = BuildCountText();
-
         UpdateEmptyState();
+
+        // 计数由 VersionCountText 派生：可见行数一变就要通知，否则工具条上那个数字会停在旧值。
+        OnPropertyChanged(nameof(VersionCountText));
     }
 
     /// <summary>
