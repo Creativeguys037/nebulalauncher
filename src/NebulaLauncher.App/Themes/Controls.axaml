@@ -793,6 +793,13 @@
     <Setter Property="Padding" Value="15,0" />
   </Style>
 
+  <!-- 搜索框里的放大镜：描边交给样式。Path 上写内联 Stroke 会压过样式 setter，
+       下次给搜索框加 hover 换色就会静默失效（PITFALLS 4.2）。 -->
+  <Style Selector="Border.titlesearch Path">
+    <Setter Property="Stroke" Value="{DynamicResource Text.Tertiary}" />
+    <Setter Property="StrokeThickness" Value="1.8" />
+  </Style>
+
   <!-- ================= 滚动容器 ================= -->
   <Style Selector="ScrollViewer">
     <Setter Property="Background" Value="Transparent" />

@@ -194,7 +194,7 @@ public class AppShell_NavigationContractTests
         var window = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowPath));
         var controls = File.ReadAllText(Path.Combine(RepoRoot(), ControlsPath));
 
-        foreach (var key in new[] { "Icon.WindowMinimize", "Icon.WindowMaximize", "Icon.WindowClose" })
+        foreach (var key in new[] { "Icon.WindowMinimize", "Icon.WindowMaximize", "Icon.WindowClose", "Icon.Search" })
         {
             var block = Regex.Match(window, $"Data=\"\\{{StaticResource {Regex.Escape(key)}\\}}\"(?<body>[^>]*)>");
             Assert.True(block.Success, $"MainWindow.axaml 里找不到 {key} 的 Path");
@@ -203,6 +203,8 @@ public class AppShell_NavigationContractTests
 
         Assert.Contains("Selector=\"Button.window-btn Path\"", controls);
         Assert.Contains("Selector=\"Button.window-btn.close:pointerover Path\"", controls);
+        // 票 #107：主页搜索框里的放大镜也走样式，不写内联描边。
+        Assert.Contains("Selector=\"Border.titlesearch Path\"", controls);
     }
 
     [Fact]
@@ -216,6 +218,26 @@ public class AppShell_NavigationContractTests
         Assert.Contains("Selector=\"Button.nav\"", controls);
         Assert.Contains("Selector=\"Button.nav.active\"", controls);
         Assert.Contains("Selector=\"TextBlock.page-title\"", controls);
+        // 票 #107：胶囊、搜索框、实块三键也都是主题层样式，不在窗口里写。
+        Assert.Contains("Selector=\"Border.winpill\"", controls);
+        Assert.Contains("Selector=\"Border.titlesearch\"", controls);
+        Assert.Contains("Selector=\"Button.window-btn.solid\"", controls);
+    }
+
+    [Fact]
+    public void WindowPill_ShiftsBetweenSearchBoxAndRightEdge()
+    {
+        // 票 #107 §13：胶囊贴右，主页时横移到搜索框右侧；位移只由 UpdatePillOffset 一处算，
+        // 时长走 Motion.Dur，动效关掉时归零。
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowPath));
+        var code = File.ReadAllText(Path.Combine(RepoRoot(), MainWindowCodePath));
+
+        Assert.Contains("x:Name=\"WindowPill\"", window);
+        Assert.Contains("x:Name=\"HomeSearch\"", window);
+        Assert.Contains("IsVisible=\"{Binding IsHomePage}\"", window);
+        Assert.Matches("DoubleTransition Property=\"X\"", window);
+        Assert.Contains("UpdatePillOffset", code);
+        Assert.Contains("Motion.Dur(", code);
     }
 
     [Fact]

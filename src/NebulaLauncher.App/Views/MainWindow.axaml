@@ -181,8 +181,6 @@
                   IsVisible="{Binding IsHomePage}">
             <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
               <Path Data="{StaticResource Icon.Search}"
-                    Stroke="{DynamicResource Text.Tertiary}"
-                    StrokeThickness="1.8"
                     StrokeLineCap="Round"
                     StrokeJoin="Round"
                     Stretch="Uniform"

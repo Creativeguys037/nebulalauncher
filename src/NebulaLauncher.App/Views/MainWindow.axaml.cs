@@ -277,8 +277,8 @@ public partial class MainWindow : Window
         if (_pillXTransition is not null)
         {
             // 前进与回退同长同曲线（Motion.Normal + Motion.EaseOut），与 PageHost 的淡入对齐；
-            // 首帧落位不要动画，时长临时压成 0。
-            _pillXTransition.Duration = animate ? Motion.Normal : TimeSpan.Zero;
+            // 首帧落位不要动画，时长临时压成 0；Motion.Enabled=false 时 Dur 归零，位移瞬时到位。
+            _pillXTransition.Duration = Motion.Dur(animate ? Motion.Normal : TimeSpan.Zero);
         }
 
         _pillTransform.X = target;
