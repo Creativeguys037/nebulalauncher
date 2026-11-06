@@ -19,6 +19,17 @@
     </ResourceDictionary>
   </Styles.Resources>
 
+  <!--
+    页面根栅格必须占满 PageHost 画布：UserControl 与 ContentControl 的默认
+    HorizontalContentAlignment/VerticalContentAlignment 都是 Left/Top，
+    根 Grid 会塌到内容高度，`*` 行拿不到剩余空间（票 #106 的固定栅格就落空）。
+    这是布局契约的地基，不是某个页面的样式。
+  -->
+  <Style Selector="UserControl">
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+  </Style>
+
   <!-- ================= 文本 ================= -->
   <Style Selector="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />

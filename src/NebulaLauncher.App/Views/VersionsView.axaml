@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:controls="using:NebulaLauncher.Controls"
              xmlns:models="using:NebulaLauncher.Core.Models"
              xmlns:views="using:NebulaLauncher.Views"
              xmlns:sys="using:System"
@@ -255,7 +256,8 @@
           三份列表同时挂在可视树里，只靠 IsVisible 切换：这正是「切走再切回原样恢复」的实现。
           任何一份被 IsVisible 隐藏时都保留自己的 ScrollViewer 与虚拟化状态。
         -->
-        <Grid Grid.Row="3">
+        <controls:GlassPanel Grid.Row="3" Padding="0">
+        <Grid>
 
           <!-- 已安装视图 -->
           <Grid IsVisible="{Binding IsInstalledView}">
@@ -733,6 +735,7 @@
                        IsVisible="{Binding Modpacks.ErrorText, Converter={x:Static conv:Converters.HasValue}}" />
           </Grid>
         </Grid>
+      </controls:GlassPanel>
       </Grid>
 
       <!-- ==================== 右栏：详情（固定宽，1024 下 320） ==================== -->

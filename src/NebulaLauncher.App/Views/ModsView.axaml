@@ -123,19 +123,20 @@
 
   <!-- 两栏：左栏是按加载器分组的内容目标，右栏只显示「当前目标」的内容。
        页面根不放 ScrollViewer —— 两栏各自滚动，左栏目标多时右栏工具行不会被顶出视野。 -->
-  <Grid ColumnDefinitions="212,16,*" Margin="0,0,4,14">
+  <Grid ColumnDefinitions="212,16,*">
 
     <!-- ==================== 左：内容目标（按加载器分组） ==================== -->
-    <Grid Grid.Column="0" RowDefinitions="Auto,*">
-      <TextBlock Grid.Row="0"
-                 Text="游戏目录"
-                 Classes="caption"
-                 FontWeight="SemiBold"
-                 Margin="4,0,4,8" />
+    <ctrl:GlassPanel Grid.Column="0" Padding="8,6">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock Grid.Row="0"
+                   Text="游戏目录"
+                   Classes="caption"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,6" />
 
-      <ScrollViewer Grid.Row="1"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled">
+        <!-- 左栏目标列表：玻璃框内滚动（票 #106），框边留给滚动条 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,4,8">
           <!-- 全局目录：独立置顶，不进加载器分组。它是 .minecraft 根目录本身，
                不属于任何版本，因此这里不出现「1.21 · 原版」这类标签。 -->
@@ -171,8 +172,9 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
-      </ScrollViewer>
-    </Grid>
+        </ScrollViewer>
+      </Grid>
+    </ctrl:GlassPanel>
 
     <!-- ==================== 右：当前目标的内容 ==================== -->
     <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto,*">
@@ -341,10 +343,11 @@
         </WrapPanel>
       </Border>
 
-      <ScrollViewer Grid.Row="3"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="12" Margin="0,0,4,4">
+      <!-- 右栏内容列表：玻璃框内滚动（票 #106） -->
+      <ctrl:GlassPanel Grid.Row="3" Padding="0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12" Margin="16,14,16,16">
 
           <ProgressBar IsVisible="{Binding IsLoading}" IsIndeterminate="True" Height="4" />
 
@@ -874,7 +877,8 @@
           </Border>
 
         </StackPanel>
-      </ScrollViewer>
+        </ScrollViewer>
+      </ctrl:GlassPanel>
     </Grid>
   </Grid>
 </UserControl>

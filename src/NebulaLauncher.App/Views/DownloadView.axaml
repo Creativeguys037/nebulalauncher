@@ -260,8 +260,9 @@
     </Border>
 
     <!-- ==================== 右：安装配置与进度 ==================== -->
-    <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="16" Margin="0,0,0,20">
+    <controls:GlassPanel Grid.Row="1" Grid.Column="1" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="16" Margin="20,16,20,20">
 
         <Border Classes="card"
                 Padding="14,10"
@@ -828,5 +829,6 @@
 
       </StackPanel>
     </ScrollViewer>
+    </controls:GlassPanel>
   </Grid>
 </UserControl>

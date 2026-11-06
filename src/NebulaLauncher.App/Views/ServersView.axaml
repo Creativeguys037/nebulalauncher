@@ -3,6 +3,7 @@
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:views="using:NebulaLauncher.Views"
              xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:controls="using:NebulaLauncher.Controls"
              x:Class="NebulaLauncher.Views.ServersView"
              x:DataType="vm:ServersViewModel">
 
@@ -32,10 +33,10 @@
     </Style>
   </UserControl.Styles>
 
-  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Spacing="14" Margin="0,0,4,16">
+  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
 
-      <!-- ============ 工具行 ============ -->
+    <!-- ============ Row0：工具行（固定，不随列表滚动） ============ -->
+    <StackPanel Grid.Row="0" Spacing="6">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <TextBlock Text="收藏的服务器" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -65,7 +66,10 @@
       </Grid>
 
       <ProgressBar IsVisible="{Binding IsLoading}" IsIndeterminate="True" Height="4" />
+    </StackPanel>
 
+    <!-- ============ Row1：提示条与新建表单（收起时塌到 0） ============ -->
+    <StackPanel Grid.Row="1" Spacing="10">
       <!-- ============ 提示条 ============ -->
       <Border IsVisible="{Binding IsDemoMode}"
               Background="{DynamicResource Status.Warning.Soft}"
@@ -123,9 +127,15 @@
                      FontSize="{DynamicResource FontSize.Small}" />
         </StackPanel>
       </Border>
+    </StackPanel>
 
-      <!-- ============ 服务器列表 ============ -->
-      <ItemsControl ItemsSource="{Binding Servers}" IsVisible="{Binding !IsEmpty}">
+    <!-- ============ Row2：服务器列表（玻璃框内唯一滚动，票 #106） ============ -->
+    <controls:GlassPanel Grid.Row="2" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="10" Margin="20,16,20,20">
+
+          <!-- ============ 服务器列表 ============ -->
+          <ItemsControl ItemsSource="{Binding Servers}" IsVisible="{Binding !IsEmpty}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ServerCardViewModel">
             <Border Classes="card hoverable" Margin="0,0,0,10" Padding="16,14">
@@ -361,5 +371,7 @@
       </Border>
 
     </StackPanel>
-  </ScrollViewer>
+      </ScrollViewer>
+    </controls:GlassPanel>
+  </Grid>
 </UserControl>

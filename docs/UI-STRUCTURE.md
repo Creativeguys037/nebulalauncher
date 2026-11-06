@@ -114,8 +114,16 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | 设置·关于 #98 | Row1 = 40（二级视图头部） | 一级视图隐藏该行；分区 Tab 始终在 Row0 不动 |
 | 版本页 #87 / 皮肤页 #92 | Row2 内分两列（`*` + 固定列） | 列表 + 详情/预览并列，详情不覆盖列表 |
 | 实例详情 #89 | 不是页面，是详情列 | 详情列内自成 `Auto,Auto,*`，跟随版本页 Row2 的高度 |
+| 首页 #86 | Row0 = `Auto`（Hero 大卡固定不滚），滚动只在 Row2 | 「继续游戏」是页面唯一主行动，滚走它等于丢掉首屏的意义 |
+| 内容页 #90 / #91 | Row2 内两栏，**两栏各带一个玻璃框**（左目录框 `Padding="8,6"`） | 左栏是筛选器不是内容，没有框会与右栏列表糊成一片 |
+| 皮肤页 #92 | Row2 只给**一个**玻璃框，页签/列表/分页都在框内 | 皮肤页是网格 + 悬浮预览卡，分页属于列表的一部分，不该独立成栏 |
+| 下载页 #93 | 右栏玻璃框，左栏参数栏仍是实心卡 | 左栏是可随时收起的参数面板，不是主内容 |
+| 设置页 #96 / #97 / #98 | 左栏分区列表 + 右栏玻璃框 | 分区列表是导航（同类于外壳竖栏），右栏才是表单内容 |
+| 日志 / 帮助（#98 二级视图） | **不单独包框**，滚动框由设置页 Row2 的玻璃框提供 | 二级视图嵌在 Row2 里，再包一层就是玻璃套玻璃（§6 规则 6 / 禁止清单 17） |
 
 新变体必须先进这张表，再动 XAML。
+
+以上变体随 #106 一次性落地（2026-11-07）：12 页根节点已全部是 `Grid`，每页主滚动都在 `controls:GlassPanel`（`Padding="0"`，内层 `Margin="20,16,20,20"`）里；`HomeView.axaml` 与 `ServersView.axaml` 的根 `ScrollViewer` 已删。
 
 ## 4. 12 页行分配
 
@@ -252,9 +260,9 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | 编号 | 偏差 | 原因 | 状态 |
 |---|---|---|---|
 | D1 | 不引入样板 62 高 topbar，保留 46 高 TitleBar | 账户/搜索/状态各有归属，加 topbar 会压缩全部页面画布 | 已决策 |
-| D2 | 首页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/HomeView.axaml:31`） | #86 虽已关票，但整页滚动未解决 | 未修 |
-| D3 | 服务器页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/ServersView.axaml:35`） | 待 #95 重做 | 未修 |
-| D4 | 12 页共 110 处 `Border.card` 仍是实心（`Surface.CardSolid`） | 待 #105 换 `GlassPanel` | 未修 |
+| D2 | 首页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/HomeView.axaml:31`） | #86 虽已关票，但整页滚动未解决 | **已修（#106）**：根改 `Grid RowDefinitions="Auto,*" RowSpacing="12"`，Hero 卡留在 Row0 固定，其余进 Row1 玻璃框 |
+| D3 | 服务器页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/ServersView.axaml:35`） | 待 #95 重做 | **已修（#106）**：根改 `Grid RowDefinitions="Auto,Auto,*" RowSpacing="12"`，工具行/提示条/新建表单固定，列表进 Row2 玻璃框 |
+| D4 | 12 页共 110 处 `Border.card` 仍是实心（`Surface.CardSolid`） | 待 #105 换 `GlassPanel` | **范围已缩小（#106）**：12 页的 Row2 内容框已全部是 `GlassPanel`；剩下的 `Border.card` 是列表行、详情列、参数卡这类 L3 内容，按 §6 规则 6 不该玻璃化。剩余是否还有该玻璃化的 L2 承载层，待 #105 复核后回填 |
 | D5 | 退出下载确认浮层用不透明 `Surface.Sunken` 当遮罩（`src/NebulaLauncher.App/Views/MainWindow.axaml:243`），不是 `Surface.Scrim` 黑 40% | 违反 §6 规则 7；遮罩会整片盖住下层而不是压暗 | 未修 |
 | D6 | 设置页票面（#96 / #97 / #98）写「Section 卡用 `GlassPanel`」，实际按 §6 规则 6 应为 **L3 实心卡** | Row2 已经是玻璃主卡，Section 再套玻璃就触犯禁止清单 17；样板里 Section 用白底实心（`.sec` / `.aboutcard` / `.entrycard`） | 已裁决：按契约执行，`GlassPanel` 只用在 Row2 |
 | D7 | 皮肤页紧凑档预览区高 320 → **200**（宽 260、预览列 300 不变） | 紧凑 Row2 只有 369，320 + 名称 + 冷却 + 操作行物理放不下；按 §4.1 第 3 条「缩高度不缩宽度」处理 | 已裁决，写进 §4.1 |

@@ -44,8 +44,10 @@
   -->
   <Grid>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="16" Margin="0,0,4,16">
+    <!-- 账户内容：玻璃框内唯一滚动（票 #106） -->
+    <controls:GlassPanel Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="20,16,20,20">
 
         <!-- ============ 当前账户大卡片 ============ -->
         <Border Classes="card accentEdge" Padding="22">
@@ -373,7 +375,8 @@
         </Grid>
 
       </StackPanel>
-    </ScrollViewer>
+      </ScrollViewer>
+    </controls:GlassPanel>
 
     <!-- ============ 第三方验证表单（浮层） ============ -->
     <Panel IsVisible="{Binding IsAuthlibFormOpen}">

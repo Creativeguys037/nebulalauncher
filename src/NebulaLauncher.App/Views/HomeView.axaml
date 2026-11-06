@@ -28,11 +28,9 @@
     崩溃面板出现后内容必然超出视口（真故障现场就是这个量级），此时必须能滚动——
     Grid 的 * 行不会裁掉溢出的子元素，不能滚动时崩溃面板会直接画在「最近版本」上面。
   -->
-  <ScrollViewer VerticalScrollBarVisibility="Auto"
-                HorizontalScrollBarVisibility="Disabled">
-    <Grid RowDefinitions="Auto,*,Auto" Margin="0,0,0,16">
+  <Grid RowDefinitions="Auto,*" RowSpacing="12">
 
-    <!-- ==================== 顶部：提示 + Hero ==================== -->
+    <!-- ==================== Row0：继续游戏与提示（固定，不随内容滚动） ==================== -->
     <StackPanel Grid.Row="0" Spacing="16">
 
       <!-- 服务未就绪提示：组合根还没合并时说明原因，而不是留一片空白。 -->
@@ -191,8 +189,14 @@
       </Border>
     </StackPanel>
 
+    <!-- ==================== Row2：内容框（玻璃框内唯一滚动，票 #106） ==================== -->
+    <controls:GlassPanel Grid.Row="1" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="16" Margin="20,16,20,20">
+
     <!-- ==================== 中部：最近版本 + 统计 ==================== -->
-    <Grid Grid.Row="1" RowDefinitions="*,Auto" Margin="0,16,0,0">
+    <Grid Grid.Row="0" RowDefinitions="Auto,Auto" RowSpacing="16">
 
       <Grid ColumnDefinitions="*" MinHeight="184"
             IsVisible="{Binding HasNoImportedCrash}">
@@ -401,7 +405,7 @@
       </Border>
 
       <!-- 启动进度与崩溃建议：按内容高度挂在主区域下方，不参与空间分配 -->
-      <StackPanel Grid.Row="1" Spacing="16" Margin="0,16,0,0">
+      <StackPanel Grid.Row="1" Spacing="16">
 
         <Border Classes="card" Padding="20,18" IsVisible="{Binding HasLaunchPanel}">
           <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">
@@ -607,7 +611,7 @@
     </Grid>
 
     <!-- ==================== 底部：快捷操作 ==================== -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,*,*,*" ColumnSpacing="16" Margin="0,16,0,0">
+    <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" ColumnSpacing="16">
       <Button Background="Transparent"
               BorderThickness="0"
               Padding="0"
@@ -747,6 +751,8 @@
         </Border>
       </Button>
     </Grid>
-    </Grid>
-  </ScrollViewer>
+        </Grid>
+      </ScrollViewer>
+    </controls:GlassPanel>
+</Grid>
 </UserControl>

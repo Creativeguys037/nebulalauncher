@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:controls="using:NebulaLauncher.Controls"
              x:Class="NebulaLauncher.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
@@ -118,11 +119,9 @@
       </Border>
 
       <!-- ==================== 分区内容 ==================== -->
-      <ScrollViewer Grid.Column="1"
-                    Margin="16,0,0,0"
-                    HorizontalScrollBarVisibility="Disabled"
-                    VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="12" Margin="0,0,6,0">
+      <controls:GlassPanel Grid.Column="1" Padding="0" Margin="16,0,0,0">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12" Margin="20,16,20,20">
 
           <!-- 服务未接入提示 -->
           <Border IsVisible="{Binding HasServiceWarning}"
@@ -1576,6 +1575,7 @@
 
         </StackPanel>
       </ScrollViewer>
+      </controls:GlassPanel>
     </Grid>
 
     <!-- ==================== 底部保存条 ==================== -->

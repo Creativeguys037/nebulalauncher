@@ -18,6 +18,12 @@ public sealed class PageHost : ContentControl
     public PageHost()
     {
         ClipToBounds = true;
+
+        // 页面根栅格必须占满画布：ContentControl 默认 Left/Top，子页面的 Grid 会塌到内容高度，
+        // 「Row2 吃掉剩余高度」就失效，玻璃内容框跟着变矮（票 #106）。
+        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
+
         RebuildTransitions();
         Motion.Changed += (_, _) => RebuildTransitions();
     }

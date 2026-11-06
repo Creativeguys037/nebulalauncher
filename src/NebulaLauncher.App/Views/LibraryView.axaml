@@ -4,6 +4,7 @@
              xmlns:views="using:NebulaLauncher.Views"
              xmlns:models="using:NebulaLauncher.Core.Models"
              xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:controls="using:NebulaLauncher.Controls"
              xmlns:sys="using:System"
              x:Class="NebulaLauncher.Views.LibraryView"
              x:DataType="vm:LibraryViewModel">
@@ -265,8 +266,8 @@
       </StackPanel>
 
       <!-- 搜索结果 -->
-      <ListBox Grid.Row="3"
-               Classes="libraryList"
+      <controls:GlassPanel Grid.Row="3" Padding="0">
+        <ListBox Classes="libraryList"
                ItemsSource="{Binding Results}"
                SelectedItem="{Binding SelectedProject}"
                IsVisible="{Binding !IsEmpty}"
@@ -333,6 +334,7 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
+      </controls:GlassPanel>
 
       <!-- 空状态 -->
       <Border Grid.Row="3" Classes="card" IsVisible="{Binding IsEmpty}" Padding="24,28" VerticalAlignment="Top">
@@ -381,10 +383,10 @@
     </Grid>
 
     <!-- ==================== 右：详情与安装 ==================== -->
-    <ScrollViewer Grid.Column="2"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="12" Margin="0,0,0,4">
+    <controls:GlassPanel Grid.Column="2" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="12" Margin="20,16,20,20">
 
         <!-- 未选中项目 -->
         <Border Classes="card" IsVisible="{Binding !HasSelection}" Padding="18">
@@ -651,6 +653,7 @@
         </Border>
       </StackPanel>
     </ScrollViewer>
+    </controls:GlassPanel>
     </Grid>
 
     <!-- ==================== 安装确认区 ====================
