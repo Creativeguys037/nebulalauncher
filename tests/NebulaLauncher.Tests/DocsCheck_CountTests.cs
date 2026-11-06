@@ -38,9 +38,10 @@ public sealed class DocsCheck_CountTests
     /// 所以 782 → 794 这段基线不含它们。现在那批测试文件（CoreAccounts_SkinAvatarTests.cs）
     /// 已随 WIP 提交真正落地，基线再加回这 7 条，为 801；加上票 #54 的 8 条，为 809；加上票 #59 的 3 条为 812，再加上其中 2 条补测，为 814；
     /// 加上云端衣柜客户端测试的 4 条（站点地址规范化 4），为 818；
-    /// 票 #64 给 HD 皮肤渲染补了 3 个 InlineData（64 / 128 / 512 各一行），为 821。
+    /// 票 #64 给 HD 皮肤渲染补了 3 个 InlineData（64 / 128 / 512 各一行），为 821；
+    /// 票 #86 给实例库的三字段搜索补了 5 条（fabric / 1.21 / LOADER / neoforge / 空串），为 826。
     /// </summary>
-    private const int BaselineInlineData = 821;
+    private const int BaselineInlineData = 826;
 
     [Fact]
     public void 按Fact与InlineData计数()

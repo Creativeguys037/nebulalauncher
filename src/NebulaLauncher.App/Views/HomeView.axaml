@@ -47,82 +47,87 @@
                    Foreground="{DynamicResource Status.Warning}" />
       </Border>
 
-      <!-- Hero -->
-      <Border Classes="card" Padding="24,20">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+      <!-- Hero：「继续游戏」大卡（票 #86）。承载最近实例与唯一主行动；
+           账户与统计不在本页重复出现，账户信息只缩成一行身份文字。 -->
+      <Border Classes="glass hero"
+              Padding="24">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
 
-          <!-- 账户 -->
-          <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-            <Border Width="54" Height="54"
-                    CornerRadius="{DynamicResource Radius.Xs}"
-                    ClipToBounds="True"
-                    Background="{DynamicResource Gradient.Accent}"
-                    ToolTip.Tip="右键刷新头像">
-              <Border.ContextMenu>
-                <ContextMenu>
-                  <MenuItem Header="刷新头像" Command="{Binding RefreshAccountAvatarCommand}" />
-                </ContextMenu>
-              </Border.ContextMenu>
-              <Panel>
-                <TextBlock Text="{Binding AccountInitial}"
-                           FontSize="22"
-                           FontWeight="Bold"
-                           Foreground="White"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
-                <controls:SkinAvatar Source="{Binding AccountAvatar}" />
-              </Panel>
-            </Border>
+          <!-- 实例图标 56×56 -->
+          <Border Width="56" Height="56"
+                  CornerRadius="{DynamicResource Radius.Lg}"
+                  VerticalAlignment="Center"
+                  Background="{DynamicResource Gradient.Accent}"
+                  BoxShadow="{DynamicResource Shadow.Glow}">
+            <Path Data="{StaticResource Icon.Versions}"
+                  Stroke="{DynamicResource Text.OnAccent}"
+                  StrokeThickness="1.8"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="Uniform"
+                  Width="26" Height="26"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Border>
 
-            <StackPanel Spacing="4" VerticalAlignment="Center">
-              <TextBlock Text="{Binding AccountName}" Classes="h3" />
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Border Classes="badge" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding AccountBadge}" />
-                </Border>
-                <TextBlock Text="{Binding AccountDetail}"
-                           Classes="muted"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           MaxWidth="240" />
-              </StackPanel>
+          <!-- 三行信息：实例名 26 / 版本与加载器 13 / 上次游玩 11 + 账户一行 -->
+          <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="继续游戏" Classes="caption" />
+            <TextBlock Text="{Binding SelectedVersionName}"
+                       Classes="hero-title"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding SelectedVersionName}" />
+            <TextBlock Text="{Binding SelectedVersionDetail}"
+                       Classes="hero-meta"
+                       TextTrimming="CharacterEllipsis" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+              <TextBlock Text="{Binding AccountName}" Classes="hero-account" VerticalAlignment="Center" />
+              <Border Classes="badge" VerticalAlignment="Center">
+                <TextBlock Text="{Binding AccountBadge}" />
+              </Border>
             </StackPanel>
           </StackPanel>
 
-          <!-- 当前版本 + 启动 -->
-          <StackPanel Grid.Column="1"
-                      Orientation="Horizontal"
-                      Spacing="22"
-                      VerticalAlignment="Center">
-            <StackPanel Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
-              <TextBlock Text="当前版本" Classes="caption" HorizontalAlignment="Right" />
-              <TextBlock Text="{Binding SelectedVersionName}"
-                         FontSize="{DynamicResource FontSize.Subtitle}"
-                         FontWeight="SemiBold"
-                         HorizontalAlignment="Right"
-                         MaxWidth="220"
-                         TextTrimming="CharacterEllipsis" />
-              <TextBlock Text="{Binding SelectedVersionDetail}"
-                         Classes="muted"
-                         HorizontalAlignment="Right"
-                         MaxWidth="220"
-                         TextTrimming="CharacterEllipsis" />
-            </StackPanel>
+          <!-- 唯一主行动 44 高；运行中同一位置换成「停止」（票 #86） -->
+          <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Center">
+            <Border Classes="badge success"
+                    HorizontalAlignment="Center"
+                    IsVisible="{Binding HasHeroStatus}">
+              <TextBlock Text="{Binding HeroStatusText}" />
+            </Border>
 
-            <Button Classes="accent"
-                    Command="{Binding LaunchCommand}"
-                    Height="48"
-                    CornerRadius="12"
-                    Padding="28,0"
-                    VerticalAlignment="Center">
-              <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Classes="primary"
+                    Height="44"
+                    MinHeight="44"
+                    CornerRadius="{DynamicResource Radius.Lg}"
+                    Padding="24,0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding IsHeroStopVisible}"
+                    Command="{Binding StopGameCommand}">
+              <TextBlock Text="停止游戏"
+                         FontSize="{DynamicResource FontSize.BodyLg}"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource Text.OnAccent}"
+                         VerticalAlignment="Center" />
+            </Button>
+
+            <Button Classes="primary"
+                    Height="44"
+                    MinHeight="44"
+                    CornerRadius="{DynamicResource Radius.Lg}"
+                    Padding="24,0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding IsHeroStopVisible, Converter={x:Static conv:Converters.InverseBool}}"
+                    IsEnabled="{Binding CanHeroLaunch}"
+                    Command="{Binding LaunchCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
                 <Path Data="M8 5.2 19 12 8 18.8Z"
                       Fill="{DynamicResource Text.OnAccent}"
-                      Width="12" Height="12"
+                      Width="11" Height="11"
                       Stretch="Uniform"
                       VerticalAlignment="Center" />
                 <TextBlock Text="启动游戏"
-                           FontSize="16"
+                           FontSize="{DynamicResource FontSize.BodyLg}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource Text.OnAccent}"
                            VerticalAlignment="Center" />
@@ -189,106 +194,148 @@
     <!-- ==================== 中部：最近版本 + 统计 ==================== -->
     <Grid Grid.Row="1" RowDefinitions="*,Auto" Margin="0,16,0,0">
 
-      <Grid ColumnDefinitions="2*,1*" ColumnSpacing="16" MinHeight="184"
+      <Grid ColumnDefinitions="*" MinHeight="184"
             IsVisible="{Binding HasNoImportedCrash}">
 
+        <!-- 实例库（票 #86）：标题行 + 搜索 + 新建实例；行高 52、编号 / 图标 / 名称 / 标签 / 右侧元数据。
+             搜索与「新建实例」在没有实例时隐藏，避免留一排空控件。 -->
         <Border Classes="card">
-          <Grid RowDefinitions="Auto,*" RowSpacing="10">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="最近使用的版本" Classes="h3" VerticalAlignment="Center" />
-              <Button Grid.Column="1"
-                      Classes="ghost"
-                      Content="全部版本"
-                      Padding="10,4"
-                      MinHeight="28"
-                      Command="{Binding NavigateToCommand}"
-                      CommandParameter="versions" />
+          <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <TextBlock Text="实例库" Classes="h3" VerticalAlignment="Center" />
+
+              <StackPanel Grid.Column="1"
+                          Orientation="Horizontal"
+                          Spacing="8"
+                          IsVisible="{Binding HasAnyVersion}">
+                <TextBox Width="200"
+                         Height="32"
+                         MinHeight="32"
+                         CornerRadius="{DynamicResource Radius.Md}"
+                         Watermark="搜索实例名 / 版本 / 加载器"
+                         Text="{Binding LibrarySearchText}" />
+                <Button Classes="secondary"
+                        Height="32"
+                        MinHeight="32"
+                        Padding="14,0"
+                        CornerRadius="{DynamicResource Radius.Md}"
+                        Content="新建实例"
+                        Command="{Binding NavigateToCommand}"
+                        CommandParameter="versions" />
+              </StackPanel>
             </Grid>
 
             <Grid Grid.Row="1">
-              <ListBox ItemsSource="{Binding RecentVersions}"
+              <ListBox ItemsSource="{Binding FilteredLibraryVersions}"
                        SelectedItem="{Binding SelectedItem}"
-                       DoubleTapped="OnVersionListDoubleTapped">
+                       DoubleTapped="OnVersionListDoubleTapped"
+                       MaxHeight="320"
+                       IsVisible="{Binding HasAnyVersion}">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:HomeVersionItem">
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                      <TextBlock Text="{Binding Name}"
-                                 FontWeight="Medium"
-                                 VerticalAlignment="Center"
-                                 TextTrimming="CharacterEllipsis" />
-                      <TextBlock Grid.Column="1"
-                                 Text="{Binding Detail}"
+                    <Grid ColumnDefinitions="28,40,*,Auto,Auto"
+                          ColumnSpacing="12"
+                          Height="52"
+                          VerticalAlignment="Center">
+                      <!-- 编号 -->
+                      <TextBlock Text="{Binding IndexText}"
+                                 Classes="mono"
+                                 Foreground="{DynamicResource Text.Muted}"
+                                 VerticalAlignment="Center" />
+
+                      <!-- 图标 40×40 -->
+                      <Border Grid.Column="1"
+                              Width="40" Height="40"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              VerticalAlignment="Center"
+                              Background="{DynamicResource Surface.Sunken}"
+                              BorderBrush="{DynamicResource Stroke.Subtle}"
+                              BorderThickness="1">
+                        <Path Data="{StaticResource Icon.Versions}"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.6"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="18" Height="18"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                      </Border>
+
+                      <!-- 名称 + 标签 -->
+                      <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="Medium"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Name}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Border Classes="badge">
+                            <TextBlock Text="{Binding MinecraftVersion}" Classes="mono" />
+                          </Border>
+                          <Border Classes="badge">
+                            <TextBlock Text="{Binding LoaderDetail}" />
+                          </Border>
+                          <Border Classes="badge danger" IsVisible="{Binding IsBroken}">
+                            <TextBlock Text="不可用" />
+                          </Border>
+                        </StackPanel>
+                      </StackPanel>
+
+                      <!-- 右侧元数据：上次游玩 -->
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding LastPlayedText}"
                                  Classes="muted"
                                  VerticalAlignment="Center"
-                                 MaxWidth="200"
                                  TextTrimming="CharacterEllipsis" />
-                      <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding LoaderText}" />
-                      </Border>
+
+                      <!-- 行内动作只有启动，且是次级样式：全页唯一的主行动是 hero 的启动按钮（票 #86） -->
+                      <Button Grid.Column="4"
+                              Classes="secondary"
+                              Content="启动"
+                              VerticalAlignment="Center"
+                              Command="{Binding $parent[ListBox].((vm:HomeViewModel)DataContext).LaunchSelectedCommand}"
+                              CommandParameter="{Binding}" />
                     </Grid>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
 
+              <!-- 空态 1：一个实例都没有 -->
               <StackPanel Spacing="8"
                           VerticalAlignment="Center"
                           IsVisible="{Binding IsRecentEmpty}">
-                <TextBlock Text="还没有安装任何版本"
+                <TextBlock Text="还没有实例"
                            Classes="secondary"
                            HorizontalAlignment="Center" />
-                <TextBlock Text="去「下载」页挑一个版本装好，这里就会列出最近使用的版本。"
+                <TextBlock Text="创建一个实例，之后这里就是你的启动台。"
                            Classes="muted"
                            TextWrapping="Wrap"
                            TextAlignment="Center" />
-                <Button Classes="accent"
-                        Content="去下载"
+                <Button Classes="primary"
+                        Content="创建第一个实例"
                         HorizontalAlignment="Center"
-                        Padding="22,8"
+                        Height="44"
+                        MinHeight="44"
+                        Padding="22,0"
+                        CornerRadius="{DynamicResource Radius.Lg}"
                         Command="{Binding NavigateToCommand}"
-                        CommandParameter="download" />
+                        CommandParameter="versions" />
+              </StackPanel>
+
+              <!-- 空态 2：有实例但搜索没命中 -->
+              <StackPanel Spacing="4"
+                          VerticalAlignment="Center"
+                          IsVisible="{Binding IsLibrarySearchEmpty}">
+                <TextBlock Text="没有匹配的实例"
+                           Classes="secondary"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="换个关键词，或清空搜索框。"
+                           Classes="muted"
+                           TextAlignment="Center" />
               </StackPanel>
             </Grid>
           </Grid>
         </Border>
-
-        <Grid Grid.Column="1" RowDefinitions="*,*" ColumnDefinitions="*,*" RowSpacing="12" ColumnSpacing="12">
-          <Border Classes="card" Padding="16,12">
-            <StackPanel Spacing="2" VerticalAlignment="Center">
-              <TextBlock Text="已安装版本" Classes="caption" />
-              <TextBlock Text="{Binding InstalledVersionCount}"
-                         FontSize="{DynamicResource FontSize.Title}"
-                         FontWeight="SemiBold" />
-            </StackPanel>
-          </Border>
-
-          <Border Grid.Column="1" Classes="card" Padding="16,12">
-            <StackPanel Spacing="2" VerticalAlignment="Center">
-              <TextBlock Text="模组" Classes="caption" />
-              <TextBlock Text="{Binding ModCount}"
-                         FontSize="{DynamicResource FontSize.Title}"
-                         FontWeight="SemiBold" />
-            </StackPanel>
-          </Border>
-
-          <Border Grid.Row="1" Classes="card" Padding="16,12">
-            <StackPanel Spacing="2" VerticalAlignment="Center">
-              <TextBlock Text="世界" Classes="caption" />
-              <TextBlock Text="{Binding WorldCount}"
-                         FontSize="{DynamicResource FontSize.Title}"
-                         FontWeight="SemiBold" />
-            </StackPanel>
-          </Border>
-
-          <Border Grid.Row="1" Grid.Column="1" Classes="card" Padding="16,12">
-            <StackPanel Spacing="2" VerticalAlignment="Center">
-              <TextBlock Text="磁盘占用" Classes="caption" />
-              <TextBlock Text="{Binding DiskUsageBytes, Converter={x:Static conv:Converters.BytesToSize}}"
-                         FontSize="{DynamicResource FontSize.Title}"
-                         FontWeight="SemiBold"
-                         TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-          </Border>
-        </Grid>
       </Grid>
 
       <!-- 外部报告分析结果：占用主区域，不新开页面，也不与本机崩溃状态共用集合 -->

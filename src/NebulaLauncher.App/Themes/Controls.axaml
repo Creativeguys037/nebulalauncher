@@ -462,7 +462,8 @@
   <Style Selector="Border.glass.hero">
     <Setter Property="CornerRadius" Value="{DynamicResource Radius.X3l}" />
     <Setter Property="Padding" Value="28" />
-  </Style>
+    <!-- 高度必须写在样式里：内联 Height 是本地值，会压过 Window.compact 的 1024 档（PITFALLS 4.2）。 -->
+    <Setter Property="Height" Value="200" />  </Style>
 
   <Style Selector="Border.divider">
     <Setter Property="Height" Value="1" />
@@ -678,6 +679,33 @@
 
   <Style Selector="TextBlock.page-subtitle">
     <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+  </Style>
+
+  <!-- 启动页 hero（票 #86）：实例名 26 / 版本与加载器 13 / 上次游玩与账户 11。 -->
+  <Style Selector="TextBlock.hero-title">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Headline}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+  </Style>
+
+  <Style Selector="TextBlock.hero-meta">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+  </Style>
+
+  <Style Selector="TextBlock.hero-account">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+  </Style>
+
+  <!-- 1024×660：hero 降到 168，实例名降一档，避免首屏被大卡吃掉 4 行实例的位置。 -->
+  <Style Selector="Window.compact Border.glass.hero">
+    <Setter Property="Height" Value="168" />
+    <Setter Property="Padding" Value="20" />
+  </Style>
+
+  <Style Selector="Window.compact TextBlock.hero-title">
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Title}" />
   </Style>
 
   <Style Selector="Window.compact TextBlock.page-title">

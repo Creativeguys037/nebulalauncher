@@ -168,6 +168,41 @@ public partial class HomeViewModel : PageViewModelBase
     /// <summary>最近使用的版本（最多 5 条），点击选中、双击启动。</summary>
     public ObservableCollection<HomeVersionItem> RecentVersions { get; } = new();
 
+    /// <summary>
+    /// 实例库：全部已安装版本按「最近游玩」排序，供启动页列表展示（票 #86）。
+    /// 与 <see cref="RecentVersions"/> 分开：最近使用只做 hero 的候选，实例库要能搜全部。
+    /// </summary>
+    public ObservableCollection<HomeVersionItem> LibraryVersions { get; } = new();
+
+    /// <summary>实例库搜索框的输入；空串时显示全部。</summary>
+    [ObservableProperty]
+    private string _librarySearchText = string.Empty;
+
+    /// <summary>筛选后的实例库视图。搜索框一变就重算，不动底下的完整集合。</summary>
+    public ObservableCollection<HomeVersionItem> FilteredLibraryVersions { get; } = new();
+
+    /// <summary>搜索后一条都不剩时为 true（与「一个实例都没有」是两种空态）。</summary>
+    [ObservableProperty]
+    private bool _isLibrarySearchEmpty;
+
+    /// <summary>是否有实例。控制实例库的搜索框与「新建实例」按钮是否露出（票 #86 的边界条款）。</summary>
+    public bool HasAnyVersion => LibraryVersions.Count > 0;
+
+    partial void OnLibrarySearchTextChanged(string value) => ApplyLibraryFilter();
+
+    private void ApplyLibraryFilter()
+    {
+        FilteredLibraryVersions.Clear();
+
+        foreach (var item in LibraryVersions.Where(v => v.Matches(LibrarySearchText)))
+        {
+            FilteredLibraryVersions.Add(item);
+        }
+
+        IsLibrarySearchEmpty = LibraryVersions.Count > 0 && FilteredLibraryVersions.Count == 0;
+        OnPropertyChanged(nameof(HasAnyVersion));
+    }
+
     /// <summary>崩溃成因建议，最多 3 条。包装成 <see cref="CrashSuggestionItem"/> 是为了带上动作按钮。</summary>
     public ObservableCollection<CrashSuggestionItem> Suggestions { get; } = new();
 
@@ -231,6 +266,11 @@ public partial class HomeViewModel : PageViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LaunchCommand))]
     [NotifyPropertyChangedFor(nameof(ShowCancelLaunch))]
+    [NotifyPropertyChangedFor(nameof(IsHeroStopVisible))]
+    [NotifyPropertyChangedFor(nameof(IsHeroLaunching))]
+    [NotifyPropertyChangedFor(nameof(CanHeroLaunch))]
+    [NotifyPropertyChangedFor(nameof(HeroStatusText))]
+    [NotifyPropertyChangedFor(nameof(HasHeroStatus))]
     private bool _isLaunching;
 
     /// <summary>
@@ -243,10 +283,36 @@ public partial class HomeViewModel : PageViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StopGameCommand))]
     [NotifyPropertyChangedFor(nameof(ShowCancelLaunch))]
+    [NotifyPropertyChangedFor(nameof(IsHeroStopVisible))]
+    [NotifyPropertyChangedFor(nameof(IsHeroLaunching))]
+    [NotifyPropertyChangedFor(nameof(CanHeroLaunch))]
+    [NotifyPropertyChangedFor(nameof(HeroStatusText))]
+    [NotifyPropertyChangedFor(nameof(HasHeroStatus))]
     private bool _isLaunchSessionRunning;
 
     /// <summary>最近一次启动的实例目录键，用来在 <see cref="IGameLauncher.RunningGames"/> 里认回自己。</summary>
     private string? _lastLaunchInstanceKey;
+
+    // ---------------- 启动页 hero 状态（票 #86） ----------------
+
+    /// <summary>hero 的按钮是否处在「停止」形态：本次启动的会话还在跑。</summary>
+    public bool IsHeroStopVisible => IsLaunchSessionRunning;
+
+    /// <summary>hero 是否显示「启动中」形态：启动流程在跑但进程还没起来。</summary>
+    public bool IsHeroLaunching => IsLaunching && !IsLaunchSessionRunning;
+
+    /// <summary>能按「启动」：没在启动、没有本次会话在跑，且确实选中了实例。</summary>
+    public bool CanHeroLaunch => !IsLaunching && !IsLaunchSessionRunning && HasAnyVersion;
+
+    /// <summary>hero 状态胶囊文案：运行中 / 启动中 / 就绪。</summary>
+    public string HeroStatusText => IsLaunchSessionRunning
+        ? "运行中"
+        : IsLaunching
+            ? "启动中"
+            : "就绪";
+
+    /// <summary>运行中与启动中才显示状态胶囊，空闲时不加视觉噪音。</summary>
+    public bool HasHeroStatus => IsLaunchSessionRunning || IsLaunching;
 
     /// <summary>
     /// 记录「本次启动落在哪个游戏目录」。多开之后首页只负责自己那一次启动，
@@ -724,6 +790,8 @@ public partial class HomeViewModel : PageViewModelBase
         if (_versions is null)
         {
             RecentVersions.Clear();
+            LibraryVersions.Clear();
+            ApplyLibraryFilter();
             IsRecentEmpty = true;
             InstalledVersionCount = 0;
             return Array.Empty<VersionInfo>();
@@ -745,14 +813,27 @@ public partial class HomeViewModel : PageViewModelBase
 
         var previous = SelectedItem?.Info.Name;
         RecentVersions.Clear();
-        foreach (var info in installed
-                     .OrderByDescending(v => v.LastPlayedAt ?? DateTimeOffset.MinValue)
-                     .ThenByDescending(v => v.Name, StringComparer.OrdinalIgnoreCase)
-                     .Take(5))
+        LibraryVersions.Clear();
+
+        // 同一个排序顺序喂两个集合：hero 取前 5 条，实例库要全部（票 #86）。
+        var ordered = installed
+            .OrderByDescending(v => v.LastPlayedAt ?? DateTimeOffset.MinValue)
+            .ThenByDescending(v => v.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var index = 0;
+        foreach (var info in ordered)
         {
-            RecentVersions.Add(new HomeVersionItem(info));
+            index++;
+            LibraryVersions.Add(new HomeVersionItem(info, index));
         }
 
+        foreach (var item in LibraryVersions.Take(5))
+        {
+            RecentVersions.Add(item);
+        }
+
+        ApplyLibraryFilter();
         IsRecentEmpty = RecentVersions.Count == 0;
 
         // 优先恢复本页上次选中，其次配置里记录的「上次启动版本」，最后取「最近使用」第一条。
@@ -2468,13 +2549,14 @@ public partial class HomeViewModel : PageViewModelBase
     }
 }
 
-/// <summary>首页「最近使用」列表的一行。把 Core 模型转成可直接绑定的展示字段，避免 XAML 里处理 null。</summary>
+/// <summary>首页「实例库」列表的一行。把 Core 模型转成可直接绑定的展示字段，避免 XAML 里处理 null。</summary>
 public sealed class HomeVersionItem
 {
-    public HomeVersionItem(VersionInfo info)
+    public HomeVersionItem(VersionInfo info, int index = 0)
     {
         Info = info;
         Name = info.Name;
+        IndexText = index > 0 ? index.ToString("00", System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
         LoaderText = DescribeLoader(info.Loader);
         ChannelText = info.Channel switch
         {
@@ -2484,21 +2566,63 @@ public sealed class HomeVersionItem
             VersionChannel.Special => "愚人节",
             _ => "正式",
         };
-        Detail = $"{DescribeLastPlayed(info.LastPlayedAt)} · {DescribeSize(info.SizeOnDisk)}";
+
+        // 票 #86 要求行内直接看见「版本号 + 加载器 + 上次游玩」：版本号优先取解析出的原版号，
+        // 解析不出来时退回目录名（例如 1.21.4 这种纯原版目录名本身就是版本号）。
+        MinecraftVersion = string.IsNullOrWhiteSpace(info.MinecraftVersion) ? info.Name : info.MinecraftVersion!;
+
+        // 加载器版本与加载器名分开存：行里要能把「Fabric」与「0.16.9」排成两个视觉权重。
+        LoaderDetail = info.Loader == LoaderKind.Vanilla
+            ? "原版"
+            : string.IsNullOrWhiteSpace(info.LoaderVersion)
+                ? LoaderText
+                : $"{LoaderText} {info.LoaderVersion}";
+
+        LastPlayedText = DescribeLastPlayed(info.LastPlayedAt);
+        Detail = $"{LastPlayedText} · {DescribeSize(info.SizeOnDisk)}";
         IsBroken = !string.IsNullOrEmpty(info.BrokenReason);
+        BrokenReason = info.BrokenReason ?? string.Empty;
     }
 
     public VersionInfo Info { get; }
 
     public string Name { get; }
 
+    /// <summary>实例库里的两位编号，让「第几个」在纵向扫读时不丢行。</summary>
+    public string IndexText { get; }
+
     public string LoaderText { get; }
+
+    /// <summary>加载器名 + 版本号，例如 <c>Fabric 0.16.9</c>；原版是 <c>原版</c>。</summary>
+    public string LoaderDetail { get; }
+
+    /// <summary>解析出的原版版本号，例如 <c>1.21.4</c>。</summary>
+    public string MinecraftVersion { get; }
+
+    /// <summary>「上次游玩」一句话，例如 <c>2 小时前</c>；从未启动时是 <c>从未启动</c>。</summary>
+    public string LastPlayedText { get; }
 
     public string ChannelText { get; }
 
     public string Detail { get; }
 
     public bool IsBroken { get; }
+
+    public string BrokenReason { get; }
+
+    /// <summary>实例库搜索用：名称、版本号与加载器都能命中。</summary>
+    public bool Matches(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        var trimmed = query.Trim();
+        return Name.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || MinecraftVersion.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || LoaderDetail.Contains(trimmed, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string DescribeLoader(LoaderKind loader) => loader switch
     {
