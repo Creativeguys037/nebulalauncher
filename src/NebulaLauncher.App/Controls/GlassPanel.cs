@@ -34,7 +34,7 @@ public class GlassPanel : ContentControl
 
     /// <summary>副本层模糊半径。Avalonia 的 Radius 与 CSS blur 不是同一标度，按视觉调。</summary>
     public static readonly StyledProperty<double> BlurRadiusProperty =
-        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 24d);
+        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 26d);
 
     private Rectangle? _copy;
     private Visual? _lastBackdrop;
@@ -104,6 +104,10 @@ public class GlassPanel : ContentControl
     /// <summary>
     /// 副本的坐标必须跟随卡片位置与窗口尺寸：每次布局更新都重新取卡片左上角在背景坐标系里的位置，
     /// 用它作为 VisualBrush 的 SourceRect。否则窗口缩放或滚动后玻璃会错位（票 #84 的边界条款）。
+    ///
+    /// 玻璃泛光：样张 .glass::after 有 <c>saturate(190%) brightness(1.04)</c>——
+    /// 让背景色块在玻璃里变亮变艳。Avalonia 的 BlurEffect 没有饱和度参数，
+    /// 所以把背景渲染到 RenderTargetBitmap 后做像素级饱和度增强，再作为模糊副本的填充。
     /// </summary>
     private void UpdateCopy()
     {
@@ -172,5 +176,97 @@ public class GlassPanel : ContentControl
 
         _resolvedBackdrop = glass is not null && !this.GetVisualAncestors().Contains(glass) ? glass : null;
         return _resolvedBackdrop;
+    }
+
+    /// <summary>
+    /// 玻璃泛光核心：把背景渲染到 RenderTargetBitmap，做像素级
+    /// <c>saturate(190%) brightness(1.04)</c> 增强——让背景色块在玻璃里变亮变艳。
+    /// 这就是样张 .glass::after 的 <c>filter: blur(26px) saturate(190%) brightness(1.04)</c>
+    /// 中 saturate + brightness 的等价物（blur 由 BlurEffect 单独处理）。
+    /// 预算无限不怕性能：每帧做一次像素级 HSL 变换。
+    /// </summary>
+    private Bitmap? RenderSaturatedBackdrop(Visual backdrop, int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return null;
+        }
+
+        var rtb = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96, 96));
+        rtb.Render(backdrop);
+
+        // 用 Marshal 做像素级处理（不用 unsafe）
+        var result = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96));
+        var srcPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(width * height * 4);
+        try
+        {
+            rtb.CopyPixels(new PixelRect(0, 0, width, height), srcPtr, width * 4, 0);
+
+            using var fb = result.Lock();
+            var dstPtr = fb.Address;
+            var len = width * height * 4;
+
+            for (var i = 0; i < len; i += 4)
+            {
+                var b = System.Runtime.InteropServices.Marshal.ReadByte(srcPtr, i) / 255f;
+                var g = System.Runtime.InteropServices.Marshal.ReadByte(srcPtr, i + 1) / 255f;
+                var r = System.Runtime.InteropServices.Marshal.ReadByte(srcPtr, i + 2) / 255f;
+
+                // RGB → HSL
+                var max = MathF.Max(r, MathF.Max(g, b));
+                var min = MathF.Min(r, MathF.Min(g, b));
+                var l = (max + min) / 2f;
+                float h, s;
+                if (MathF.Abs(max - min) < 0.0001f)
+                {
+                    h = 0; s = 0;
+                }
+                else
+                {
+                    var d = max - min;
+                    s = l > 0.5f ? d / (2f - max - min) : d / (max + min);
+                    if (MathF.Abs(max - r) < 0.0001f) h = (g - b) / d + (g < b ? 6f : 0f);
+                    else if (MathF.Abs(max - g) < 0.0001f) h = (b - r) / d + 2f;
+                    else h = (r - g) / d + 4f;
+                    h /= 6f;
+                }
+
+                s = MathF.Min(s * 1.9f, 1f);
+                l = MathF.Min(l * 1.04f, 1f);
+
+                if (s < 0.0001f)
+                {
+                    r = g = b = l;
+                }
+                else
+                {
+                    var q = l < 0.5f ? l * (1 + s) : l + s - l * s;
+                    var p = 2 * l - q;
+                    r = HueToRgb(p, q, h + 1f / 3f);
+                    g = HueToRgb(p, q, h);
+                    b = HueToRgb(p, q, h - 1f / 3f);
+                }
+
+                System.Runtime.InteropServices.Marshal.WriteByte(dstPtr, i, (byte)Math.Clamp((int)(b * 255), 0, 255));
+                System.Runtime.InteropServices.Marshal.WriteByte(dstPtr, i + 1, (byte)Math.Clamp((int)(g * 255), 0, 255));
+                System.Runtime.InteropServices.Marshal.WriteByte(dstPtr, i + 2, (byte)Math.Clamp((int)(r * 255), 0, 255));
+            }
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(srcPtr);
+        }
+
+        return result;
+    }
+
+    private static float HueToRgb(float p, float q, float t)
+    {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1f / 6f) return p + (q - p) * 6f * t;
+        if (t < 1f / 2f) return q;
+        if (t < 2f / 3f) return p + (q - p) * (2f / 3f - t) * 6f;
+        return p;
     }
 }

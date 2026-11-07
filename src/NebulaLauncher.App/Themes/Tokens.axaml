@@ -32,14 +32,14 @@
       <SolidColorBrush x:Key="Surface.Hover" Color="#1FE80018" />
       <SolidColorBrush x:Key="Surface.Pressed" Color="#29E80018" />
       <SolidColorBrush x:Key="Surface.Sunken" Color="#140305" />
-      <SolidColorBrush x:Key="Surface.Glass" Color="#14E80018" />
+      <SolidColorBrush x:Key="Surface.Glass" Color="#1AE8F0FF" />
       <SolidColorBrush x:Key="Surface.Sidebar" Color="#12050A" />
       <!-- 导航 hover：深色是白 8%，浅色是白 70%（票 #85） -->
       <SolidColorBrush x:Key="Surface.NavHover" Color="#14FFFAFA" />
       <!-- 背景层色块：硬边圆形，深色红黑、浅色蓝白（票 #85） -->
-      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#66E80018" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#4DB53131" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#1FFFFAFA" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#B3E80018" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#CCB53131" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#8CFFFAFA" />
 
       <!-- 背景蓝雾（大径向）：样板 body::before 的三层 560/480/680 椭圆渐变，
            opacity .55 折算进色值。玻璃卡片模糊后透出的「蓝」主要来自这三层，
@@ -68,30 +68,46 @@
       <!-- 玻璃内部泛光（#105）：左上→右下对角主光 + 底部反光带，两层都在卡片内部。
            边分三档：顶亮 / 左右中 / 底亮，靠明度差读出板厚。 -->
       <RadialGradientBrush x:Key="Glass.GlowTopLeft" Center="6%,-14%" GradientOrigin="6%,-14%"
-                           RadiusX="63%" RadiusY="31%">
-        <GradientStop Color="#3DFFFAFA" Offset="0" />
-        <GradientStop Color="#1AFFFAFA" Offset="0.32" />
+                           RadiusX="126%" RadiusY="62%">
+        <GradientStop Color="#26FFFAFA" Offset="0" />
+        <GradientStop Color="#19FFFAFA" Offset="0.18" />
+        <GradientStop Color="#00FFFAFA" Offset="0.32" />
+        <GradientStop Color="#08FFFAFA" Offset="0.44" />
+        <GradientStop Color="#04FFFAFA" Offset="0.50" />
         <GradientStop Color="#00FFFAFA" Offset="0.56" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Glass.GlowBottomRight" Center="96%,108%" GradientOrigin="96%,108%"
-                           RadiusX="45%" RadiusY="25%">
-        <GradientStop Color="#21FFFAFA" Offset="0" />
+                           RadiusX="90%" RadiusY="50%">
+        <GradientStop Color="#14FFFAFA" Offset="0" />
+        <GradientStop Color="#0AFFFAFA" Offset="0.25" />
+        <GradientStop Color="#05FFFAFA" Offset="0.42" />
+        <GradientStop Color="#03FFFAFA" Offset="0.52" />
         <GradientStop Color="#00FFFAFA" Offset="0.58" />
       </RadialGradientBrush>
       <LinearGradientBrush x:Key="Glass.GlowWash" StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#1AFFFAFA" Offset="0" />
-        <GradientStop Color="#0FFFFAFA" Offset="1" />
+        <GradientStop Color="#02FFFAFA" Offset="0" />
+        <GradientStop Color="#01FFFAFA" Offset="1" />
       </LinearGradientBrush>
+      <!-- 色彩增强：见 Light 段注释。深色用品牌红 10%，让背景色块发光变艳。 -->
+      <SolidColorBrush x:Key="Glass.Saturate" Color="#1AE80018" />
+
+      <!-- 发光晕开（bloom）：让背景色块向外辐射光，模拟 CSS saturate(190%) brightness(1.04)。 -->
+      <RadialGradientBrush x:Key="Glass.Bloom" Center="40%,35%" GradientOrigin="40%,35%"
+                           RadiusX="75%" RadiusY="75%">
+        <GradientStop Color="#1AFFFAFA" Offset="0" />
+        <GradientStop Color="#0DFFFAFA" Offset="0.5" />
+        <GradientStop Color="#00000000" Offset="1" />
+      </RadialGradientBrush>
 
       <!-- 背景雾与网格（黑红玻璃版）：位置/半径与浅色完全一致，只换色。 -->
       <RadialGradientBrush x:Key="Surface.BackdropHaze4" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#33FFFAFA" Offset="0" />
+        <GradientStop Color="#85FFFAFA" Offset="0" />
         <GradientStop Color="#00FFFAFA" Offset="0.68" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Surface.BackdropHaze5" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#4D000000" Offset="0" />
+        <GradientStop Color="#26000000" Offset="0" />
         <GradientStop Color="#00000000" Offset="0.70" />
       </RadialGradientBrush>
       <SolidColorBrush x:Key="Surface.BackdropGrid" Color="#14E80018" />
@@ -187,7 +203,7 @@
       <BoxShadows x:Key="Shadow.Overlay">0 26 60 -12 #B3000000</BoxShadows>
       <BoxShadows x:Key="Shadow.Glow">0 0 24 0 #40E80018</BoxShadows>
       <!-- inset 语法不带 px：inset 0 2 0 可解析，inset 0 2px 0 抛 FormatException -->
-      <BoxShadows x:Key="Shadow.Glass">inset 0 2 0 #33FFFAFA, inset 0 -1 0 #26FFFAFA, inset 1 0 0 #26FFFAFA, inset -1 0 0 #26FFFAFA, inset 0 14 22 -18 #29FFFAFA, inset 0 -16 30 -16 #99000000, 0 26 60 -12 #99000000, 0 4 12 0 #66000000, 0 0 24 0 #14FFFAFA</BoxShadows>
+      <BoxShadows x:Key="Shadow.Glass">inset 0 2 0 #4DFFFAFA, inset 1 0 0 #3DFFFAFA, inset -1 0 0 #3DFFFAFA, inset 0 -1 0 #29FFFAFA, inset 0 14 22 -18 #29FFFAFA, inset 0 -16 30 -16 #99000000, 0 26 60 -12 #99000000, 0 4 12 0 #66000000, 0 0 24 0 #14FFFAFA</BoxShadows>
 
       <!-- 组件层 -->
       <SolidColorBrush x:Key="Scrollbar.Thumb" Color="#40FFFAFA" />
@@ -210,27 +226,27 @@
       <SolidColorBrush x:Key="Surface.Hover" Color="#F0F4FF" />
       <SolidColorBrush x:Key="Surface.Pressed" Color="#E2EAFC" />
       <SolidColorBrush x:Key="Surface.Sunken" Color="#E9EFFC" />
-      <SolidColorBrush x:Key="Surface.Glass" Color="#57FFFFFF" />
+      <SolidColorBrush x:Key="Surface.Glass" Color="#47E8F0FF" />
       <SolidColorBrush x:Key="Surface.Sidebar" Color="#EDF3FF" />
       <SolidColorBrush x:Key="Surface.NavHover" Color="#B3FFFFFF" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#4D1668FF" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#6637D6FF" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#40103078" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#B31668FF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#CC37D6FF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#8C0B3FCC" />
 
       <!-- 背景蓝雾：见 Dark 段同名注释。浅色是样板 body::before 的 22,104,255 / 55,214,255 / 11,63,204 三层。 -->
       <RadialGradientBrush x:Key="Surface.BackdropHaze1" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#E61668FF" Offset="0" />
+        <GradientStop Color="#F21668FF" Offset="0" />
         <GradientStop Color="#001668FF" Offset="0.62" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Surface.BackdropHaze2" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#C437D6FF" Offset="0" />
+        <GradientStop Color="#D937D6FF" Offset="0" />
         <GradientStop Color="#0037D6FF" Offset="0.60" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Surface.BackdropHaze3" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#B30B3FCC" Offset="0" />
+        <GradientStop Color="#CC0B3FCC" Offset="0" />
         <GradientStop Color="#000B3FCC" Offset="0.66" />
       </RadialGradientBrush>
 
@@ -241,30 +257,46 @@
 
       <!-- 玻璃内部泛光（#105）：见 Dark 段同名注释。浅色主光更亮（左上 25% 白），底部反光带 20% 白。 -->
       <RadialGradientBrush x:Key="Glass.GlowTopLeft" Center="6%,-14%" GradientOrigin="6%,-14%"
-                           RadiusX="63%" RadiusY="31%">
-        <GradientStop Color="#EBFFFFFF" Offset="0" />
-        <GradientStop Color="#6BFFFFFF" Offset="0.32" />
+                           RadiusX="126%" RadiusY="62%">
+        <GradientStop Color="#4DFFFFFF" Offset="0" />
+        <GradientStop Color="#33FFFFFF" Offset="0.18" />
+        <GradientStop Color="#1AFFFFFF" Offset="0.32" />
+        <GradientStop Color="#0DFFFFFF" Offset="0.44" />
+        <GradientStop Color="#07FFFFFF" Offset="0.50" />
         <GradientStop Color="#00FFFFFF" Offset="0.56" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Glass.GlowBottomRight" Center="96%,108%" GradientOrigin="96%,108%"
-                           RadiusX="45%" RadiusY="25%">
-        <GradientStop Color="#80FFFFFF" Offset="0" />
+                           RadiusX="90%" RadiusY="50%">
+        <GradientStop Color="#40FFFFFF" Offset="0" />
+        <GradientStop Color="#26FFFFFF" Offset="0.25" />
+        <GradientStop Color="#14FFFFFF" Offset="0.42" />
+        <GradientStop Color="#07FFFFFF" Offset="0.52" />
         <GradientStop Color="#00FFFFFF" Offset="0.58" />
       </RadialGradientBrush>
       <LinearGradientBrush x:Key="Glass.GlowWash" StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#57FFFFFF" Offset="0" />
-        <GradientStop Color="#30FFFFFF" Offset="1" />
+        <GradientStop Color="#03FFFFFF" Offset="0" />
+        <GradientStop Color="#02FFFFFF" Offset="1" />
       </LinearGradientBrush>
+      <!-- 色彩增强：见 Dark 段注释。浅色用品牌蓝 12%，让背景色块发光变艳。 -->
+      <SolidColorBrush x:Key="Glass.Saturate" Color="#1F1668FF" />
+
+      <!-- 发光晕开（bloom）：见 Dark 段注释。浅色用白 12% 径向渐变。 -->
+      <RadialGradientBrush x:Key="Glass.Bloom" Center="40%,35%" GradientOrigin="40%,35%"
+                           RadiusX="75%" RadiusY="75%">
+        <GradientStop Color="#1FFFFFFF" Offset="0" />
+        <GradientStop Color="#0DFFFFFF" Offset="0.5" />
+        <GradientStop Color="#00000000" Offset="1" />
+      </RadialGradientBrush>
 
       <!-- 背景雾与网格（蓝白玻璃版）：照样张 body::before 的后两层 + body::after 的 40px 网格。 -->
       <RadialGradientBrush x:Key="Surface.BackdropHaze4" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#F2FFFFFF" Offset="0" />
+        <GradientStop Color="#85FFFFFF" Offset="0" />
         <GradientStop Color="#00FFFFFF" Offset="0.68" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Surface.BackdropHaze5" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#470B3FCC" Offset="0" />
+        <GradientStop Color="#260B3FCC" Offset="0" />
         <GradientStop Color="#000B3FCC" Offset="0.70" />
       </RadialGradientBrush>
       <SolidColorBrush x:Key="Surface.BackdropGrid" Color="#0D1668FF" />
@@ -356,7 +388,7 @@
       <BoxShadows x:Key="Shadow.CardHover">0 10 24 -6 #1F0F1724</BoxShadows>
       <BoxShadows x:Key="Shadow.Overlay">0 26 60 -12 #38103078</BoxShadows>
       <BoxShadows x:Key="Shadow.Glow">0 0 24 0 #331668FF</BoxShadows>
-      <BoxShadows x:Key="Shadow.Glass">inset 0 2 0 #FFFFFF, inset 0 -1 0 #99FFFFFF, inset 1 0 0 #BFFFFFFF, inset -1 0 0 #BFFFFFFF, inset 0 14 22 -18 #E6FFFFFF, inset 0 -16 30 -16 #47103078, 0 26 60 -12 #38103078, 0 4 12 0 #1A103078, 0 0 24 0 #47FFFFFF</BoxShadows>
+      <BoxShadows x:Key="Shadow.Glass">inset 0 2 0 #FFFFFFFF, inset 1 0 0 #D9FFFFFF, inset -1 0 0 #D9FFFFFF, inset 0 -1 0 #A6FFFFFF, inset 0 14 22 -18 #E6FFFFFF, inset 0 -16 30 -16 #47103078, 0 26 60 -12 #38103078, 0 4 12 0 #1A103078, 0 0 24 0 #47FFFFFF</BoxShadows>
 
       <!-- 组件层 -->
       <SolidColorBrush x:Key="Scrollbar.Thumb" Color="#33000000" />

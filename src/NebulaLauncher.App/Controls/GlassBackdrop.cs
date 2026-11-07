@@ -230,7 +230,7 @@ public class GlassBackdrop : Control
         DrawGrid(context, size);
     }
 
-    /// <summary>画一层径向雾：中心是色，到椭圆边缘透明。</summary>
+    /// <summary>画一层径向雾 + 光晕：中心是色，向外晕开发光。</summary>
     private static void DrawHaze(
         DrawingContext context,
         IBrush? brush,
@@ -245,15 +245,31 @@ public class GlassBackdrop : Control
             return;
         }
 
-        context.DrawEllipse(
-            brush,
-            null,
-            new Point(centerX * size.Width, centerY * size.Height),
-            radiusX * size.Width,
-            radiusY * size.Height);
+        var center = new Point(centerX * size.Width, centerY * size.Height);
+        var rx = radiusX * size.Width;
+        var ry = radiusY * size.Height;
+
+        // 光晕：更大范围的低透明度白，模拟雾向外辐射的光
+        var glow = new RadialGradientBrush
+        {
+            Center = new RelativePoint(50, 50, RelativeUnit.Relative),
+            GradientOrigin = new RelativePoint(50, 50, RelativeUnit.Relative),
+            RadiusX = new RelativeScalar(50, RelativeUnit.Relative),
+            RadiusY = new RelativeScalar(50, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(30, 255, 255, 255), 0),
+                new GradientStop(Color.FromArgb(12, 255, 255, 255), 0.5),
+                new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
+            },
+        };
+        context.DrawEllipse(glow, null, center, rx * 1.6, ry * 1.6);
+
+        // 核心雾层
+        context.DrawEllipse(brush, null, center, rx, ry);
     }
 
-    /// <summary>画一个硬边色块（样张里 96% 实心、4% 收边）。</summary>
+    /// <summary>画一个硬边色块 + 强光晕（色块发光并向外晕开，玻璃副本透出来就是「泛光」）。</summary>
     private static void DrawBlob(
         DrawingContext context,
         IBrush? brush,
@@ -268,12 +284,44 @@ public class GlassBackdrop : Control
             return;
         }
 
-        context.DrawEllipse(
-            brush,
-            null,
-            new Point((centerX * size.Width) + drift, centerY * size.Height),
-            radius * size.Width,
-            radius * size.Width);
+        var center = new Point((centerX * size.Width) + drift, centerY * size.Height);
+        var rx = radius * size.Width;
+        var ry = radius * size.Width;
+
+        // 1) 外圈光晕：大范围低透明度，模拟光向外晕开
+        var glowOuter = new RadialGradientBrush
+        {
+            Center = new RelativePoint(50, 50, RelativeUnit.Relative),
+            GradientOrigin = new RelativePoint(50, 50, RelativeUnit.Relative),
+            RadiusX = new RelativeScalar(50, RelativeUnit.Relative),
+            RadiusY = new RelativeScalar(50, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(35, 255, 255, 255), 0),
+                new GradientStop(Color.FromArgb(15, 255, 255, 255), 0.45),
+                new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
+            },
+        };
+        context.DrawEllipse(glowOuter, null, center, rx * 3.0, ry * 3.0);
+
+        // 2) 内圈光晕：中等范围，让色块边缘发光
+        var glowInner = new RadialGradientBrush
+        {
+            Center = new RelativePoint(50, 50, RelativeUnit.Relative),
+            GradientOrigin = new RelativePoint(50, 50, RelativeUnit.Relative),
+            RadiusX = new RelativeScalar(50, RelativeUnit.Relative),
+            RadiusY = new RelativeScalar(50, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(60, 255, 255, 255), 0),
+                new GradientStop(Color.FromArgb(25, 255, 255, 255), 0.5),
+                new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
+            },
+        };
+        context.DrawEllipse(glowInner, null, center, rx * 2.0, ry * 2.0);
+
+        // 3) 核心色块
+        context.DrawEllipse(brush, null, center, rx, ry);
     }
 
     /// <summary>

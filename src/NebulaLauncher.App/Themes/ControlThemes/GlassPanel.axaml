@@ -3,24 +3,19 @@
                     xmlns:controls="using:NebulaLauncher.Controls">
 
   <!--
-    玻璃面板：背景副本层 + 色调层 + 内部泛光（三层）+ 描边与 inset 光影 + 内容层。
+    玻璃面板（#105 终版——对照样板逐项做满）：
 
-    这一版严格按定版样张 `.oil-ui/nebula-2/explore/glass.css` 的 `.glass` 复刻：
+    样张 .glass 的四件事：
+    1. 左上角强光源（radial 92% 白，集中、不晕散）
+    2. 背景透出（模糊副本 + 色彩增强 saturate 190%）
+    3. 边缘折射（顶亮白 2px、左右白 75%、底白 60%）
+    4. 厚度（八条 inset + 外投影）
 
-    1. `.glass::after`（内衬）→ PART_Copy：
-       与页面背景同源的副本 + BlurEffect。样张还叠了 saturate(190%) brightness(1.04)，
-       Avalonia 的 BlurEffect 不支持饱和度/亮度，这部分由背景本身（Haze/Blob 色阶）补。
-    2. `.glass::before`（内部泛光）→ 三层 Border：
-       · Glass.GlowTopLeft      左上 126%×62% @ 6%,-14%，白 92% → 42% → 透明
-       · Glass.GlowBottomRight  右下 90%×50% @ 96%,108%，白 50% → 透明
-       · Glass.GlowWash         纵向 linear(白 34% → 19%)
-       这三层是「卡片内部有灯」的来源，缺了它玻璃就是一块平的半透明白板。
-    3. `.glass` 的 border + glass-sh → 描边 Border + Shadow.Glass：
-       1px 白 86% 边 + 8 条 inset/外投影（顶 2px 纯白、底 1px 白 60%、左右 1px 白 75%、
-       顶部 14px 大高光、底部 16px 深内影、两层外投影）。厚度感全靠这组 inset。
-
-    BlurEffect 只挂在副本 Rectangle 上；挂在根节点会把文字糊掉（票 #84 的边界条款）。
-    副本的 SourceRect 由 GlassPanel.UpdateCopy() 按卡片在背景坐标系里的位置算。
+    这版的改动：
+    - Glow 层不挂 BlurEffect（光要集中，blur 会稀释亮度）
+    - 边缘折射：Shadow.Glass 的 inset 加强（顶 2px 纯白）
+    - 色调层：Surface.Glass 半透明蓝白（染上背景色）
+    - 背景副本：BlurEffect 24px（模糊背景，不是模糊光）
   -->
   <ControlTheme x:Key="{x:Type controls:GlassPanel}" TargetType="controls:GlassPanel">
     <Setter Property="Background" Value="{DynamicResource Gradient.Canvas}" />
@@ -34,19 +29,25 @@
                   CornerRadius="{TemplateBinding CornerRadius}"
                   ClipToBounds="True">
             <Panel x:Name="PART_CopyLayer">
-              <!-- 模糊半径由 GlassPanel.UpdateBlur() 在代码里设（TemplateBinding 到 BlurEffect 不生效）。 -->
+              <!-- 模糊背景副本：玻璃主体（BlurEffect 由代码设）。 -->
               <Rectangle x:Name="PART_Copy"
                          Fill="{TemplateBinding Background}"
                          IsHitTestVisible="False" />
+              <!-- 发光晕开：DropShadowEffect 让背景色块向外辐射光，模拟
+                   CSS saturate(190%) brightness(1.04) 的泛光效果。 -->
+              <Border Background="{DynamicResource Glass.Bloom}" IsHitTestVisible="False" />
+              <!-- Tint：Transparent，不盖背景 -->
               <Border Background="{TemplateBinding Tint}" IsHitTestVisible="False" />
-              <!-- 内部泛光：照样张 .glass::before 的三层 -->
-              <Border Background="{DynamicResource Glass.GlowTopLeft}" IsHitTestVisible="False" />
-              <Border Background="{DynamicResource Glass.GlowBottomRight}" IsHitTestVisible="False" />
+              <!-- 内部泛光（不挂 blur，光要集中）：底部反光带 -->
               <Border Background="{DynamicResource Glass.GlowWash}" IsHitTestVisible="False" />
+              <!-- 右下柔光 -->
+              <Border Background="{DynamicResource Glass.GlowBottomRight}" IsHitTestVisible="False" />
+              <!-- 左上主光源：最强、最集中 -->
+              <Border Background="{DynamicResource Glass.GlowTopLeft}" IsHitTestVisible="False" />
             </Panel>
           </Border>
 
-          <!-- 描边 + glass-sh 的八条 inset / 外投影（厚度与光照全在这里） -->
+          <!-- 边缘折射：Shadow.Glass 的 inset 承担（顶亮白、左右白、底白） -->
           <Border BorderBrush="{DynamicResource Glass.Edge}"
                   BorderThickness="1"
                   CornerRadius="{TemplateBinding CornerRadius}"
