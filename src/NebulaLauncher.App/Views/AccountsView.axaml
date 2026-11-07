@@ -42,13 +42,10 @@
     页面根用 Grid 而不是 ScrollViewer：第三方验证表单要浮在内容之上。
     ScrollViewer 仍是唯一的内容容器，浮层只是叠在它上面的一层。
   -->
-  <Grid>
+  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
 
-    <!-- 账户内容：玻璃框内唯一滚动（票 #106） -->
-    <controls:GlassPanel Padding="0">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="16" Margin="20,16,20,20">
-
+    <!-- 账户卡是页面唯一身份卡，压进滚动区会丢掉身份；Row0 = Auto（§3.1 账户页变体）。 -->
+    <StackPanel Grid.Row="0" Spacing="16">
         <!-- ============ 当前账户大卡片 ============ -->
         <Border Classes="card accentEdge" Padding="22">
           <Grid ColumnDefinitions="Auto,*,Auto">
@@ -112,7 +109,10 @@
             </StackPanel>
           </Grid>
         </Border>
+    </StackPanel>
 
+    <!-- 提示条与删除确认都是可隐藏的常驻条，固定不滚。 -->
+    <StackPanel Grid.Row="1" Spacing="8">
         <!-- ============ 提示条 ============ -->
         <Border IsVisible="{Binding IsDemoMode}"
                 Background="{DynamicResource Status.Warning.Soft}"
@@ -165,7 +165,12 @@
             </StackPanel>
           </Grid>
         </Border>
+    </StackPanel>
 
+    <!-- 账户列表与添加面板：玻璃框内唯一滚动（票 #106）。 -->
+    <controls:GlassPanel Grid.Row="2" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="20,16,20,20">
         <!-- ============ 左：账户列表 / 右：添加账户 ============ -->
         <Grid ColumnDefinitions="*,16,380">
 
@@ -373,8 +378,7 @@
 
           </StackPanel>
         </Grid>
-
-      </StackPanel>
+        </StackPanel>
       </ScrollViewer>
     </controls:GlassPanel>
 
