@@ -131,7 +131,17 @@ public partial class App : Application
                     && !string.IsNullOrEmpty(ScreenshotMode.SectionKey)
                     && shell.CurrentPage is SettingsViewModel settingsViewModel)
                 {
-                    settingsViewModel.SelectedSectionKey = ScreenshotMode.SectionKey;
+                    // 日志与帮助并入关于区后（#98），它们的深链要落到二级视图，
+                    // 而不是停在关于区的一级视图上。
+                    if (ScreenshotMode.SectionKey == "logs" || ScreenshotMode.SectionKey == "help")
+                    {
+                        settingsViewModel.SelectedSectionKey = "about";
+                        settingsViewModel.SubViewKey = ScreenshotMode.SectionKey;
+                    }
+                    else
+                    {
+                        settingsViewModel.SelectedSectionKey = ScreenshotMode.SectionKey;
+                    }
                 }
 
                 await Task.Delay(ScreenshotMode.DelayMs);

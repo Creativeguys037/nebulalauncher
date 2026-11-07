@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using NebulaLauncher.Core.Abstractions;
 using NebulaLauncher.Core.Diagnostics;
 using NebulaLauncher.Core.Instances;
@@ -72,7 +73,10 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         IAppLog? log = null,
         ILauncherPaths? paths = null,
         IProfileBundleService? bundle = null,
-        IStorageService? storage = null)
+        IStorageService? storage = null,
+        LogsViewModel? logs = null,
+        HelpViewModel? help = null,
+        IServiceProvider? serviceProvider = null)
     {
         _settings = settings;
         _java = java;
@@ -81,6 +85,12 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         _paths = paths;
         _bundle = bundle;
         _storage = storage;
+
+        // ActivatorUtilities 只填它认识的参数，未注册的具体类型不会递归构造，
+        // 可空参数拿到的是 null。日志与帮助页正是这种「容器里没有单独注册、
+        // 只在关于区内部使用」的子视图，必须自己建，否则入口卡亮了、点进去是空白。
+        Logs = logs ?? CreateSubViewModel<LogsViewModel>(serviceProvider);
+        Help = help ?? CreateSubViewModel<HelpViewModel>(serviceProvider);
 
         Sections.Add(new SettingsSection("general", "常规", SettingsIcons.General, "语言 语言包 关闭 托盘 退出 启动后 检查更新"));
         Sections.Add(new SettingsSection("java", "Java", SettingsIcons.Java, "java jdk 运行时 内存 分配 路径 探测 版本"));
@@ -176,6 +186,76 @@ public sealed partial class SettingsViewModel : PageViewModelBase
     public bool IsAboutSection => SelectedSectionKey == "about";
 
     /// <summary>
+    /// 关于区里的二级视图（日志 / 帮助）。空串表示停在关于区的一级视图。
+    /// 二级视图不新增页面键：它替换 Row1 + Row2 的内容，分区页签始终可见，
+    /// 所以不建新页面、不改一级导航，返回只是把这里清空。
+    /// </summary>
+    [ObservableProperty]
+    private string _subViewKey = string.Empty;
+
+    public bool IsSubViewOpen => !string.IsNullOrEmpty(SubViewKey);
+
+    public bool IsLogsSubView => SubViewKey == "logs";
+
+    public bool IsHelpSubView => SubViewKey == "help";
+
+    public string SubViewTitle => IsLogsSubView ? "日志中心" : IsHelpSubView ? "内置帮助" : string.Empty;
+
+    /// <summary>
+    /// 二级视图的两个子 ViewModel。容器里缺少对应服务时为 null——
+    /// 入口卡据此置灰，而不是让人点进去看一片空白。
+    /// </summary>
+    public LogsViewModel? Logs { get; }
+
+    public HelpViewModel? Help { get; }
+
+    public bool CanOpenLogs => Logs is not null;
+
+    /// <summary>
+    /// 只在关于区内部使用的子视图：容器没注册它们，用 ActivatorUtilities 按构造函数
+    /// 的依赖声明现建一个。取不到容器时返回 null，入口卡会禁用而不是点开空白。
+    /// </summary>
+    private static T? CreateSubViewModel<T>(IServiceProvider? serviceProvider) where T : class
+    {
+        return serviceProvider is null ? null : ActivatorUtilities.CreateInstance<T>(serviceProvider);
+    }
+
+    public bool CanOpenHelp => Help is not null;
+
+    [RelayCommand]
+    private void OpenLogsSubView()
+    {
+        if (Logs is null)
+        {
+            return;
+        }
+
+        SubViewKey = "logs";
+    }
+
+    [RelayCommand]
+    private void OpenHelpSubView()
+    {
+        if (Help is null)
+        {
+            return;
+        }
+
+        SubViewKey = "help";
+    }
+
+    [RelayCommand]
+    private void CloseSubView() => SubViewKey = string.Empty;
+
+    partial void OnSubViewKeyChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsSubViewOpen));
+        OnPropertyChanged(nameof(IsLogsSubView));
+        OnPropertyChanged(nameof(IsHelpSubView));
+        OnPropertyChanged(nameof(SubViewTitle));
+    }
+
+    /// <summary>
     /// 分区页签控件的选中下标。
     /// TabControl 只认下标，正文里的分区键是字符串；这层换算放在 ViewModel 里，
     /// 页面就不用写一个把 key 翻成 index 的转换器（转换器拿不到集合，只能硬编码顺序）。
@@ -220,6 +300,13 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(IsAppearanceSection));
         OnPropertyChanged(nameof(IsStorageSection));
         OnPropertyChanged(nameof(IsAboutSection));
+
+        // 切走关于区时必须退出一级以上的二级视图——否则回来时还停在日志里，
+        // 而分区页签显示的是「关于」，看着像页签与内容对不上。
+        if (!string.Equals(value, "about", StringComparison.Ordinal))
+        {
+            SubViewKey = string.Empty;
+        }
 
         // 深链（--section download / 设置页被外部导航指定分区）走的是 SelectedSectionKey，
         // 页签控件只认下标；不补这条通知，页签会停在旧位置而内容是新的。

@@ -3,6 +3,7 @@
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
              xmlns:controls="using:NebulaLauncher.Controls"
+             xmlns:views="using:NebulaLauncher.Views"
              x:Class="NebulaLauncher.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
@@ -164,7 +165,20 @@
     </TabControl>
 
     <!-- ==================== Row1：分区内工具行 ==================== -->
-    <Grid Grid.Row="1" Height="48" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+    <!-- 二级视图头部（日志 / 帮助）：与下面的分区工具行同处 Row1，靠 IsVisible 互斥。
+         分区页签在 Row0，二级视图下不动 —— 返回只是把 SubViewKey 清空。 -->
+    <Border Grid.Row="1"
+            Height="40"
+            VerticalAlignment="Top"
+            IsVisible="{Binding IsSubViewOpen}">
+      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <Button Classes="ghost" Content="← 返回关于" Padding="10,5"
+                Command="{Binding CloseSubViewCommand}" />
+        <TextBlock Text="{Binding SubViewTitle}" Classes="h3" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" Height="48" IsVisible="{Binding !IsSubViewOpen}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
       <TextBox Width="320"
                Height="32"
                VerticalAlignment="Center"
@@ -185,7 +199,7 @@
 
     <!-- ==================== Row2：表单框（唯一滚动区） ==================== -->
     <controls:GlassPanel Grid.Row="2" Padding="0">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer IsVisible="{Binding !IsSubViewOpen}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="12" Margin="20,16,20,20">
 
           <!-- 服务未接入提示 -->
@@ -1590,84 +1604,162 @@
           </StackPanel>
 
           <!-- ============ 关于 ============ -->
-          <StackPanel IsVisible="{Binding IsAboutSection}" Spacing="12">
-            <StackPanel Spacing="2">
-              <TextBlock Text="关于" Classes="h3" />
-              <TextBlock Text="版本信息与数据目录。" Classes="muted" />
-            </StackPanel>
+          <StackPanel IsVisible="{Binding IsAboutSection}" Spacing="16">
 
-            <Border Classes="card">
-              <StackPanel Spacing="14">
-                <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
-                  <TextBlock Text="版本" Classes="muted" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="1" Text="{Binding AppVersion}" Classes="mono" />
+            <!-- 一级视图：产品卡 120 + 两张入口卡 72。内容总高 208，远小于 Row2，
+                 所以一级视图本来就不该出现滚动条。 -->
+            <StackPanel Spacing="16" IsVisible="{Binding !IsSubViewOpen}">
 
-                  <TextBlock Grid.Row="1" Text=".NET 运行时" Classes="muted" VerticalAlignment="Center" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DotNetVersion}" Classes="mono" TextWrapping="Wrap" />
+              <controls:GlassPanel Height="120" Padding="0">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" Margin="20,0">
+                  <Border Width="40" Height="40"
+                          CornerRadius="{DynamicResource Radius.Md}"
+                          Background="{DynamicResource Gradient.Accent}"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="N" Classes="h3"
+                               Foreground="{DynamicResource Text.OnAccent}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
 
-                  <TextBlock Grid.Row="2" Text="平台" Classes="muted" VerticalAlignment="Center" />
-                  <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PlatformName}" Classes="mono" />
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="Nebula Launcher" Classes="h3" VerticalAlignment="Center" />
+                      <Border Classes="badge success" VerticalAlignment="Center">
+                        <TextBlock Text="正式版" />
+                      </Border>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="{Binding AppVersion}" Classes="mono" />
+                      <TextBlock Text="·" Classes="caption" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding PlatformName}" Classes="muted" />
+                    </StackPanel>
+                  </StackPanel>
 
-                  <TextBlock Grid.Row="3" Text="数据目录" Classes="muted" VerticalAlignment="Top" Margin="0,6,0,0" />
-                  <TextBlock Grid.Row="3" Grid.Column="1"
-                             Text="{Binding DataDirectory}"
-                             Classes="mono"
-                             TextWrapping="Wrap" />
-
-                  <TextBlock Grid.Row="4" Text="日志文件" Classes="muted" VerticalAlignment="Top" Margin="0,6,0,0" />
-                  <TextBlock Grid.Row="4" Grid.Column="1"
-                             Text="{Binding LogFilePath}"
-                             Classes="mono"
-                             TextWrapping="Wrap" />
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4" Width="230">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="运行时" Classes="caption" />
+                      <TextBlock Grid.Column="1" Text="{Binding DotNetVersion}" Classes="mono" TextAlignment="Right" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="界面框架" Classes="caption" />
+                      <TextBlock Grid.Column="1" Text="Avalonia 11.3.22" Classes="mono" TextAlignment="Right" />
+                    </Grid>
+                  </StackPanel>
                 </Grid>
+              </controls:GlassPanel>
 
-                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <controls:GlassPanel Grid.Column="0" Height="72" Padding="0" IsEnabled="{Binding CanOpenLogs}">
+                  <Button Background="Transparent" BorderThickness="0" Padding="20,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          Command="{Binding OpenLogsSubViewCommand}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14" VerticalAlignment="Center">
+                      <Border Width="32" Height="32" CornerRadius="{DynamicResource Radius.Sm}"
+                              Background="{DynamicResource Surface.Sunken}">
+                        <Path Data="{StaticResource Icon.Download}" Width="16" Height="16"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                              Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="日志中心" FontWeight="SemiBold" />
+                        <TextBlock Text="启动与运行日志 · 级别筛选 · 跟随滚动" Classes="muted"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Text="›" Classes="h3"
+                                 Foreground="{DynamicResource Text.Muted}" VerticalAlignment="Center" />
+                    </Grid>
+                  </Button>
+                </controls:GlassPanel>
 
-                <WrapPanel Orientation="Horizontal">
-                  <Button Classes="pill" Content="打开数据目录" Margin="0,0,8,8" Command="{Binding OpenDataFolderCommand}" />
-                  <Button Classes="pill" Content="打开日志" Margin="0,0,8,8" Command="{Binding OpenLogFolderCommand}" />
-                  <Button Classes="pill" Content="复制日志路径" Margin="0,0,8,8" Command="{Binding CopyLogPathCommand}" />
-                  <Button Classes="pill" Content="复制诊断信息" Margin="0,0,8,8" Command="{Binding CopyDiagnosticsCommand}" />
-                </WrapPanel>
+                <controls:GlassPanel Grid.Column="1" Height="72" Padding="0" IsEnabled="{Binding CanOpenHelp}">
+                  <Button Background="Transparent" BorderThickness="0" Padding="20,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          Command="{Binding OpenHelpSubViewCommand}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14" VerticalAlignment="Center">
+                      <Border Width="32" Height="32" CornerRadius="{DynamicResource Radius.Sm}"
+                              Background="{DynamicResource Surface.Sunken}">
+                        <Path Data="{StaticResource Icon.Search}" Width="16" Height="16"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                              Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="内置帮助" FontWeight="SemiBold" />
+                        <TextBlock Text="启动失败、Java、模组冲突的排查条目" Classes="muted"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Text="›" Classes="h3"
+                                 Foreground="{DynamicResource Text.Muted}" VerticalAlignment="Center" />
+                    </Grid>
+                  </Button>
+                </controls:GlassPanel>
+              </Grid>
 
-                <!-- ============ 配置迁移 ============ -->
-                <!-- 换机器时只带走收藏 / 服务器 / 白名单设置，账户令牌永远不进包。
-                     目录与文件选择器在 code-behind（TopLevel 只在视图层拿得到）。 -->
-                <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+              <!-- 路径与导出：原有能力一个不丢，收在关于卡下面 -->
+              <Border Classes="card">
+                <StackPanel Spacing="12">
+                  <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                    <TextBlock Text="数据目录" Classes="muted" VerticalAlignment="Top" Margin="0,9,0,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding DataDirectory}" Classes="mono" TextWrapping="Wrap" />
 
-                <StackPanel Spacing="8">
-                  <TextBlock Text="配置迁移" FontWeight="SemiBold" />
-                  <TextBlock Text="导出收藏、服务器列表与可迁移的设置（主题 / 外观 / 下载 / JVM 预设）。包内不含账户、令牌、日志与崩溃报告。"
-                             Classes="muted"
-                             TextWrapping="Wrap"
-                             LineHeight="20" />
+                    <TextBlock Grid.Row="1" Text="日志文件" Classes="muted" VerticalAlignment="Top" Margin="0,9,0,0" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LogFilePath}" Classes="mono" TextWrapping="Wrap" />
+                  </Grid>
 
                   <WrapPanel Orientation="Horizontal">
-                    <Button Classes="pill"
-                            Content="导出配置"
-                            Margin="0,0,8,8"
-                            IsEnabled="{Binding CanTransfer}"
-                            Click="OnExportBundleClick"
-                            ToolTip.Tip="选择目录后生成 nebula-profile 时间戳.zip" />
-                    <Button Classes="pill"
-                            Content="导入配置"
-                            Margin="0,0,8,8"
-                            IsEnabled="{Binding CanTransfer}"
-                            Click="OnImportBundleClick"
-                            ToolTip.Tip="选择 nebula-profile-*.zip；服务器与收藏按地址 / 版本名合并，不删现有条目" />
+                    <Button Classes="pill" Content="打开数据目录" Margin="0,0,8,8" Command="{Binding OpenDataFolderCommand}" />
+                    <Button Classes="pill" Content="打开日志" Margin="0,0,8,8" Command="{Binding OpenLogFolderCommand}" />
+                    <Button Classes="pill" Content="复制日志路径" Margin="0,0,8,8" Command="{Binding CopyLogPathCommand}" />
+                    <Button Classes="pill" Content="复制诊断信息" Margin="0,0,8,8" Command="{Binding CopyDiagnosticsCommand}" />
                   </WrapPanel>
 
-                  <CheckBox IsChecked="{Binding ImportSettingsWithBundle}"
-                            Content="导入时一并应用设置（主题 / 外观 / 下载 / JVM 预设）"
-                            IsEnabled="{Binding CanTransfer}" />
-                </StackPanel>
+                  <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-                <TextBlock Text="{Binding ActionMessage}"
-                           IsVisible="{Binding ActionMessage, Converter={x:Static conv:Converters.HasValue}}"
-                           Classes="muted"
-                           TextWrapping="Wrap" />
-              </StackPanel>
-            </Border>
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="配置迁移" FontWeight="SemiBold" />
+                    <TextBlock Text="导出收藏、服务器列表与可迁移的设置（主题 / 外观 / 下载 / JVM 预设）。包内不含账户、令牌、日志与崩溃报告。"
+                               Classes="muted"
+                               TextWrapping="Wrap"
+                               LineHeight="20" />
+
+                    <WrapPanel Orientation="Horizontal">
+                      <Button Classes="pill"
+                              Content="导出配置"
+                              Margin="0,0,8,8"
+                              IsEnabled="{Binding CanTransfer}"
+                              Click="OnExportBundleClick"
+                              ToolTip.Tip="选择目录后生成 nebula-profile 时间戳.zip" />
+                      <Button Classes="pill"
+                              Content="导入配置"
+                              Margin="0,0,8,8"
+                              IsEnabled="{Binding CanTransfer}"
+                              Click="OnImportBundleClick"
+                              ToolTip.Tip="选择 nebula-profile-*.zip；服务器与收藏按地址 / 版本名合并，不删现有条目" />
+                    </WrapPanel>
+
+                    <CheckBox IsChecked="{Binding ImportSettingsWithBundle}"
+                              Content="导入时一并应用设置（主题 / 外观 / 下载 / JVM 预设）"
+                              IsEnabled="{Binding CanTransfer}" />
+                  </StackPanel>
+
+                  <TextBlock Text="{Binding ActionMessage}"
+                             IsVisible="{Binding ActionMessage, Converter={x:Static conv:Converters.HasValue}}"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <!-- 二级视图：日志 / 帮助在同一分区内替换，不新增页面键 -->
+            <Panel IsVisible="{Binding IsSubViewOpen}" MinHeight="420">
+              <Panel IsVisible="{Binding IsLogsSubView}">
+                <views:LogsView DataContext="{Binding Logs}" />
+              </Panel>
+              <Panel IsVisible="{Binding IsHelpSubView}">
+                <views:HelpView DataContext="{Binding Help}" />
+              </Panel>
+            </Panel>
           </StackPanel>
 
         </StackPanel>
