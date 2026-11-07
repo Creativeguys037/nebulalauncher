@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -16,8 +17,13 @@ namespace NebulaLauncher.Controls;
 ///
 /// 为什么不是 CSS 的 backdrop-filter：Avalonia 11.3 的 <see cref="BlurEffect"/> 只作用于
 /// 元素自身的绘制结果，读不到背后兄弟控件的像素。所以这里把页面背景当作 <see cref="Backdrop"/>
-/// 传进来，用 <see cref="VisualBrush"/> 在卡片坐标系里重画同一块背景，再模糊副本。
-/// 这样玻璃里透出的就是「卡片所在位置的那块背景」，不是凭空的一层半透明色。
+/// 传进来，把它渲染到 <see cref="RenderTargetBitmap"/>，在卡片坐标系里裁出同一块背景，
+/// 做完色彩增强再模糊。这样玻璃里透出的就是「卡片所在位置的那块背景」，不是凭空的一层半透明色。
+///
+/// 玻璃泛光（票 #105）：样张 .glass::after 是
+/// <c>filter: blur(26px) saturate(190%) brightness(1.04)</c>——背景色块在玻璃里变亮变艳。
+/// Avalonia 的 <see cref="BlurEffect"/> 没有饱和度参数，所以在位图上用 CSS 标准饱和度矩阵
+/// 做等价的 <c>saturate(190%) brightness(1.04)</c>，blur 仍由 <see cref="BlurEffect"/> 承担。
 ///
 /// 命中测试：副本层与色调层都 <c>IsHitTestVisible=false</c>，文字与描边全部在内容层，
 /// 所以点击永远落在内容上，不会被副本吃掉。
@@ -32,13 +38,40 @@ public class GlassPanel : ContentControl
     public static readonly StyledProperty<IBrush?> TintProperty =
         AvaloniaProperty.Register<GlassPanel, IBrush?>(nameof(Tint));
 
-    /// <summary>副本层模糊半径。Avalonia 的 Radius 与 CSS blur 不是同一标度，按视觉调。</summary>
+    /// <summary>
+    /// 副本层模糊半径。Avalonia 的 Radius 与 CSS blur 不是同一标度：样张 blur(26px) 在浏览器里
+    /// 色块几乎晕成色晕，Avalonia 同值还能看出圆边，所以按视觉放大到 36。
+    /// </summary>
     public static readonly StyledProperty<double> BlurRadiusProperty =
-        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 26d);
+        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 120d);
+
+    /// <summary>
+    /// 背景副本的外扩边距：模糊会把副本边缘抹淡，向外扩 48px 让淡出发生在卡片之外、
+    /// 被 PART_Clip 裁掉——等价样张 .glass::after 的 <c>inset:-48px</c>。
+    /// </summary>
+    private const double CopyPad = 48d;
+
+    /// <summary>样张 .glass::after 的 <c>saturate(190%)</c>。</summary>
+    private const float SaturateAmount = 1.9f;
+
+    /// <summary>样张 .glass::after 的 <c>brightness(1.04)</c>。</summary>
+    private const float BrightnessAmount = 1.04f;
+
+    /// <summary>
+    /// 背景原始快照（未增强）：整棵背景树只渲染一次，所有玻璃卡片共用。
+    /// 背景动画 36 秒才漂移 0.6% 宽度，快照 300ms 的新鲜度足够跟上肉眼。
+    /// </summary>
+    private static RenderTargetBitmap? _snapshot;
+    private static Visual? _snapshotSource;
+    private static PixelSize _snapshotSize;
+    private static DateTime _snapshotAtUtc;
+    private static readonly TimeSpan SnapshotTtl = TimeSpan.FromMilliseconds(300);
 
     private Rectangle? _copy;
-    private Visual? _lastBackdrop;
     private Control? _resolvedBackdrop;
+    private Visual? _copySource;
+    private Rect _copyRegion;
+    private bool _copyValid;
 
     static GlassPanel()
     {
@@ -48,15 +81,18 @@ public class GlassPanel : ContentControl
         {
             // 显式 Backdrop 换了以后，之前自动解析的缓存不能留着。
             panel._resolvedBackdrop = null;
-            panel._lastBackdrop = null;
+            panel._copySource = null;
+            panel._copyValid = false;
         });
     }
 
     public GlassPanel()
     {
         LayoutUpdated += (_, _) => UpdateCopy();
-        // 滚动只改变有效视口、不触发布局；背景副本必须跟着滚动重取 SourceRect，否则会错位。
+        // 滚动只改变有效视口、不触发布局；背景副本必须跟着滚动重取裁剪区域，否则会错位。
         EffectiveViewportChanged += (_, _) => UpdateCopy();
+        // 主题切换换掉的是 Brush 值，不触发布局；主动让快照失效，下次更新重建副本。
+        ActualThemeVariantChanged += (_, _) => _copyValid = false;
     }
 
     public Control? Backdrop
@@ -81,7 +117,8 @@ public class GlassPanel : ContentControl
     {
         base.OnApplyTemplate(e);
         _copy = e.NameScope.Find<Rectangle>("PART_Copy");
-        _lastBackdrop = null;
+        _copySource = null;
+        _copyValid = false;
         UpdateBlur();
         UpdateCopy();
     }
@@ -103,11 +140,9 @@ public class GlassPanel : ContentControl
 
     /// <summary>
     /// 副本的坐标必须跟随卡片位置与窗口尺寸：每次布局更新都重新取卡片左上角在背景坐标系里的位置，
-    /// 用它作为 VisualBrush 的 SourceRect。否则窗口缩放或滚动后玻璃会错位（票 #84 的边界条款）。
+    /// 用它决定从背景快照里裁哪一块。否则窗口缩放或滚动后玻璃会错位（票 #84 的边界条款）。
     ///
-    /// 玻璃泛光：样张 .glass::after 有 <c>saturate(190%) brightness(1.04)</c>——
-    /// 让背景色块在玻璃里变亮变艳。Avalonia 的 BlurEffect 没有饱和度参数，
-    /// 所以把背景渲染到 RenderTargetBitmap 后做像素级饱和度增强，再作为模糊副本的填充。
+    /// 副本区域向外扩 <see cref="CopyPad"/>：模糊把边缘抹淡的部分落在卡片之外，被圆角裁剪吃掉。
     /// </summary>
     private void UpdateCopy()
     {
@@ -120,7 +155,8 @@ public class GlassPanel : ContentControl
         if (backdrop is null)
         {
             _copy.Fill = Background;
-            _lastBackdrop = null;
+            _copySource = null;
+            _copyValid = false;
             return;
         }
 
@@ -130,24 +166,50 @@ public class GlassPanel : ContentControl
             return;
         }
 
-        // 背景控件换了、或 Fill 还不是 VisualBrush，就重挂一次；否则只更新 SourceRect。
-        if (!ReferenceEquals(_lastBackdrop, backdrop) || _copy.Fill is not VisualBrush)
+        // 副本区域（背景坐标系）：卡片向外扩 CopyPad，再与背景范围求交——
+        // 靠窗口边缘的卡片裁出的是有效交集，不足的部分本来就在窗口外。
+        var want = new Rect(
+            origin.Value.X - CopyPad,
+            origin.Value.Y - CopyPad,
+            Bounds.Width + (CopyPad * 2),
+            Bounds.Height + (CopyPad * 2));
+        var region = want.Intersect(new Rect(backdrop.Bounds.Size));
+        if (region.Width <= 1 || region.Height <= 1)
         {
-            _copy.Fill = new VisualBrush(backdrop)
-            {
-                Stretch = Stretch.None,
-                AlignmentX = AlignmentX.Left,
-                AlignmentY = AlignmentY.Top,
-                TileMode = TileMode.None,
-            };
-            _lastBackdrop = backdrop;
+            return;
         }
 
-        if (_copy.Fill is VisualBrush brush)
+        // 卡片没动、快照还新鲜就不用重做；滚动、缩放、主题切换都会走到重建。
+        if (_copyValid
+            && ReferenceEquals(_copySource, backdrop)
+            && _copyRegion == region
+            && DateTime.UtcNow - _snapshotAtUtc < SnapshotTtl)
         {
-            brush.SourceRect = new RelativeRect(
-                origin.Value.X, origin.Value.Y, Bounds.Width, Bounds.Height, RelativeUnit.Absolute);
+            return;
         }
+
+        var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1d;
+        var bitmap = RenderSaturatedCopy(backdrop, region, scaling);
+        if (bitmap is null)
+        {
+            return;
+        }
+
+        // 副本矩形对齐到交集区域在卡片坐标系里的位置（Canvas 定位，不参与父测量）。
+        Canvas.SetLeft(_copy, region.X - origin.Value.X);
+        Canvas.SetTop(_copy, region.Y - origin.Value.Y);
+        _copy.Width = region.Width;
+        _copy.Height = region.Height;
+        _copy.Fill = new ImageBrush(bitmap)
+        {
+            Stretch = Stretch.Fill,
+            AlignmentX = AlignmentX.Left,
+            AlignmentY = AlignmentY.Top,
+        };
+
+        _copySource = backdrop;
+        _copyRegion = region;
+        _copyValid = true;
     }
 
     /// <summary>
@@ -179,94 +241,119 @@ public class GlassPanel : ContentControl
     }
 
     /// <summary>
-    /// 玻璃泛光核心：把背景渲染到 RenderTargetBitmap，做像素级
-    /// <c>saturate(190%) brightness(1.04)</c> 增强——让背景色块在玻璃里变亮变艳。
+    /// 玻璃泛光核心：把背景快照裁出本卡片的区域，做 CSS 标准饱和度矩阵
+    /// <c>saturate(190%) brightness(1.04)</c>——让背景色块在玻璃里变亮变艳。
     /// 这就是样张 .glass::after 的 <c>filter: blur(26px) saturate(190%) brightness(1.04)</c>
     /// 中 saturate + brightness 的等价物（blur 由 BlurEffect 单独处理）。
-    /// 预算无限不怕性能：每帧做一次像素级 HSL 变换。
     /// </summary>
-    private Bitmap? RenderSaturatedBackdrop(Visual backdrop, int width, int height)
+    private static WriteableBitmap? RenderSaturatedCopy(Visual backdrop, Rect regionDip, double scaling)
     {
-        if (width <= 0 || height <= 0)
+        var snapshot = GetSnapshot(backdrop, scaling);
+        if (snapshot is null)
         {
             return null;
         }
 
-        var rtb = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96, 96));
-        rtb.Render(backdrop);
+        // DIP → 像素，再与快照范围求交（round 误差兜底）。
+        var rect = new PixelRect(
+            (int)Math.Round(regionDip.X * scaling),
+            (int)Math.Round(regionDip.Y * scaling),
+            Math.Max(1, (int)Math.Round(regionDip.Width * scaling)),
+            Math.Max(1, (int)Math.Round(regionDip.Height * scaling)));
+        rect = rect.Intersect(new PixelRect(0, 0, snapshot.PixelSize.Width, snapshot.PixelSize.Height));
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return null;
+        }
 
-        // 用 Marshal 做像素级处理（不用 unsafe）
-        var result = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96));
-        var srcPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(width * height * 4);
+        var buffer = new byte[rect.Width * rect.Height * 4];
+        var handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
         try
         {
-            rtb.CopyPixels(new PixelRect(0, 0, width, height), srcPtr, width * 4, 0);
-
-            using var fb = result.Lock();
-            var dstPtr = fb.Address;
-            var len = width * height * 4;
-
-            for (var i = 0; i < len; i += 4)
-            {
-                var b = System.Runtime.InteropServices.Marshal.ReadByte(srcPtr, i) / 255f;
-                var g = System.Runtime.InteropServices.Marshal.ReadByte(srcPtr, i + 1) / 255f;
-                var r = System.Runtime.InteropServices.Marshal.ReadByte(srcPtr, i + 2) / 255f;
-
-                // RGB → HSL
-                var max = MathF.Max(r, MathF.Max(g, b));
-                var min = MathF.Min(r, MathF.Min(g, b));
-                var l = (max + min) / 2f;
-                float h, s;
-                if (MathF.Abs(max - min) < 0.0001f)
-                {
-                    h = 0; s = 0;
-                }
-                else
-                {
-                    var d = max - min;
-                    s = l > 0.5f ? d / (2f - max - min) : d / (max + min);
-                    if (MathF.Abs(max - r) < 0.0001f) h = (g - b) / d + (g < b ? 6f : 0f);
-                    else if (MathF.Abs(max - g) < 0.0001f) h = (b - r) / d + 2f;
-                    else h = (r - g) / d + 4f;
-                    h /= 6f;
-                }
-
-                s = MathF.Min(s * 1.9f, 1f);
-                l = MathF.Min(l * 1.04f, 1f);
-
-                if (s < 0.0001f)
-                {
-                    r = g = b = l;
-                }
-                else
-                {
-                    var q = l < 0.5f ? l * (1 + s) : l + s - l * s;
-                    var p = 2 * l - q;
-                    r = HueToRgb(p, q, h + 1f / 3f);
-                    g = HueToRgb(p, q, h);
-                    b = HueToRgb(p, q, h - 1f / 3f);
-                }
-
-                System.Runtime.InteropServices.Marshal.WriteByte(dstPtr, i, (byte)Math.Clamp((int)(b * 255), 0, 255));
-                System.Runtime.InteropServices.Marshal.WriteByte(dstPtr, i + 1, (byte)Math.Clamp((int)(g * 255), 0, 255));
-                System.Runtime.InteropServices.Marshal.WriteByte(dstPtr, i + 2, (byte)Math.Clamp((int)(r * 255), 0, 255));
-            }
+            // CopyPixels(源矩形, 缓冲区, 缓冲区字节数, 行距)：行距是每行 Width*4 字节。
+            snapshot.CopyPixels(rect, handle.AddrOfPinnedObject(), buffer.Length, rect.Width * 4);
         }
         finally
         {
-            System.Runtime.InteropServices.Marshal.FreeHGlobal(srcPtr);
+            handle.Free();
         }
 
-        return result;
+        ApplySaturateBrightness(buffer);
+
+        var bitmap = new WriteableBitmap(
+            new PixelSize(rect.Width, rect.Height), new Vector(96 * scaling, 96 * scaling));
+        using var fb = bitmap.Lock();
+        Marshal.Copy(buffer, 0, fb.Address, buffer.Length);
+        return bitmap;
     }
 
-    private static float HueToRgb(float p, float q, float t)
+    /// <summary>
+    /// 背景原始快照：整棵背景树渲染一次，300ms 内所有卡片共用。
+    /// 背景动画（36 秒漂移 0.6% 宽度）在这个新鲜度内位移不到 1px，看不出副本滞后。
+    /// </summary>
+    private static RenderTargetBitmap? GetSnapshot(Visual backdrop, double scaling)
     {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1f / 6f) return p + (q - p) * 6f * t;
-        if (t < 1f / 2f) return q;
-        if (t < 2f / 3f) return p + (q - p) * (2f / 3f - t) * 6f;
-        return p;
+        var dip = backdrop.Bounds.Size;
+        if (dip.Width <= 0 || dip.Height <= 0)
+        {
+            return null;
+        }
+
+        var size = new PixelSize(
+            Math.Max(1, (int)Math.Round(dip.Width * scaling)),
+            Math.Max(1, (int)Math.Round(dip.Height * scaling)));
+
+        if (_snapshot is not null
+            && ReferenceEquals(_snapshotSource, backdrop)
+            && _snapshotSize == size
+            && DateTime.UtcNow - _snapshotAtUtc < SnapshotTtl)
+        {
+            return _snapshot;
+        }
+
+        var rtb = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling));
+        rtb.Render(backdrop);
+        _snapshot = rtb;
+        _snapshotSource = backdrop;
+        _snapshotSize = size;
+        _snapshotAtUtc = DateTime.UtcNow;
+        return rtb;
+    }
+
+    /// <summary>
+    /// CSS filter 的 saturate 与 brightness 就是线性矩阵：
+    /// <c>saturate(s)</c> 按 Rec.709 亮度混合通道，<c>brightness(b)</c> 整体乘 b。
+    /// 两个矩阵相乘后逐像素套用，通道序是 BGRA。
+    /// </summary>
+    private static void ApplySaturateBrightness(byte[] bgra)
+    {
+        const float s = SaturateAmount;
+        const float b = BrightnessAmount;
+
+        var m00 = (0.213f + (0.787f * s)) * b;
+        var m01 = (0.715f - (0.715f * s)) * b;
+        var m02 = (0.072f - (0.072f * s)) * b;
+        var m10 = (0.213f - (0.213f * s)) * b;
+        var m11 = (0.715f + (0.285f * s)) * b;
+        var m12 = (0.072f - (0.072f * s)) * b;
+        var m20 = (0.213f - (0.213f * s)) * b;
+        var m21 = (0.715f - (0.715f * s)) * b;
+        var m22 = (0.072f + (0.928f * s)) * b;
+
+        for (var i = 0; i < bgra.Length; i += 4)
+        {
+            var bb = bgra[i] / 255f;
+            var gg = bgra[i + 1] / 255f;
+            var rr = bgra[i + 2] / 255f;
+
+            var nr = (m00 * rr) + (m01 * gg) + (m02 * bb);
+            var ng = (m10 * rr) + (m11 * gg) + (m12 * bb);
+            var nb = (m20 * rr) + (m21 * gg) + (m22 * bb);
+
+            bgra[i] = (byte)Math.Clamp((int)((nb * 255f) + 0.5f), 0, 255);
+            bgra[i + 1] = (byte)Math.Clamp((int)((ng * 255f) + 0.5f), 0, 255);
+            bgra[i + 2] = (byte)Math.Clamp((int)((nr * 255f) + 0.5f), 0, 255);
+        }
     }
 }
+

@@ -29,10 +29,13 @@
                   CornerRadius="{TemplateBinding CornerRadius}"
                   ClipToBounds="True">
             <Panel x:Name="PART_CopyLayer">
-              <!-- 模糊背景副本：玻璃主体（BlurEffect 由代码设）。 -->
-              <Rectangle x:Name="PART_Copy"
-                         Fill="{TemplateBinding Background}"
-                         IsHitTestVisible="False" />
+              <!-- 模糊背景副本：玻璃主体（BlurEffect 由代码设）。
+                   Canvas 定位：副本带外扩边距与显式尺寸，不能参与父测量，否则会把卡片撑大。 -->
+              <Canvas IsHitTestVisible="False">
+                <Rectangle x:Name="PART_Copy"
+                           Fill="{TemplateBinding Background}"
+                           IsHitTestVisible="False" />
+              </Canvas>
               <!-- 发光晕开：DropShadowEffect 让背景色块向外辐射光，模拟
                    CSS saturate(190%) brightness(1.04) 的泛光效果。 -->
               <Border Background="{DynamicResource Glass.Bloom}" IsHitTestVisible="False" />

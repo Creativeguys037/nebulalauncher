@@ -52,6 +52,21 @@ public class GlassBackdrop : Control
     public static readonly StyledProperty<IBrush?> Haze3Property =
         AvaloniaProperty.Register<GlassBackdrop, IBrush?>(nameof(Haze3));
 
+    /// <summary>
+    /// --bg-layers 的第一层大 radial（560×400 @ 10%,4%）：画在色块之下、linear 之上。
+    /// 样张里 body 背景与 body::before 各画一遍同一组大雾，这里 Glow 组就是 body 背景那遍。
+    /// </summary>
+    public static readonly StyledProperty<IBrush?> Glow1Property =
+        AvaloniaProperty.Register<GlassBackdrop, IBrush?>(nameof(Glow1));
+
+    /// <summary>--bg-layers 第二层大 radial（480×360 @ 92%,10%）。</summary>
+    public static readonly StyledProperty<IBrush?> Glow2Property =
+        AvaloniaProperty.Register<GlassBackdrop, IBrush?>(nameof(Glow2));
+
+    /// <summary>--bg-layers 第三层大 radial（680×440 @ 76%,100%）。</summary>
+    public static readonly StyledProperty<IBrush?> Glow3Property =
+        AvaloniaProperty.Register<GlassBackdrop, IBrush?>(nameof(Glow3));
+
     /// <summary>左下白雾（360×280 @ 30%,74%，白 95%）：样板里它把「最近实例」压亮。</summary>
     public static readonly StyledProperty<IBrush?> Haze4Property =
         AvaloniaProperty.Register<GlassBackdrop, IBrush?>(nameof(Haze4));
@@ -81,6 +96,7 @@ public class GlassBackdrop : Control
         AffectsRender<GlassBackdrop>(
             BackgroundProperty, Blob1Property, Blob2Property, Blob3Property,
             Haze1Property, Haze2Property, Haze3Property, Haze4Property, Haze5Property,
+            Glow1Property, Glow2Property, Glow3Property,
             GridProperty, GridMaskProperty, IsAnimatedProperty);
     }
 
@@ -142,6 +158,27 @@ public class GlassBackdrop : Control
     {
         get => GetValue(Haze3Property);
         set => SetValue(Haze3Property, value);
+    }
+
+    /// <summary>--bg-layers 第一层大 radial（色块之下）。</summary>
+    public IBrush? Glow1
+    {
+        get => GetValue(Glow1Property);
+        set => SetValue(Glow1Property, value);
+    }
+
+    /// <summary>--bg-layers 第二层大 radial。</summary>
+    public IBrush? Glow2
+    {
+        get => GetValue(Glow2Property);
+        set => SetValue(Glow2Property, value);
+    }
+
+    /// <summary>--bg-layers 第三层大 radial。</summary>
+    public IBrush? Glow3
+    {
+        get => GetValue(Glow3Property);
+        set => SetValue(Glow3Property, value);
     }
 
     /// <summary>左下白雾。</summary>
@@ -213,18 +250,25 @@ public class GlassBackdrop : Control
             context.FillRectangle(background, new Rect(size));
         }
 
-        // 2 · body::before 的五层径向雾，从底到顶（样张里列表靠前的在最上层，所以这里反着画）。
+        // 2 · --bg-layers 的三层大 radial（全强度），从底到顶：C → B → A。
+        //     样张 body 背景里这三层在色块之下，body::before 又以 55% 画了一遍（见第 4 步）。
+        DrawHaze(context, Glow3, size, 0.76, 1.00, 680d / RefWidth, 440d / RefHeight);
+        DrawHaze(context, Glow2, size, 0.92, 0.10, 480d / RefWidth, 360d / RefHeight);
+        DrawHaze(context, Glow1, size, 0.10, 0.04, 560d / RefWidth, 400d / RefHeight);
+
+        // 3 · 三个色块小圆（还是从底到顶：250 → 1090 → 545）。
+        var drift = IsAnimated ? Math.Sin(_phase * Math.PI * 2) * size.Width * 0.006 : 0;
+        DrawBlob(context, Blob3, size, 0.20, 0.80, 0.097, drift * 0.6);
+        DrawBlob(context, Blob2, size, 0.88, 0.54, 0.133, -drift);
+        DrawBlob(context, Blob1, size, 0.44, 0.27, 0.170, drift);
+
+        // 4 · body::before 的五层径向雾（样张整体 opacity .55，色值已折算），
+        //     罩在色块之上——样张里色块就是被这层雾罩柔的。
         DrawHaze(context, Haze5, size, 0.52, 0.46, 300d / RefWidth, 240d / RefHeight);
         DrawHaze(context, Haze4, size, 0.30, 0.74, 360d / RefWidth, 280d / RefHeight);
         DrawHaze(context, Haze3, size, 0.76, 1.00, 680d / RefWidth, 440d / RefHeight);
         DrawHaze(context, Haze2, size, 0.92, 0.10, 480d / RefWidth, 360d / RefHeight);
         DrawHaze(context, Haze1, size, 0.10, 0.04, 560d / RefWidth, 400d / RefHeight);
-
-        // 3 · 三个硬边小圆（还是从底到顶：250 → 1090 → 545）。
-        var drift = IsAnimated ? Math.Sin(_phase * Math.PI * 2) * size.Width * 0.006 : 0;
-        DrawBlob(context, Blob3, size, 0.20, 0.80, 0.097, drift * 0.6);
-        DrawBlob(context, Blob2, size, 0.88, 0.54, 0.133, -drift);
-        DrawBlob(context, Blob1, size, 0.44, 0.27, 0.170, drift);
 
         // 4 · 40px 网格（body::after），径向遮罩淡出。
         DrawGrid(context, size);
@@ -249,27 +293,17 @@ public class GlassBackdrop : Control
         var rx = radiusX * size.Width;
         var ry = radiusY * size.Height;
 
-        // 光晕：更大范围的低透明度白，模拟雾向外辐射的光
-        var glow = new RadialGradientBrush
-        {
-            Center = new RelativePoint(50, 50, RelativeUnit.Relative),
-            GradientOrigin = new RelativePoint(50, 50, RelativeUnit.Relative),
-            RadiusX = new RelativeScalar(50, RelativeUnit.Relative),
-            RadiusY = new RelativeScalar(50, RelativeUnit.Relative),
-            GradientStops =
-            {
-                new GradientStop(Color.FromArgb(30, 255, 255, 255), 0),
-                new GradientStop(Color.FromArgb(12, 255, 255, 255), 0.5),
-                new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
-            },
-        };
-        context.DrawEllipse(glow, null, center, rx * 1.6, ry * 1.6);
-
-        // 核心雾层
+        // 雾层不做白色光晕：样张 body::before 就是纯色 radial 渐变，
+        // 白光晕会让背景整体发灰发白，玻璃透出来反而更闷（#105 复盘）。
         context.DrawEllipse(brush, null, center, rx, ry);
     }
 
-    /// <summary>画一个硬边色块 + 强光晕（色块发光并向外晕开，玻璃副本透出来就是「泛光」）。</summary>
+    /// <summary>
+    /// 画一个背景色块（样张 --bg-layers 的 circle 210px 小圆）：
+    /// 中心到 86% 实色，末段快速淡出——读得出圆形但边缘不硬。
+    /// 玻璃里的「发光晕开」不靠这里的白光晕，靠玻璃副本的
+    /// <c>saturate(190%) brightness(1.04)</c>（见 GlassPanel）。
+    /// </summary>
     private static void DrawBlob(
         DrawingContext context,
         IBrush? brush,
@@ -288,8 +322,19 @@ public class GlassBackdrop : Control
         var rx = radius * size.Width;
         var ry = radius * size.Width;
 
-        // 1) 外圈光晕：大范围低透明度，模拟光向外晕开
-        var glowOuter = new RadialGradientBrush
+        context.DrawEllipse(Soften(brush), null, center, rx, ry);
+    }
+
+    /// <summary>把纯色画笔改成「实色到边缘淡出」的径向渐变，复刻样张 circle 的 96%→100% 淡出。</summary>
+    private static IBrush Soften(IBrush brush)
+    {
+        if (brush is not SolidColorBrush solid)
+        {
+            return brush;
+        }
+
+        var c = solid.Color;
+        return new RadialGradientBrush
         {
             Center = new RelativePoint(50, 50, RelativeUnit.Relative),
             GradientOrigin = new RelativePoint(50, 50, RelativeUnit.Relative),
@@ -297,31 +342,12 @@ public class GlassBackdrop : Control
             RadiusY = new RelativeScalar(50, RelativeUnit.Relative),
             GradientStops =
             {
-                new GradientStop(Color.FromArgb(35, 255, 255, 255), 0),
-                new GradientStop(Color.FromArgb(15, 255, 255, 255), 0.45),
-                new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
+                new GradientStop(c, 0),
+                new GradientStop(c, 0.86),
+                new GradientStop(Color.FromArgb((byte)(c.A * 0.55), c.R, c.G, c.B), 0.95),
+                new GradientStop(Color.FromArgb(0, c.R, c.G, c.B), 1),
             },
         };
-        context.DrawEllipse(glowOuter, null, center, rx * 3.0, ry * 3.0);
-
-        // 2) 内圈光晕：中等范围，让色块边缘发光
-        var glowInner = new RadialGradientBrush
-        {
-            Center = new RelativePoint(50, 50, RelativeUnit.Relative),
-            GradientOrigin = new RelativePoint(50, 50, RelativeUnit.Relative),
-            RadiusX = new RelativeScalar(50, RelativeUnit.Relative),
-            RadiusY = new RelativeScalar(50, RelativeUnit.Relative),
-            GradientStops =
-            {
-                new GradientStop(Color.FromArgb(60, 255, 255, 255), 0),
-                new GradientStop(Color.FromArgb(25, 255, 255, 255), 0.5),
-                new GradientStop(Color.FromArgb(0, 255, 255, 255), 1),
-            },
-        };
-        context.DrawEllipse(glowInner, null, center, rx * 2.0, ry * 2.0);
-
-        // 3) 核心色块
-        context.DrawEllipse(brush, null, center, rx, ry);
     }
 
     /// <summary>
