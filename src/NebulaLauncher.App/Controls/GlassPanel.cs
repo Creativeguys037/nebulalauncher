@@ -39,17 +39,18 @@ public class GlassPanel : ContentControl
         AvaloniaProperty.Register<GlassPanel, IBrush?>(nameof(Tint));
 
     /// <summary>
-    /// 副本层模糊半径。Avalonia 的 Radius 与 CSS blur 不是同一标度：样张 blur(26px) 在浏览器里
-    /// 色块几乎晕成色晕，Avalonia 同值还能看出圆边，所以按视觉放大到 36。
+    /// 副本层模糊的高斯 σ。样张 .glass::after 是 <c>blur(26px)</c>（CSS blur 的参数就是 σ）。
+    /// 模糊做在副本位图里而不是 <see cref="Avalonia.Media.Effects.BlurEffect"/>：
+    /// RenderTargetBitmap 离屏渲染（tools/shot.ps1 的验证路径）不应用 Effect，截图里看不到模糊。
     /// </summary>
     public static readonly StyledProperty<double> BlurRadiusProperty =
-        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 120d);
+        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 26d);
 
     /// <summary>
-    /// 背景副本的外扩边距：模糊会把副本边缘抹淡，向外扩 48px 让淡出发生在卡片之外、
-    /// 被 PART_Clip 裁掉——等价样张 .glass::after 的 <c>inset:-48px</c>。
+    /// 背景副本的外扩边距：模糊的邻域支撑约 ±3σ，向外扩 80px 让模糊在卡片之外就有足够内容，
+    /// 边缘淡出被 PART_Clip 裁掉——等价样张 .glass::after 的 <c>inset:-48px</c>（略加大）。
     /// </summary>
-    private const double CopyPad = 48d;
+    private const double CopyPad = 80d;
 
     /// <summary>样张 .glass::after 的 <c>saturate(190%)</c>。</summary>
     private const float SaturateAmount = 1.9f;
@@ -76,7 +77,12 @@ public class GlassPanel : ContentControl
     static GlassPanel()
     {
         AffectsRender<GlassPanel>(BackdropProperty, TintProperty, BlurRadiusProperty);
-        BlurRadiusProperty.Changed.AddClassHandler<GlassPanel>((panel, _) => panel.UpdateBlur());
+        BlurRadiusProperty.Changed.AddClassHandler<GlassPanel>((panel, _) =>
+        {
+            // 模糊做在副本位图里，σ 变了要重新生成副本。
+            panel._copyValid = false;
+            panel.UpdateCopy();
+        });
         BackdropProperty.Changed.AddClassHandler<GlassPanel>((panel, _) =>
         {
             // 显式 Backdrop 换了以后，之前自动解析的缓存不能留着。
@@ -119,23 +125,7 @@ public class GlassPanel : ContentControl
         _copy = e.NameScope.Find<Rectangle>("PART_Copy");
         _copySource = null;
         _copyValid = false;
-        UpdateBlur();
         UpdateCopy();
-    }
-
-    /// <summary>
-    /// 模糊必须用代码设：<see cref="BlurEffect"/> 不是 <see cref="StyledElement"/>，
-    /// 模板里的 <c>{TemplateBinding BlurRadius}</c> 解析不到 TemplatedParent，Radius 会停在 0，
-    /// 玻璃就退化成「清晰背景副本 + 半透明色调」。
-    /// </summary>
-    private void UpdateBlur()
-    {
-        if (_copy is null)
-        {
-            return;
-        }
-
-        _copy.Effect = new BlurEffect { Radius = BlurRadius };
     }
 
     /// <summary>
@@ -189,7 +179,7 @@ public class GlassPanel : ContentControl
         }
 
         var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1d;
-        var bitmap = RenderSaturatedCopy(backdrop, region, scaling);
+        var bitmap = RenderSaturatedCopy(backdrop, region, scaling, BlurRadius);
         if (bitmap is null)
         {
             return;
@@ -241,12 +231,11 @@ public class GlassPanel : ContentControl
     }
 
     /// <summary>
-    /// 玻璃泛光核心：把背景快照裁出本卡片的区域，做 CSS 标准饱和度矩阵
-    /// <c>saturate(190%) brightness(1.04)</c>——让背景色块在玻璃里变亮变艳。
-    /// 这就是样张 .glass::after 的 <c>filter: blur(26px) saturate(190%) brightness(1.04)</c>
-    /// 中 saturate + brightness 的等价物（blur 由 BlurEffect 单独处理）。
+    /// 玻璃泛光核心：把背景快照裁出本卡片的区域，先模糊（样张 <c>blur(26px)</c>），
+    /// 再做 CSS 标准饱和度矩阵 <c>saturate(190%) brightness(1.04)</c>——
+    /// 背景色块在玻璃里晕开、变亮变艳，这就是样张 .glass::after 的 filter 链。
     /// </summary>
-    private static WriteableBitmap? RenderSaturatedCopy(Visual backdrop, Rect regionDip, double scaling)
+    private static WriteableBitmap? RenderSaturatedCopy(Visual backdrop, Rect regionDip, double scaling, double blurSigma)
     {
         var snapshot = GetSnapshot(backdrop, scaling);
         if (snapshot is null)
@@ -278,6 +267,8 @@ public class GlassPanel : ContentControl
             handle.Free();
         }
 
+        // 样张 filter 链的顺序：先 blur 再 saturate+brightness。
+        GaussianBlur(buffer, rect.Width, rect.Height, blurSigma);
         ApplySaturateBrightness(buffer);
 
         var bitmap = new WriteableBitmap(
@@ -318,6 +309,99 @@ public class GlassPanel : ContentControl
         _snapshotSize = size;
         _snapshotAtUtc = DateTime.UtcNow;
         return rtb;
+    }
+
+    /// <summary>
+    /// 高斯模糊：三次 box blur 近似（σ ≈ sqrt(3·(w²-1)/12)），采样越界时 clamp 延伸边缘像素，
+    /// 不会像透明填充那样产生暗边。模糊做在位图里而不是 BlurEffect——
+    /// RenderTargetBitmap 离屏渲染不应用 Effect，tools/shot.ps1 的截图会看不到模糊。
+    /// </summary>
+    private static void GaussianBlur(byte[] bgra, int width, int height, double sigma)
+    {
+        if (sigma <= 0.5 || width < 2 || height < 2)
+        {
+            return;
+        }
+
+        // 三次 box blur 的等效 σ = sqrt(3·(w²-1)/12)，反解 w。
+        var box = (int)Math.Round(Math.Sqrt((12 * sigma * sigma) / 3) + 1);
+        if (box % 2 == 0)
+        {
+            box++;
+        }
+
+        if (box < 3)
+        {
+            return;
+        }
+
+        var tmp = new byte[bgra.Length];
+        for (var pass = 0; pass < 3; pass++)
+        {
+            BoxBlurHorizontal(bgra, tmp, width, height, box);
+            BoxBlurVertical(tmp, bgra, width, height, box);
+        }
+    }
+
+    /// <summary>水平 box blur（滑动窗口求和，边缘 clamp）。只模糊 BGR，alpha 通道原样保留。</summary>
+    private static void BoxBlurHorizontal(byte[] src, byte[] dst, int width, int height, int box)
+    {
+        var r = box / 2;
+        for (var y = 0; y < height; y++)
+        {
+            var row = y * width * 4;
+            for (var c = 0; c < 3; c++)
+            {
+                var sum = 0;
+                for (var i = -r; i <= r; i++)
+                {
+                    sum += src[row + (Math.Clamp(i, 0, width - 1) * 4) + c];
+                }
+
+                for (var x = 0; x < width; x++)
+                {
+                    dst[row + (x * 4) + c] = (byte)((sum + (box / 2)) / box);
+                    sum += src[row + (Math.Clamp(x + r + 1, 0, width - 1) * 4) + c]
+                         - src[row + (Math.Clamp(x - r, 0, width - 1) * 4) + c];
+                }
+            }
+
+            for (var x = 0; x < width; x++)
+            {
+                dst[row + (x * 4) + 3] = src[row + (x * 4) + 3];
+            }
+        }
+    }
+
+    /// <summary>垂直 box blur（滑动窗口求和，边缘 clamp）。只模糊 BGR，alpha 通道原样保留。</summary>
+    private static void BoxBlurVertical(byte[] src, byte[] dst, int width, int height, int box)
+    {
+        var r = box / 2;
+        var stride = width * 4;
+        for (var x = 0; x < width; x++)
+        {
+            var col = x * 4;
+            for (var c = 0; c < 3; c++)
+            {
+                var sum = 0;
+                for (var i = -r; i <= r; i++)
+                {
+                    sum += src[(Math.Clamp(i, 0, height - 1) * stride) + col + c];
+                }
+
+                for (var y = 0; y < height; y++)
+                {
+                    dst[(y * stride) + col + c] = (byte)((sum + (box / 2)) / box);
+                    sum += src[(Math.Clamp(y + r + 1, 0, height - 1) * stride) + col + c]
+                         - src[(Math.Clamp(y - r, 0, height - 1) * stride) + col + c];
+                }
+            }
+
+            for (var y = 0; y < height; y++)
+            {
+                dst[(y * stride) + col + 3] = src[(y * stride) + col + 3];
+            }
+        }
     }
 
     /// <summary>
