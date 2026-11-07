@@ -505,15 +505,19 @@
                       <StackPanel Grid.Row="2" Spacing="3">
                         <TextBlock Text="{Binding Name}"
                                    Classes="card-name"
+                                   TextTrimming="CharacterEllipsis"
                                    ToolTip.Tip="{Binding Name}" />
                         <StackPanel Orientation="Horizontal" Spacing="7">
                           <TextBlock Text="{Binding MinecraftVersion}"
-                                     Classes="card-meta" />
+                                     Classes="card-meta"
+                                     TextTrimming="CharacterEllipsis" />
                           <TextBlock Text="{Binding LoaderDetail}"
-                                     Classes="card-meta" />
+                                     Classes="card-meta"
+                                     TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <TextBlock Text="{Binding LastPlayedText}"
-                                   Classes="card-meta" />
+                                   Classes="card-meta"
+                                   TextTrimming="CharacterEllipsis" />
                       </StackPanel>
                     </Grid>
                   </Border>
