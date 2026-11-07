@@ -44,7 +44,11 @@ public class AppShell_NavigationContractTests
     {
         Assert.Equal(NavigationKeys.Content, NavigationRoutes.Resolve(NavigationKeys.Mods));
         Assert.Equal(NavigationKeys.Content, NavigationRoutes.Resolve(NavigationKeys.Library));
-        Assert.Equal(NavigationKeys.Content, NavigationRoutes.Resolve(NavigationKeys.Skins));
+
+        // 皮肤不在这张表里（#92）：它有独立页面（来源 Tab + 网格 + 固定 300 预览列），
+        // 归一化到内容页会让 Navigate("skins") 落到模组页 —— 那正是 UI-STRUCTURE §11 D9 记的缺陷。
+        Assert.Equal(NavigationKeys.Skins, NavigationRoutes.Resolve(NavigationKeys.Skins));
+
         Assert.Equal(NavigationKeys.Versions, NavigationRoutes.Resolve(NavigationKeys.Worlds));
         Assert.Equal(NavigationKeys.Settings, NavigationRoutes.Resolve(NavigationKeys.Logs));
         Assert.Equal(NavigationKeys.Settings, NavigationRoutes.Resolve(NavigationKeys.Help));
@@ -55,7 +59,7 @@ public class AppShell_NavigationContractTests
     {
         var legacy = new[]
         {
-            NavigationKeys.Mods, NavigationKeys.Library, NavigationKeys.Skins,
+            NavigationKeys.Mods, NavigationKeys.Library,
             NavigationKeys.Worlds, NavigationKeys.Logs, NavigationKeys.Help,
         };
 

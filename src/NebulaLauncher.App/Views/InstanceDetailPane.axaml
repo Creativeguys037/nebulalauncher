@@ -3,8 +3,12 @@
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
              xmlns:controls="using:NebulaLauncher.Controls"
+             xmlns:primitives="using:Avalonia.Controls.Primitives"
+             xmlns:services="using:NebulaLauncher.Services"
              x:Class="NebulaLauncher.Views.InstanceDetailPane"
-             x:DataType="vm:VersionsViewModel">
+             x:DataType="vm:VersionsViewModel"
+             HorizontalContentAlignment="Stretch"
+             VerticalContentAlignment="Stretch">
 
   <UserControl.Styles>
     <!--
@@ -24,9 +28,25 @@
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <!-- 世界 / 整合包行的主名。行高 48 由容器给，这里只管字重与截断。 -->
+    <!-- 概览的键值行：键走三级文字色，值走等宽右对齐（对齐样板 .kv 的两列关系）。 -->
+    <Style Selector="TextBlock.kv-key">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.kv-value">
+      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+      <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- 世界 / 整合包行的主名与副行。行高 48 由容器给，这里只管字重与截断。 -->
     <Style Selector="TextBlock.section-row-title">
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="TextTrimming" Value="CharacterEllipsis" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -38,10 +58,59 @@
       <Setter Property="TextTrimming" Value="CharacterEllipsis" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+
+    <!--
+      实例列表行（样板 .row）：默认透明，悬停浮出白膜，选中蓝 10% + 左侧 3px 蓝条。
+      行高 48 与行间距 4 来自样板 instance-detail-glass 的 .worldrow。
+    -->
+    <Style Selector="Border.wrow">
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <Style Selector="Border.wrow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+
+    <Style Selector="Border.wrow.selected">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!-- 详情列的页签条：40 高、三片等分、圆角 12 的底槽，选中片蓝底白字（样板 .dtabs）。 -->
+    <Style Selector="TabControl.dtabs /template/ Border#PART_TabStrip">
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Padding" Value="3" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
+    <Style Selector="TabControl.dtabs TabItem">
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TabControl.dtabs TabItem /template/ Border#PART_LayoutRoot">
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
   </UserControl.Styles>
 
   <!--
-    实例详情（票 #88 概览 + 票 #89 世界与整合包）。
+    实例详情（票 #88 概览 + 票 #89 世界与整合包；视觉按 instance-detail-glass 样板对齐）。
 
     ## 三个同级分区，不是三张卡叠起来
     身份头固定在最上（72），分区页签固定在它下面（40），只有分区内容框滚动。
@@ -74,16 +143,18 @@
 
     <Grid Grid.Row="0"
           Height="72"
-          ColumnDefinitions="Auto,*"
-          ColumnSpacing="10"
+          ColumnDefinitions="Auto,*,Auto"
+          ColumnSpacing="12"
           IsVisible="{Binding Detail.HasInstance}">
       <Border Width="40" Height="40"
               CornerRadius="{DynamicResource Radius.Md}"
-              Background="{DynamicResource Accent.Soft}"
+              Background="{DynamicResource Gradient.Accent}"
+              BorderBrush="{DynamicResource Glass.Edge}"
+              BorderThickness="1"
               VerticalAlignment="Center">
         <Path Data="{Binding Detail.Row.IconGeometry}"
-              Stroke="{DynamicResource Accent.Primary}"
-              StrokeThickness="1.5"
+              Stroke="{DynamicResource Text.OnAccent}"
+              StrokeThickness="1.6"
               StrokeLineCap="Round"
               StrokeJoin="Round"
               Stretch="Uniform"
@@ -94,25 +165,37 @@
 
       <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
         <TextBlock Text="{Binding Detail.Row.Name}"
-                   FontSize="{DynamicResource FontSize.Subtitle}"
+                   FontSize="{DynamicResource FontSize.BodyLg}"
                    FontWeight="SemiBold"
                    TextTrimming="CharacterEllipsis" />
 
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Text="{Binding Detail.Row.VersionAndLoaderText}"
-                     FontSize="{DynamicResource FontSize.Caption}"
-                     Foreground="{DynamicResource Text.Secondary}"
-                     TextTrimming="CharacterEllipsis"
-                     VerticalAlignment="Center"
-                     MaxWidth="176" />
-          <Border Classes="badge info"
-                  Padding="6,1"
-                  VerticalAlignment="Center"
-                  IsVisible="{Binding Detail.Row.IsRunningNow}">
-            <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
-          </Border>
-        </StackPanel>
+        <TextBlock Text="{Binding Detail.Row.VersionAndLoaderText}"
+                   FontSize="{DynamicResource FontSize.Caption}"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   TextTrimming="CharacterEllipsis" />
       </StackPanel>
+
+      <!-- 运行状态：徽标固定在右上，不跟副行挤在一起（样板 .did 的 badge 位置）。 -->
+      <Border Grid.Column="2"
+              Classes="badge info"
+              Padding="8,1"
+              VerticalAlignment="Center"
+              IsVisible="{Binding Detail.Row.IsRunningNow}">
+        <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
+      </Border>
+      <Border Grid.Column="2"
+              Classes="badge"
+              Padding="8,1"
+              VerticalAlignment="Center"
+              IsVisible="{Binding !Detail.Row.IsRunningNow}">
+        <TextBlock Text="未运行" FontSize="{DynamicResource FontSize.Caption}" />
+      </Border>
+
+      <Border Grid.ColumnSpan="3"
+              Height="1"
+              VerticalAlignment="Bottom"
+              Background="{DynamicResource Stroke.Subtle}"
+              IsVisible="{Binding Detail.HasInstance}" />
     </Grid>
 
     <!-- ==================== Row1 分区（页签 + 内容框） ==================== -->
@@ -122,7 +205,15 @@
         页签条只切分区、不承担内容宿主：三个分区同时留在可视树里，
         切走再切回时筛选与滚动位置不丢（与版本页三视图同一做法，见 TabControl.strip 的注释）。
       -->
-      <TabControl Grid.Row="0" Classes="strip" SelectedIndex="{Binding DetailSectionIndex}">
+      <TabControl Grid.Row="0"
+                  Classes="strip dtabs"
+                  Height="40"
+                  SelectedIndex="{Binding DetailSectionIndex}">
+        <TabControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <primitives:UniformGrid Columns="3" />
+          </ItemsPanelTemplate>
+        </TabControl.ItemsPanel>
         <TabItem Header="概览" />
         <TabItem Header="世界" />
         <TabItem Header="整合包" />
@@ -138,100 +229,129 @@
       <!-- ========== 概览 ========== -->
       <controls:GlassPanel IsVisible="{Binding IsOverviewSection}" Padding="0">
           <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="16" Spacing="10">
+            <StackPanel Margin="8" Spacing="0">
 
-              <StackPanel Spacing="2">
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-                  <TextBlock Text="上次游玩" Classes="detail-meta" />
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding Detail.Row.LastPlayedText}"
-                             Classes="detail-meta"
-                             HorizontalAlignment="Right"
-                             TextTrimming="CharacterEllipsis" />
-                </Grid>
+              <!-- 键值行：31 高、行间 1px 分隔，与样板 .kv .r 同一节奏 -->
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Height="32">
+                <TextBlock Text="版本" Classes="kv-key" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Detail.Row.VersionText}"
+                           Classes="kv-value"
+                           ToolTip.Tip="{Binding Detail.Row.VersionText}" />
+              </Grid>
+              <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
-                  <TextBlock Text="目录" Classes="detail-meta" />
-                  <!--
-                    单行省略 + ToolTip 全文 + 复制按钮：用户要的是「能复制走」，
-                    在这里逐字读完全路径既不现实，折行还会把详情列撑高。
-                  -->
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding Detail.Row.GameDirectory}"
-                             Classes="detail-meta"
-                             HorizontalAlignment="Right"
-                             TextTrimming="CharacterEllipsis"
-                             ToolTip.Tip="{Binding Detail.Row.GameDirectory}" />
-                  <Button Grid.Column="2"
-                          Classes="ghost icon"
-                          Width="20" Height="20" MinHeight="20"
-                          Padding="0"
-                          VerticalAlignment="Center"
-                          ToolTip.Tip="复制游戏目录路径"
-                          Command="{Binding CopyInstancePathCommand}">
-                    <Path Data="{StaticResource Icon.Copy}"
-                          Stroke="{DynamicResource Text.Secondary}"
-                          StrokeThickness="1.6"
-                          StrokeLineCap="Round"
-                          StrokeJoin="Round"
-                          Stretch="Uniform"
-                          Width="12" Height="12"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Center" />
-                  </Button>
-                </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Height="32">
+                <TextBlock Text="加载器" Classes="kv-key" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Detail.Row.LoaderLabel}"
+                           Classes="kv-value" />
+              </Grid>
+              <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-                  <TextBlock Text="内存" Classes="detail-meta" />
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding Detail.Row.MemoryText}"
-                             Classes="detail-meta"
-                             HorizontalAlignment="Right"
-                             TextTrimming="CharacterEllipsis" />
-                </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Height="32">
+                <TextBlock Text="内存分配" Classes="kv-key" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Detail.Row.MemoryText}"
+                           Classes="kv-value" />
+              </Grid>
+              <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-                  <TextBlock Text="Java" Classes="detail-meta" />
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding Detail.Row.JavaText}"
-                             Classes="detail-meta"
-                             HorizontalAlignment="Right"
-                             TextTrimming="CharacterEllipsis"
-                             ToolTip.Tip="{Binding Detail.Row.JavaText}" />
-                </Grid>
-              </StackPanel>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Height="32">
+                <TextBlock Text="Java" Classes="kv-key" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Detail.Row.JavaText}"
+                           Classes="kv-value"
+                           ToolTip.Tip="{Binding Detail.Row.JavaText}" />
+              </Grid>
+              <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-              <Border Classes="divider" />
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Height="32">
+                <TextBlock Text="上次游玩" Classes="kv-key" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Detail.Row.LastPlayedText}"
+                           Classes="kv-value" />
+              </Grid>
+              <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
+
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Height="32">
+                <TextBlock Text="目录" Classes="kv-key" />
+                <!--
+                  单行省略 + ToolTip 全文 + 复制按钮：用户要的是「能复制走」，
+                  在这里逐字读完全路径既不现实，折行还会把详情列撑高。
+                -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Detail.Row.GameDirectory}"
+                           Classes="kv-value"
+                           ToolTip.Tip="{Binding Detail.Row.GameDirectory}" />
+                <Button Grid.Column="2"
+                        Classes="ghost icon"
+                        Width="20" Height="20" MinHeight="20"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="复制游戏目录路径"
+                        Command="{Binding CopyInstancePathCommand}">
+                  <Path Data="{StaticResource Icon.Copy}"
+                        Stroke="{DynamicResource Text.Secondary}"
+                        StrokeThickness="1.6"
+                        StrokeLineCap="Round"
+                        StrokeJoin="Round"
+                        Stretch="Uniform"
+                        Width="12" Height="12"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
+                </Button>
+              </Grid>
+
+              <Border Margin="0,12,0,0"
+                      Height="1"
+                      Background="{DynamicResource Stroke.Subtle}" />
+
+              <!-- 主行动：启动 + 打开目录（样板 vdetail 的 .dbtns，两个等宽按钮）。 -->
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,12,0,0">
+                <Button Classes="accent"
+                        Content="启动"
+                        Height="36"
+                        MinHeight="36"
+                        HorizontalAlignment="Stretch"
+                        IsEnabled="{Binding !IsInstanceBusy}"
+                        Command="{Binding LaunchVersionCommand}"
+                        CommandParameter="{Binding SelectedRow}" />
+                <Button Grid.Column="1"
+                        Classes="ghost"
+                        Content="打开目录"
+                        Height="36"
+                        MinHeight="36"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding OpenInstanceFolderCommand}"
+                        CommandParameter="{Binding Detail.Row}" />
+              </Grid>
 
               <!--
                 实例动作：从列表卡片搬到这里（卡片只保留选得出来的最少信息）。
                 参数一律是 Detail.Row——用户此刻正在看的那个实例，
                 与他刚从列表里点选的是同一个。
               -->
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Button Classes="pill"
+              <WrapPanel Orientation="Horizontal" Margin="0,8,0,4">
+                <Button Classes="ghost"
                         Content="设置"
-                        Padding="10,3" MinHeight="26"
-                        FontSize="{DynamicResource FontSize.Small}"
+                        MinHeight="30"
+                        Padding="12,0"
+                        Margin="0,0,6,0"
                         ToolTip.Tip="实例设置：内存、Java、JVM 参数、窗口与服务器"
                         Command="{Binding OpenInstanceEditorCommand}"
                         CommandParameter="{Binding Detail.Row}" />
-                <Button Classes="pill"
-                        Content="打开目录"
-                        Padding="10,3" MinHeight="26"
-                        FontSize="{DynamicResource FontSize.Small}"
-                        Command="{Binding OpenInstanceFolderCommand}"
-                        CommandParameter="{Binding Detail.Row}" />
                 <Button Classes="pill danger"
                         Content="停止"
-                        Padding="10,3" MinHeight="26"
-                        FontSize="{DynamicResource FontSize.Small}"
+                        MinHeight="30"
+                        Padding="12,0"
+                        Margin="0,0,6,0"
                         IsVisible="{Binding Detail.Row.IsSessionRunning}"
                         Command="{Binding StopGameCommand}"
                         CommandParameter="{Binding Detail.Row}" />
 
                 <Button Classes="ghost icon"
-                        Width="26" Height="26" MinHeight="26"
+                        Width="30" Height="30" MinHeight="30"
                         Padding="0"
                         ToolTip.Tip="更多：换加载器、克隆、重命名、图标、清理、备注、移入回收站">
                   <TextBlock Text="…" VerticalAlignment="Center" HorizontalAlignment="Center" />
@@ -264,7 +384,7 @@
                     </MenuFlyout>
                   </Button.Flyout>
                 </Button>
-              </StackPanel>
+              </WrapPanel>
             </StackPanel>
           </ScrollViewer>
       </controls:GlassPanel>
@@ -272,8 +392,8 @@
       <!-- ========== 世界 ========== -->
       <controls:GlassPanel IsVisible="{Binding IsWorldsSection}" Padding="0">
           <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="12"
-                        Spacing="8"
+            <StackPanel Margin="8"
+                        Spacing="4"
                         DataContext="{Binding WorldsSection}">
 
               <!-- 服务未接入（单测 / 设计器预览） -->
@@ -285,7 +405,7 @@
               </StackPanel>
 
               <!-- 加载态 -->
-              <StackPanel Spacing="8" IsVisible="{Binding IsLoading}">
+              <StackPanel Spacing="4" IsVisible="{Binding IsLoading}">
                 <Border Height="48" Classes="card" IsEnabled="False" />
                 <Border Height="48" Classes="card" IsEnabled="False" />
                 <Border Height="48" Classes="card" IsEnabled="False" />
@@ -321,7 +441,7 @@
               </StackPanel>
 
               <!-- 错误条 -->
-              <Border Classes="card"
+              <Border Classes="sunken"
                       Padding="10,6"
                       IsVisible="{Binding HasError}">
                 <TextBlock Text="{Binding ErrorText}"
@@ -331,7 +451,7 @@
               </Border>
 
               <!-- 结果条：可关闭，不用弹窗（契约规则 10） -->
-              <Border Classes="card"
+              <Border Classes="sunken"
                       Padding="10,6"
                       IsVisible="{Binding HasResult}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -357,23 +477,37 @@
                 </Grid>
               </Border>
 
-              <!-- 世界行 -->
+              <!-- 世界行：48 高、行间距 4、图标 32、右侧三个 30 方纽（样板 .worldrow） -->
               <ItemsControl ItemsSource="{Binding Worlds}" IsVisible="{Binding HasWorlds}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:WorldRowItem">
-                    <Border Classes="card"
-                            MinHeight="48"
-                            Padding="10,6"
-                            Margin="0,0,0,8">
+                    <Border Classes="wrow">
                       <StackPanel Spacing="6">
 
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                          <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                          <Border Width="32" Height="32"
+                                  CornerRadius="{DynamicResource Radius.Sm}"
+                                  Background="{DynamicResource Surface.Raised}"
+                                  BorderBrush="{DynamicResource Stroke.Subtle}"
+                                  BorderThickness="1"
+                                  VerticalAlignment="Center">
+                            <Path Data="{StaticResource Icon.World}"
+                                  Stroke="{DynamicResource Accent.Primary}"
+                                  StrokeThickness="1.6"
+                                  StrokeLineCap="Round"
+                                  StrokeJoin="Round"
+                                  Stretch="Uniform"
+                                  Width="15" Height="15"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                          </Border>
+
+                          <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Name}" Classes="section-row-title" />
                             <TextBlock Text="{Binding MetadataText}" Classes="section-row-meta" />
                           </StackPanel>
 
-                          <StackPanel Grid.Column="1"
+                          <StackPanel Grid.Column="2"
                                       Orientation="Horizontal"
                                       Spacing="4"
                                       VerticalAlignment="Center"
@@ -393,7 +527,7 @@
                               图标一律 Path + Stroke、描边色交给样式（CONVENTIONS §7.9）。
                             -->
                             <Button Classes="ghost icon"
-                                    Width="24" Height="24" MinHeight="24"
+                                    Width="30" Height="30" MinHeight="30"
                                     Padding="0"
                                     ToolTip.Tip="备份这个存档"
                                     Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).BackupWorldCommand}"
@@ -404,12 +538,12 @@
                                     StrokeLineCap="Round"
                                     StrokeJoin="Round"
                                     Stretch="Uniform"
-                                    Width="13" Height="13"
+                                    Width="15" Height="15"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center" />
                             </Button>
                             <Button Classes="ghost icon"
-                                    Width="24" Height="24" MinHeight="24"
+                                    Width="30" Height="30" MinHeight="30"
                                     Padding="0"
                                     IsEnabled="{Binding HasBackups}"
                                     ToolTip.Tip="从备份还原这个存档（会覆盖当前存档）"
@@ -421,12 +555,12 @@
                                     StrokeLineCap="Round"
                                     StrokeJoin="Round"
                                     Stretch="Uniform"
-                                    Width="13" Height="13"
+                                    Width="15" Height="15"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center" />
                             </Button>
                             <Button Classes="ghost icon"
-                                    Width="24" Height="24" MinHeight="24"
+                                    Width="30" Height="30" MinHeight="30"
                                     Padding="0"
                                     ToolTip.Tip="在文件管理器里打开存档目录"
                                     Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).OpenFolderCommand}"
@@ -437,7 +571,7 @@
                                     StrokeLineCap="Round"
                                     StrokeJoin="Round"
                                     Stretch="Uniform"
-                                    Width="13" Height="13"
+                                    Width="15" Height="15"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center" />
                             </Button>
@@ -554,7 +688,7 @@
       <!-- ========== 整合包 ========== -->
       <controls:GlassPanel IsVisible="{Binding IsModpacksSection}" Padding="0">
           <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="12"
+            <StackPanel Margin="10"
                         Spacing="10"
                         DataContext="{Binding ModpacksSection}">
 
@@ -587,7 +721,7 @@
                         Command="{Binding PreviewExportCommand}" />
 
                 <!-- 先看范围再选落点：导出不可撤销，范围确认放在前面 -->
-                <Border Classes="card" Padding="10,6" IsVisible="{Binding HasExportPreview}">
+                <Border Classes="sunken" Padding="10,6" IsVisible="{Binding HasExportPreview}">
                   <StackPanel Spacing="6">
                     <TextBlock Text="{Binding ExportPreview.Name}" Classes="section-row-title" />
                     <TextBlock Text="{Binding ExportPreview.ScopeText}" Classes="section-row-meta" />
@@ -618,7 +752,7 @@
                         IsEnabled="{Binding !IsBusy}"
                         Click="OnPickModpackClick" />
 
-                <Border Classes="card" Padding="10,6" IsVisible="{Binding HasImportPreview}">
+                <Border Classes="sunken" Padding="10,6" IsVisible="{Binding HasImportPreview}">
                   <StackPanel Spacing="4">
                     <TextBlock Text="{Binding ImportPreview.Name}" Classes="section-row-title" />
                     <TextBlock Text="{Binding ImportPreview.MinecraftVersion}" Classes="section-row-meta" />
@@ -647,7 +781,7 @@
                          Classes="section-row-meta"
                          TextWrapping="Wrap" />
 
-              <Border Classes="card" Padding="10,6" IsVisible="{Binding HasResult}">
+              <Border Classes="sunken" Padding="10,6" IsVisible="{Binding HasResult}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                   <TextBlock Text="{Binding ResultText}"
                              Classes="section-row-meta"

@@ -5,6 +5,7 @@
              xmlns:controls="using:NebulaLauncher.Controls"
              xmlns:models="using:NebulaLauncher.Core.Models"
              xmlns:views="using:NebulaLauncher.Views"
+             xmlns:services="using:NebulaLauncher.Services"
              xmlns:sys="using:System"
              x:Class="NebulaLauncher.Views.VersionsView"
              x:DataType="vm:VersionsViewModel">
@@ -69,21 +70,90 @@
       <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+
+    <!--
+      详情列宽度：样板 instance-detail-glass 给的是 340（列表 744 + 间距 16 + 详情 340 = 1100）。
+      全局样式是 380 / 紧凑 320，两者都与样板不符；在页面里覆盖成 340，
+      紧凑档同样 340（§5：固定列不参与拉伸，紧凑档不缩窄固定列）。
+    -->
+    <Style Selector="Border.detail-pane">
+      <Setter Property="Width" Value="340" />
+    </Style>
+
+    <!--
+      列表行（样板 .vrow）：行高 52、圆角 12、透明底，悬停浮出白膜，
+      选中蓝 10% + 1px 蓝边 + 左侧 3px 蓝条。行内不再套实心白卡——
+      实心卡会把「选中」这层关系压掉，也是样板与现实现最大的观感差。
+    -->
+    <Style Selector="Border.vrow">
+      <Setter Property="MinHeight" Value="52" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+          <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+        </Transitions>
+      </Setter>
+    </Style>
+
+    <Style Selector="Border.vrow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+
+    <Style Selector="Border.vrow.selected">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!-- 命中区与行同高：ListBoxItem 默认的 10px 底边距会把 52 行距顶成 62。 -->
+    <Style Selector="ListBoxItem">
+      <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <!-- 底部结果条（样板 .bar44）：44 高、圆角 12、白 60% 底、1px 亮边。 -->
+    <Style Selector="Border.rbar">
+      <Setter Property="Height" Value="44" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="14,0" />
+    </Style>
+
+    <!-- 1024×660：页签与搜索同处一行，搜索收窄、选中徽标让位，避免把页签压出省略。 -->
+    <Style Selector="TextBox.vsearch">
+      <Setter Property="Width" Value="300" />
+    </Style>
+
+    <Style Selector="Window.compact TextBox.vsearch">
+      <Setter Property="Width" Value="170" />
+    </Style>
+
+    <Style Selector="Window.compact Button.hiddenchip">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <Style Selector="Window.compact Border.vselbadge">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
   </UserControl.Styles>
 
   <Panel>
     <!--
-      两栏：左列表（自适应）+ 右详情（固定 380，1024 下 320）。
-      详情宽度靠 MainWindow 的 Window.compact 类切换，与外壳同一档阈值（1120）——
-      两处各写一个阈值时，窗口停在两者之间就会出现「侧栏已经是紧凑档、详情还是宽档」。
+      two-column shell: list (stretch) + detail (fixed 340). Width comes from the
+      page style above; the sample puts 744 + 16 + 340 into the 1100 canvas.
     -->
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="0,0,0,14">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
 
       <!-- ==================== 左栏 ==================== -->
       <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
 
-        <!-- 工具条第一行：页签（已安装 / 可下载 / 整合包）+ 搜索。高 36，间距 12。 -->
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Height="40">
+        <!-- 工具条第一行：页签（已安装 / 可下载 / 整合包）+ 搜索 + 选中徽标。高 40，间距 12。 -->
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Height="40">
 
           <!--
             页签只切视图、不承载内容（strip 变体）：三份列表同时留在下面第 4 行里、
@@ -102,12 +172,22 @@
             再挤一个输入框在 1024 档会把输入框压到只剩几十像素（截图里就是这个形态）。
           -->
           <TextBox Grid.Column="1"
+                   Classes="vsearch"
                    MinWidth="160"
                    Height="36"
-                   HorizontalAlignment="Stretch"
+                   HorizontalAlignment="Right"
                    VerticalContentAlignment="Center"
                    Watermark="{Binding SearchWatermark}"
                    Text="{Binding CurrentSearchText, Mode=TwoWay}" />
+
+          <!-- 样板 pagehead 右侧的「已选 N 个实例」：只在已安装视图有意义。 -->
+          <Border Grid.Column="2"
+                  Classes="badge vselbadge"
+                  Padding="9,2"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding IsInstalledView}">
+            <TextBlock Text="已选 1 个实例" />
+          </Border>
         </Grid>
 
         <!-- 工具条第二行：筛选 chip。只在「已安装」视图有意义（远程清单里没有加载器概念）。 -->
@@ -140,7 +220,7 @@
                     Command="{Binding SelectFilterCommand}"
                     CommandParameter="favorite" />
             <!-- 隐藏是「显示开关」而不是筛选键，所以单独一个命令。 -->
-            <Button Classes="pill"
+            <Button Classes="pill hiddenchip"
                     Classes.active="{Binding ShowHidden}"
                     Content="显示已隐藏"
                     Command="{Binding ToggleShowHiddenCommand}" />
@@ -160,6 +240,14 @@
           <!-- 「可下载」「整合包」两视图各有一个工具动作，放在同一个贴右的位置上。
                两者的可见性互斥，所以共用第 2 列即可，不必占两列。 -->
           <Panel Grid.Column="2" VerticalAlignment="Center">
+            <!-- 样板 Row1 右侧的主行动：新建实例（版本已有实例时走克隆，见 CreateInstanceAsync）。 -->
+            <Button Classes="accent"
+                    Height="36"
+                    Content="新建实例"
+                    IsVisible="{Binding IsInstalledView}"
+                    IsEnabled="{Binding IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
+                    Command="{Binding CreateInstanceCommand}"
+                    CommandParameter="{Binding SelectedRow}" />
             <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsAvailableView}">
               <Button Classes="pill"
                       Classes.active="{Binding Available.ReleaseOnly}"
@@ -179,8 +267,29 @@
           </Panel>
         </Grid>
 
-        <!-- 状态条：与视图无关的页面级提示（服务缺失、错误、进度、缺 Java）。 -->
-        <StackPanel Grid.Row="3" Spacing="8">
+        <!--
+          状态条：常驻一条 44 高的结果行（样板 .bar44），提示类消息再往下叠。
+          常驻行让 Row2 的高度稳定在 509（677 − 40 − 48 − 44 − 12×3），
+          一屏可见行数才与样板对得上；没有这条时提示条消失会把列表多拉长 44。
+        -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,Auto" RowSpacing="8">
+          <Border Classes="rbar" IsVisible="{Binding IsInstalledView}">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <TextBlock Text="{Binding InstanceSummary}"
+                         FontSize="{DynamicResource FontSize.Caption}"
+                         Foreground="{DynamicResource Text.Secondary}"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         ToolTip.Tip="{Binding InstanceSummary}" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding VersionCountText}"
+                         FontSize="{DynamicResource FontSize.Caption}"
+                         Foreground="{DynamicResource Text.Tertiary}"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+          <StackPanel Grid.Row="1" Spacing="8">
           <Border Classes="card"
                   Padding="14,10"
                   Background="{DynamicResource Status.Warning.Soft}"
@@ -249,7 +358,8 @@
               </StackPanel>
             </StackPanel>
           </Border>
-        </StackPanel>
+          </StackPanel>
+        </Grid>
 
         <!-- ==================== 三视图列表 ==================== -->
         <!--
@@ -260,44 +370,67 @@
         <Grid>
 
           <!-- 已安装视图 -->
-          <Grid IsVisible="{Binding IsInstalledView}">
+          <Grid IsVisible="{Binding IsInstalledView}" RowDefinitions="Auto,*">
+
+            <!-- 表头（样板 vlist 的 lhead）：左「实例」、右总数。 -->
+            <Grid ColumnDefinitions="*,Auto" Margin="12,6,12,2">
+              <TextBlock Text="实例"
+                         FontSize="{DynamicResource FontSize.Small}"
+                         FontWeight="SemiBold"
+                         VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding VersionCountText}"
+                         FontSize="{DynamicResource FontSize.Caption}"
+                         Foreground="{DynamicResource Text.Tertiary}"
+                         VerticalAlignment="Center" />
+            </Grid>
+
             <ListBox x:Name="InstalledList"
+                     Grid.Row="1"
                      ItemsSource="{Binding VisibleVersions}"
                      SelectedItem="{Binding SelectedRow}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      DoubleTapped="OnVersionsDoubleTapped">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:VersionRow">
-                  <Border Classes="card hoverable"
-                          Classes.accentEdge="{Binding $parent[ListBoxItem].IsSelected}"
-                          Classes.hidden="{Binding IsHidden}"
-                          Padding="14,8" Height="52">
+                  <Border Classes="vrow"
+                          Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                          Classes.hidden="{Binding IsHidden}">
                     <!--
-                      行结构固定为「图标 / 名称 / 版本与加载器 / 右侧唯一主行动」。
-                      行内只留一个主行动（启动），其余（修复、组件、打开目录、隐藏、删除）
-                      全部收进「…」菜单——票 #87 与 ui-audit 的「每行一个 accent 主按钮」同一结论。
+                      行结构按样板 vrow：图标 / 名称 + 副行 / 右侧元数据 / 溢出菜单。
+                      启动与打开目录改由右栏详情承担（样板把主行动放在详情列），
+                      行内不再放实心按钮——一屏只能有一个主行动，行内也不该出现第二块强调色。
                     -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="12">
 
-                      <!-- 版本图标：立方体线稿。加载器版本用强调色，原版用三级文字色。 -->
-                      <Border Width="36"
-                              Height="36"
-                              CornerRadius="{DynamicResource Radius.Md}"
-                              Background="{DynamicResource Accent.Soft}"
+                      <!-- 选中标记：样板用 3px 蓝条压住行左缘。 -->
+                      <Border Width="3"
+                              Height="26"
+                              CornerRadius="{DynamicResource Radius.Pill}"
+                              Background="{DynamicResource Accent.Primary}"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding $parent[ListBoxItem].IsSelected}" />
+
+                      <!-- 版本图标 30×30：加载器版本用强调色，原版用三级文字色。 -->
+                      <Border Grid.Column="1"
+                              Width="30"
+                              Height="30"
+                              CornerRadius="{DynamicResource Radius.Sm}"
+                              Background="{DynamicResource Surface.Raised}"
                               BorderBrush="{DynamicResource Stroke.Subtle}"
                               BorderThickness="1"
                               VerticalAlignment="Center">
-                        <Panel Width="19" Height="19">
+                        <Panel Width="15" Height="15">
                           <Path Data="{StaticResource Icon.Versions}"
                                 Stroke="{DynamicResource Accent.Primary}"
-                                StrokeThickness="1.4"
+                                StrokeThickness="1.7"
                                 StrokeLineCap="Round"
                                 StrokeJoin="Round"
                                 Stretch="Uniform"
                                 IsVisible="{Binding IsModded}" />
                           <Path Data="{StaticResource Icon.Versions}"
                                 Stroke="{DynamicResource Text.Tertiary}"
-                                StrokeThickness="1.4"
+                                StrokeThickness="1.7"
                                 StrokeLineCap="Round"
                                 StrokeJoin="Round"
                                 Stretch="Uniform"
@@ -305,20 +438,20 @@
                         </Panel>
                       </Border>
 
-                      <!-- 信息区：名称 + 版本与加载器，两行。 -->
-                      <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                      <!-- 信息区：名称（13/700）+ 副行（加载器 · 最后游玩 · 通道）。 -->
+                      <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
                           <!-- 星标：描边 / 实心两态，只用 IsVisible 切换，不引入转换器。 -->
                           <Button Classes="ghost icon"
-                                  Width="20"
-                                  Height="20"
-                                  MinHeight="20"
+                                  Width="18"
+                                  Height="18"
+                                  MinHeight="18"
                                   Padding="0"
                                   VerticalAlignment="Center"
                                   ToolTip.Tip="收藏：收藏的版本置顶显示"
                                   Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).ToggleFavoriteCommand}"
                                   CommandParameter="{Binding}">
-                            <Panel Width="14" Height="14">
+                            <Panel Width="12" Height="12">
                               <Path Data="M12 3.2 14.7 8.7 20.8 9.6 16.4 13.9 17.4 20 12 17.1 6.6 20 7.6 13.9 3.2 9.6 9.3 8.7z"
                                     Stroke="{DynamicResource Text.Tertiary}"
                                     StrokeThickness="1.3"
@@ -334,111 +467,107 @@
 
                           <TextBlock Grid.Column="1"
                                      Text="{Binding Name}"
-                                     FontSize="{DynamicResource FontSize.BodyLg}"
-                                     FontWeight="Medium"
+                                     FontSize="{DynamicResource FontSize.Body}"
+                                     FontWeight="SemiBold"
                                      VerticalAlignment="Center"
                                      TextTrimming="CharacterEllipsis"
                                      ToolTip.Tip="{Binding Name}" />
-
-                          <Border Grid.Column="2"
-                                  Classes="badge"
-                                  Classes.success="{Binding IsRelease}"
-                                  Classes.warning="{Binding IsSnapshot}"
-                                  VerticalAlignment="Center">
-                            <TextBlock Text="{Binding ChannelText}" />
-                          </Border>
-                          <Border Grid.Column="3"
-                                  Classes="badge warning"
-                                  VerticalAlignment="Center"
-                                  IsVisible="{Binding IsHidden}">
-                            <TextBlock Text="已隐藏" />
-                          </Border>
                         </Grid>
 
-                        <!-- 元信息：版本与加载器 / 最后游玩 / 大小。用 Grid 而不是横向 StackPanel，
-                             否则窗口压窄时它不会被截断，会把文字顶出卡片。 -->
-                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="10">
+                        <!-- 副行：用 Grid 而不是横向 StackPanel，窗口压窄时先截断加载器文案。 -->
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
                           <TextBlock Grid.Column="0"
                                      Text="{Binding LoaderText}"
                                      Classes="muted"
+                                     FontSize="{DynamicResource FontSize.Caption}"
                                      VerticalAlignment="Center"
                                      TextTrimming="CharacterEllipsis" />
                           <TextBlock Grid.Column="1"
                                      Text="{Binding LastPlayedText}"
                                      Classes="muted"
+                                     FontSize="{DynamicResource FontSize.Caption}"
                                      VerticalAlignment="Center"
                                      TextTrimming="CharacterEllipsis" />
-                          <TextBlock Grid.Column="2"
-                                     Text="{Binding SizeText}"
-                                     Classes="muted mono"
-                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="2"
+                                  Classes="badge"
+                                  Padding="6,0"
+                                  Height="16"
+                                  VerticalAlignment="Center"
+                                  IsVisible="{Binding IsHidden}">
+                            <TextBlock Text="已隐藏" FontSize="{DynamicResource FontSize.Caption}" />
+                          </Border>
                           <TextBlock Grid.Column="3"
-                                     Text="{Binding BusyText}"
-                                     Classes="muted"
+                                     Text="{Binding BrokenReason}"
+                                     FontSize="{DynamicResource FontSize.Caption}"
+                                     Foreground="{DynamicResource Status.Danger}"
                                      VerticalAlignment="Center"
-                                     IsVisible="{Binding IsBusy}" />
+                                     TextTrimming="CharacterEllipsis"
+                                     IsVisible="{Binding IsBroken}" />
                         </Grid>
-
-                        <TextBlock Text="{Binding BrokenReason}"
-                                   TextWrapping="Wrap"
-                                   FontSize="{DynamicResource FontSize.Small}"
-                                   Foreground="{DynamicResource Status.Danger}"
-                                   IsVisible="{Binding IsBroken}" />
+                      </StackPanel>                      <!-- 右侧元数据：游戏版本 / 加载器两行等宽右对齐（样板 .vv 的位置）。 -->
+                      <StackPanel Grid.Column="3"
+                                  Spacing="1"
+                                  VerticalAlignment="Center"
+                                  HorizontalAlignment="Right"
+                                  ToolTip.Tip="{Binding SizeText}">
+                        <TextBlock Text="{Binding Info.MinecraftVersion}"
+                                   Classes="mono"
+                                   FontSize="{DynamicResource FontSize.Caption}"
+                                   HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding LoaderText}"
+                                   FontSize="{DynamicResource FontSize.Caption}"
+                                   Foreground="{DynamicResource Text.Tertiary}"
+                                   HorizontalAlignment="Right"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="110" />
+                        <TextBlock Text="{Binding BusyText}"
+                                   Classes="muted"
+                                   FontSize="{DynamicResource FontSize.Caption}"
+                                   HorizontalAlignment="Right"
+                                   IsVisible="{Binding IsBusy}" />
                       </StackPanel>
 
-                      <!-- 右侧：唯一主行动「启动」+ 溢出菜单。 -->
-                      <StackPanel Grid.Column="2"
-                                  Orientation="Horizontal"
-                                  Spacing="6"
-                                  VerticalAlignment="Center">
-                        <Button Classes="accent"
-                                Content="启动"
-                                Padding="18,6"
-                                MinHeight="32"
-                                IsEnabled="{Binding !IsBusy}"
-                                Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).LaunchVersionCommand}"
-                                CommandParameter="{Binding}" />
-                        <!--
-                          溢出入口：修复、组件、打开目录、隐藏、删除全收进菜单。
-                          菜单项的 DataContext 是它挂着的那个 VersionRow；修复档位与保存 jar
-                          需要视图层的 TopLevel / 文件夹选择器，走 code-behind（见 OnRepairQuickClick 等）。
-                        -->
-                        <Button Classes="ghost icon"
-                                Width="32"
-                                Height="32"
-                                MinHeight="32"
-                                FontSize="{DynamicResource FontSize.Subtitle}"
-                                VerticalAlignment="Center"
-                                ToolTip.Tip="更多操作：修复、组件、打开目录、隐藏、删除">
-                          <Button.Flyout>
-                            <MenuFlyout Placement="BottomEdgeAlignedRight">
-                              <MenuItem Header="快速修复（只补缺失文件）"
-                                        IsEnabled="{Binding CanRepair}"
-                                        Click="OnRepairQuickClick" />
-                              <MenuItem Header="深度修复（校验 libraries 与 assets）"
-                                        IsEnabled="{Binding CanRepair}"
-                                        Click="OnRepairDeepClick" />
-                              <MenuItem Header="查看组件…"
-                                        IsEnabled="{Binding !IsRunning}"
-                                        Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).OpenComponentsCommand}"
-                                        CommandParameter="{Binding}" />
-                              <MenuItem Header="打开版本目录"
-                                        Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).OpenVersionFolderCommand}"
-                                        CommandParameter="{Binding}" />
-                              <MenuItem Header="保存客户端 jar…" Click="OnSaveClientJarClick" />
-                              <MenuItem Header="{Binding HideActionText}"
-                                        Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).ToggleHiddenCommand}"
-                                        CommandParameter="{Binding}" />
-                              <Separator />
-                              <MenuItem Header="删除版本…"
-                                        IsEnabled="{Binding !IsRunning}"
-                                        Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).RequestDeleteCommand}"
-                                        CommandParameter="{Binding}" />
-                            </MenuFlyout>
-                          </Button.Flyout>
-                          <TextBlock Text="…" VerticalAlignment="Center" />
-                        </Button>
-                      </StackPanel>
+                      <!--
+                        溢出入口：修复、组件、打开目录、隐藏、删除全收进菜单。
+                        菜单项的 DataContext 是它挂着的那个 VersionRow；修复档位与保存 jar
+                        需要视图层的 TopLevel / 文件夹选择器，走 code-behind（见 OnRepairQuickClick 等）。
+                      -->
+                      <Button Grid.Column="4"
+                              Classes="ghost icon"
+                              Width="28"
+                              Height="28"
+                              MinHeight="28"
+                              FontSize="{DynamicResource FontSize.Subtitle}"
+                              VerticalAlignment="Center"
+                              ToolTip.Tip="更多操作：修复、组件、打开目录、隐藏、删除">
+                        <Button.Flyout>
+                          <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuItem Header="快速修复（只补缺失文件）"
+                                      IsEnabled="{Binding CanRepair}"
+                                      Click="OnRepairQuickClick" />
+                            <MenuItem Header="深度修复（校验 libraries 与 assets）"
+                                      IsEnabled="{Binding CanRepair}"
+                                      Click="OnRepairDeepClick" />
+                            <MenuItem Header="查看组件…"
+                                      IsEnabled="{Binding !IsRunning}"
+                                      Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).OpenComponentsCommand}"
+                                      CommandParameter="{Binding}" />
+                            <MenuItem Header="打开版本目录"
+                                      Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).OpenVersionFolderCommand}"
+                                      CommandParameter="{Binding}" />
+                            <MenuItem Header="保存客户端 jar…" Click="OnSaveClientJarClick" />
+                            <MenuItem Header="{Binding HideActionText}"
+                                      Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).ToggleHiddenCommand}"
+                                      CommandParameter="{Binding}" />
+                            <Separator />
+                            <MenuItem Header="删除版本…"
+                                      IsEnabled="{Binding !IsRunning}"
+                                      Command="{Binding $parent[UserControl].((vm:VersionsViewModel)DataContext).RequestDeleteCommand}"
+                                      CommandParameter="{Binding}" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                        <TextBlock Text="…" VerticalAlignment="Center" />
+                      </Button>
                     </Grid>
                   </Border>
                 </DataTemplate>
@@ -738,139 +867,14 @@
       </controls:GlassPanel>
       </Grid>
 
-      <!-- ==================== 右栏：详情（固定宽，1024 下 320） ==================== -->
+      <!-- ==================== 右栏：详情（固定 340，样板 instance-detail-glass） ==================== -->
       <!--
-        详情面板的骨架由票 #87 建立，内容由 #88（概览 / Java / 内存）与 #89（世界 / 整合包）填充。
-        这里先把它做成「选中什么就显示什么」的稳定容器：切视图时内容跟着换，宽度不跟着变。
+        详情列不滚动（票 #89）：身份头 + 三分区由 InstanceDetailPane 自己承载，
+        它的分区内容框才是唯一的滚动区。实例列表在左列，详情列只回答「这个实例是什么」。
       -->
-      <Border Grid.Column="1" Classes="card detail-pane" Padding="0">
-        <Grid RowDefinitions="Auto,*">
-          <!-- 视图标题：切页签时跟着换，是「当前在看哪一组」的唯一提示 -->
-          <TextBlock Text="{Binding CurrentViewTitle}"
-                     Classes="label"
-                     Margin="16,12,16,4"
-                     VerticalAlignment="Center" />
-
-          <!--
-            已安装视图：详情列不滚动（票 #89）。
-            身份头 + 三分区由 InstanceDetailPane 自己承载：它的分区内容框才是唯一的滚动区，
-            详情列本身固定不滚——否则滚动时「我在看哪个实例」会被顶出视口。
-            实例列表压在最后、固定 132 高：它是「换选中项」的入口，不能跟详情一起滚走。
-          -->
-          <Grid Grid.Row="1"
-                RowDefinitions="*,Auto"
-                RowSpacing="6"
-                Margin="12,0,12,10"
-                IsVisible="{Binding IsInstalledView}">
-            <views:InstanceDetailPane Grid.Row="0" />
-            <StackPanel Grid.Row="1" Spacing="8">
-              <Border Classes="divider" />
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                  <TextBlock Text="实例" FontWeight="SemiBold" VerticalAlignment="Center" />
-                  <Button Grid.Column="1"
-                          Classes="ghost icon"
-                          Width="24" Height="24" MinHeight="24"
-                          Padding="0"
-                          ToolTip.Tip="{Binding TrashButtonText}"
-                          Command="{Binding ToggleTrashCommand}">
-                    <TextBlock Text="⌫" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                  </Button>
-                </Grid>
-
-                <!--
-                  列表被一个固定高度的框子框住，滚动只发生在框内。
-                  为什么不让它自然撑高：实例数量是用户数据，10 个实例就会把右栏顶出屏幕，
-                  于是整个右栏出现滚动条、把上面的「实例身份」挤走。
-                  框住之后右栏总高度只取决于「概览 + 框子」，与实例数量无关。
-                -->
-                <Border Classes="sunken"
-                        Height="132"
-                        Padding="4"
-                        IsVisible="{Binding HasInstances}">
-                  <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                HorizontalScrollBarVisibility="Disabled">
-                    <ListBox Classes="instances"
-                             ItemsSource="{Binding Instances}"
-                             SelectedItem="{Binding SelectedInstance}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                      <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:InstanceRow">
-                          <!--
-                            卡片只保留「选得出来」所需的最少信息：图标 / 名称 / 运行中徽标 / 最后启动。
-                            第一版在每张卡里塞了「设置 / 打开目录 / 停止 / 更多」四个按钮，
-                            两个实例就把右栏撑到需要滚动——动作改由上方概览区那排按钮承担。
-                          -->
-                          <Border Classes="sunken"
-                                  Classes.accentEdge="{Binding $parent[ListBoxItem].IsSelected}"
-                                  Padding="6,4">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                              <Border Width="20" Height="20"
-                                      CornerRadius="{DynamicResource Radius.Xs}"
-                                      Background="{DynamicResource Accent.Soft}"
-                                      VerticalAlignment="Center">
-                                <Path Data="{Binding IconGeometry}"
-                                      Stroke="{DynamicResource Accent.Primary}"
-                                      StrokeThickness="1.4"
-                                      StrokeLineCap="Round"
-                                      StrokeJoin="Round"
-                                      Stretch="Uniform"
-                                      Width="12" Height="12"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center" />
-                              </Border>
-                              <StackPanel Grid.Column="1" Spacing="0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}"
-                                           FontWeight="Medium"
-                                           FontSize="{DynamicResource FontSize.Body}"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding LastPlayedText}"
-                                           Classes="muted"
-                                           FontSize="{DynamicResource FontSize.Caption}"
-                                           TextTrimming="CharacterEllipsis" />
-                              </StackPanel>
-                              <Border Grid.Column="2"
-                                      Classes="badge success"
-                                      Padding="6,1"
-                                      VerticalAlignment="Center"
-                                      IsVisible="{Binding IsRunning}">
-                                <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
-                              </Border>
-                            </Grid>
-                          </Border>
-                        </DataTemplate>
-                      </ListBox.ItemTemplate>
-                    </ListBox>
-                  </ScrollViewer>
-                </Border>
-
-                <TextBlock Text="选中一个版本后点下面的「新建实例」，它就会拥有独立的 mods / saves / config。"
-                           Classes="muted"
-                           FontSize="{DynamicResource FontSize.Caption}"
-                           TextWrapping="Wrap"
-                           IsVisible="{Binding !HasInstances}" />
-
-                <!--
-                  次要样式而不是 accent：每个版本行已经有一个红色「启动」，
-                  详情栏再放一个红色主行动会让一屏出现两个同等权重的强调块，
-                  而「新建实例」不是这一页的主任务（票 #87 与 ui-audit 的同一结论）。
-
-                  只在「一个实例都没有」时出现：已经有实例时这个按钮点了也不会新建
-                  （同一版本目录只能有一个实例，CreateAsync 是幂等的），
-                  留着它只会在右栏白占一行高度、把下面的内容顶出视口。
-                -->
-                <Button Classes="ghost"
-                        Content="为选中版本新建实例"
-                        MinHeight="34"
-                        HorizontalAlignment="Stretch"
-                        IsVisible="{Binding !HasInstances}"
-                        IsEnabled="{Binding IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
-                        Command="{Binding CreateInstanceCommand}"
-                        CommandParameter="{Binding SelectedRow}" />
-            </StackPanel>
-          </Grid>
+      <Border Grid.Column="1" Classes="detail-pane" Padding="0" Background="Transparent" BorderThickness="0" VerticalAlignment="Stretch">
+        <Grid>
+          <views:InstanceDetailPane IsVisible="{Binding IsInstalledView}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
 
           <!-- 可下载 / 整合包视图的详情：没有分区结构，仍是一条可滚动的说明列 -->
           <ScrollViewer Grid.Row="1"
