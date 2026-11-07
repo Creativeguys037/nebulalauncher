@@ -189,6 +189,8 @@ public sealed partial class ModsViewModel : PageViewModelBase
     [NotifyPropertyChangedFor(nameof(IsDataPackTabActive))]
     [NotifyPropertyChangedFor(nameof(IsDataPackEmpty))]
     [NotifyPropertyChangedFor(nameof(KindLabel))]
+    [NotifyPropertyChangedFor(nameof(TabIndex))]
+    [NotifyPropertyChangedFor(nameof(StatsText))]
     private ContentKind _activeKind = ContentKind.Mod;
 
     public bool IsModTabActive => ActiveKind == ContentKind.Mod;
@@ -203,6 +205,86 @@ public sealed partial class ModsViewModel : PageViewModelBase
     public bool IsDataPackEmpty => IsEmpty && ActiveKind == ContentKind.DataPack;
 
     public string KindLabel => KindLabelOf(ActiveKind);
+
+    /// <summary>
+    /// 皮肤页签的占位状态。
+    ///
+    /// 皮肤不是 <see cref="ContentKind"/> 的一员（它有独立的换肤与 3D 预览流程，见 #92），
+    /// 所以第五个页签不能靠改 <see cref="ActiveKind"/> 表达。这里用一个单列开关承载，
+    /// 打开时 Row2 换成占位卡、四类内容的扫描保持不动——切回任一内容页签能立刻回到原列表，
+    /// 不必重新扫盘。
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TabIndex))]
+    [NotifyPropertyChangedFor(nameof(IsContentViewActive))]
+    private bool _isSkinTabActive;
+
+    /// <summary>Row2 显示内容列表（而非皮肤占位）的判据。</summary>
+    public bool IsContentViewActive => !IsSkinTabActive;
+
+    /// <summary>
+    /// 内容页签索引，双向绑到 Row0 的 <c>TabControl.SelectedIndex</c>。
+    ///
+    /// 0–3 映射到 <see cref="ContentKind"/> 的四类内容，4 是皮肤占位。
+    /// 走 <see cref="SelectKindCommand"/> 而不是直接给 <see cref="ActiveKind"/> 赋值，
+    /// 是因为切分类必须连带重扫目录——赋值本身不会触发扫描。
+    /// </summary>
+    public int TabIndex
+    {
+        get => IsSkinTabActive
+            ? 4
+            : ActiveKind switch
+            {
+                ContentKind.Mod => 0,
+                ContentKind.ResourcePack => 1,
+                ContentKind.ShaderPack => 2,
+                ContentKind.DataPack => 3,
+                _ => 0,
+            };
+
+        set
+        {
+            if (value < 0 || value == TabIndex)
+            {
+                return;
+            }
+
+            if (value >= 4)
+            {
+                IsSkinTabActive = true;
+                return;
+            }
+
+            IsSkinTabActive = false;
+            SelectKindCommand.Execute(value switch
+            {
+                1 => ContentKind.ResourcePack,
+                2 => ContentKind.ShaderPack,
+                3 => ContentKind.DataPack,
+                _ => ContentKind.Mod,
+            });
+        }
+    }
+
+    /// <summary>
+    /// 页签行右端的统计：「48 个模组 · 12 个可更新 · 3 个已选中」。
+    ///
+    /// 三个数字回答三个不同的问题（有多少 / 有多少要动 / 手上选了多少），
+    /// 分开放在三处会让用户来回找，拼成一行是样板的口径。
+    /// </summary>
+    public string StatsText
+    {
+        get
+        {
+            if (IsSkinTabActive || _all.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var updatable = Updates.Count;
+            return $"{_all.Count} 个{KindLabel} · {updatable} 个可更新 · {SelectedCount} 个已选中";
+        }
+    }
 
     [ObservableProperty]
     private bool _isLoading;
@@ -338,6 +420,7 @@ public sealed partial class ModsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(SelectionSummary));
         OnPropertyChanged(nameof(CanBatch));
         OnPropertyChanged(nameof(BatchDeleteSummary));
+        OnPropertyChanged(nameof(StatsText));
         NotifyUpdateSelectionChanged();
     }
 
@@ -397,6 +480,17 @@ public sealed partial class ModsViewModel : PageViewModelBase
 
     /// <summary>左栏：按加载器分组的实例目标（不含全局目录）。</summary>
     public ObservableCollection<ModsTargetGroup> TargetGroups { get; } = [];
+
+    /// <summary>
+    /// 工具条目标下拉的扁平数据源：全局目录 + 各加载器分组里的实例，顺序与
+    /// <see cref="TargetGroups"/> 一致。
+    ///
+    /// 目标选择从常驻左栏挪进 Row1 的下拉后，界面不再需要一个分组容器；
+    /// 但分组仍然要保留——它是加载器语义的唯一出处，扁平列表只是它的投影。
+    /// 两者在同一次 <see cref="RebuildTargetGroups"/> 里一起重建，避免出现
+    /// 「下拉里有、分组里没有」这种只能运行期才发现的漂移。
+    /// </summary>
+    public ObservableCollection<TargetItemViewModel> AllTargets { get; } = [];
 
     public ObservableCollection<ContentCardViewModel> Items { get; } = [];
 
@@ -585,6 +679,61 @@ public sealed partial class ModsViewModel : PageViewModelBase
     {
         await ReloadTargetsAsync();
         await ScanCurrentTargetAsync();
+    }
+
+    /// <summary>
+    /// 「从文件安装」：把外部选中的文件复制进当前目标的内容目录。
+    ///
+    /// 与拖拽安装（<c>MainWindowViewModel.DragDrop.cs</c>）走同一个
+    /// <see cref="IContentService.ImportAsync"/>，区别只在于目标：
+    /// 拖拽用的是全局 <see cref="IInstanceContext"/>，这里用的是页面自己选中的目标——
+    /// 用户在这个页面上明确选了一个实例，就不该把文件装到别处去。
+    ///
+    /// 参数是路径而不是 <c>IStorageFile</c>：ViewModel 不碰 Avalonia 类型，选择器留在 View。
+    /// </summary>
+    public async Task InstallFromFilesAsync(IReadOnlyList<string> files)
+    {
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        if (_content is null)
+        {
+            ErrorText = "内容服务未就绪，无法安装文件。";
+            return;
+        }
+
+        var target = TargetDirectory;
+
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            ErrorText = "还没有可用的游戏目录，先在右侧目标里选一个实例。";
+            return;
+        }
+
+        try
+        {
+            var imported = await _content
+                .ImportAsync(target, ActiveKind, files)
+                .ConfigureAwait(true);
+
+            ErrorText = null;
+
+            if (imported.Count == 0)
+            {
+                SetBatchResult($"没有可安装的{KindLabel}文件。", null);
+                return;
+            }
+
+            // 装完必须重扫，否则列表里看不到刚复制进来的文件——这是「点了没反应」的常见来源。
+            await ScanCurrentTargetAsync().ConfigureAwait(true);
+            SetBatchResult($"已安装 {imported.Count} 个{KindLabel}。", null);
+        }
+        catch (Exception ex)
+        {
+            ErrorText = $"安装失败：{ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -962,6 +1111,7 @@ public sealed partial class ModsViewModel : PageViewModelBase
             : $"失败：{head}";
     }
 
+    [RelayCommand]
     private void ClearBatchResult()
     {
         BatchResultText = null;
@@ -1136,8 +1286,24 @@ public sealed partial class ModsViewModel : PageViewModelBase
 
             foreach (var info in report.Items)
             {
-                Updates.Add(new ModUpdateRowViewModel(info));
+                var row = new ModUpdateRowViewModel(info);
+                Updates.Add(row);
+
+                // 回填卡片：行尾「可更新」徽标要跟列表行在同一处显示，
+                // 不能只在更新结果列表里——用户扫的是列表，不是结果表。
+                if (row.HasUpdate)
+                {
+                    var card = _all.FirstOrDefault(card =>
+                        string.Equals(card.FileName, row.FileName, StringComparison.OrdinalIgnoreCase));
+
+                    if (card is not null)
+                    {
+                        card.HasPendingUpdate = true;
+                    }
+                }
             }
+
+            OnPropertyChanged(nameof(StatsText));
 
             UpdateSummary = ComposeUpdateSummary(report);
             UpdateError = report.Error;
@@ -2029,6 +2195,15 @@ public sealed partial class ModsViewModel : PageViewModelBase
 
         candidates.AddRange(TargetGroups.SelectMany(group => group.Items));
 
+        // 工具条下拉的数据源与分组同步重建。先清后填，否则刷新会留下已删除实例的残项，
+        // 选中它们时 gameDirectory 指向不存在的目录。
+        AllTargets.Clear();
+
+        foreach (var candidate in candidates)
+        {
+            AllTargets.Add(candidate);
+        }
+
         var picked = candidates.FirstOrDefault(item => string.Equals(item.Target.Key, preferredKey, StringComparison.Ordinal))
                      ?? candidates.FirstOrDefault(item => string.Equals(item.Target.Key, GlobalTargetKey, StringComparison.Ordinal))
                      ?? candidates.FirstOrDefault();
@@ -2487,6 +2662,9 @@ public sealed partial class ModsViewModel : PageViewModelBase
 
     private void UpdateSubtitle()
     {
+        // 页签行右端的统计与副标题同源（都看 _all 与选中数），一起重算省一次遍历。
+        OnPropertyChanged(nameof(StatsText));
+
         if (_all.Count == 0)
         {
             SetSubtitle(IsDemoMode ? "示例数据" : SelectedTargetName);
@@ -2725,6 +2903,18 @@ public sealed partial class ContentCardViewModel : ObservableObject
     }
 
     public ContentItem Item { get; }
+
+    /// <summary>磁盘文件名。更新检查按文件名匹配（<see cref="ModUpdateRowViewModel.FileName"/>），行尾徽标靠它回填。</summary>
+    public string FileName => Item.FileName;
+
+    /// <summary>
+    /// 行尾「可更新」徽标的数据源。
+    ///
+    /// 只有跑过一次更新检查才会有值：它不是扫盘结果的一部分，而是外部数据源的结论。
+    /// 因此重建列表（切分类 / 换目标 / 刷新）时它自然归 false，不需要额外清理。
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasPendingUpdate;
 
     /// <summary>
     /// 宿主页面。<c>ContextMenu</c> 是弹出层，不在主视觉树里，<c>$parent[UserControl]</c> 解析不到页面；

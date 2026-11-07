@@ -1,884 +1,774 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
-             xmlns:views="using:NebulaLauncher.Views"
-             xmlns:models="using:NebulaLauncher.Core.Models"
-             xmlns:ctrl="using:NebulaLauncher.Controls"
+             xmlns:controls="using:NebulaLauncher.Controls"
              xmlns:conv="using:NebulaLauncher.Converters"
-             xmlns:sys="using:System"
-             xmlns:services="using:NebulaLauncher.Services"
+             xmlns:views="using:NebulaLauncher.Views"
              x:Class="NebulaLauncher.Views.ModsView"
              x:DataType="vm:ModsViewModel">
 
   <UserControl.Resources>
+    <!-- 模组图标：本地 png 路径 → Bitmap，失败返回 null 让立方体兜底透出来 -->
     <views:PathToImageConverter x:Key="PathToImage" />
-
-    <!-- 左栏目标项。全局目录与实例共用同一个模板：两者都是「一份独立的游戏目录」，
-         区别只在全局项不带版本 / 加载器标签（MetaText 在 VM 里给出）。 -->
-    <DataTemplate x:Key="TargetItem" x:DataType="vm:TargetItemViewModel">
-      <!-- 命令挂在页面 VM 上，因此父级取 UserControl：
-           嵌套 ItemsControl 里 $parent[ItemsControl] 会解析到内层，绑错 DataContext。 -->
-      <Button Classes="targetitem"
-              Classes.active="{Binding IsSelected}"
-              Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).SelectTargetCommand}"
-              CommandParameter="{Binding}"
-              ToolTip.Tip="{Binding GameDirectory}">
-        <Grid ColumnDefinitions="12,*">
-          <Border Grid.Column="0"
-                  Width="3"
-                  Margin="0,3,0,3"
-                  HorizontalAlignment="Left"
-                  CornerRadius="{DynamicResource Radius.Pill}"
-                  Background="{DynamicResource Accent.Primary}"
-                  IsVisible="{Binding IsSelected}" />
-
-          <StackPanel Grid.Column="1" Spacing="2">
-            <TextBlock Text="{Binding DisplayName}"
-                       FontWeight="SemiBold"
-                       TextTrimming="CharacterEllipsis" />
-            <TextBlock Text="{Binding MetaText}"
-                       Classes="muted"
-                       TextTrimming="CharacterEllipsis" />
-            <Border Classes="badge warning"
-                    HorizontalAlignment="Left"
-                    Margin="0,2,0,0"
-                    IsVisible="{Binding ShowVersionMissing}">
-              <TextBlock Text="版本未安装" />
-            </Border>
-          </StackPanel>
-        </Grid>
-      </Button>
-    </DataTemplate>
   </UserControl.Resources>
 
-  <UserControl.Styles>
-    <!-- 胶囊分类：选中态用强调色描边 + 8% 底 -->
-    <Style Selector="Button.pill.tab.active">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-      <Setter Property="FontWeight" Value="Medium" />
-    </Style>
+  <!--
+    内容页外壳 + 模组列表（票 #90）。
 
-    <!-- 左栏目标项：外观复刻 MainWindow 的导航项，选中态加左侧强调条 + 8% 底色 -->
-    <Style Selector="Button.targetitem">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
-      <Setter Property="Padding" Value="6,7" />
-      <Setter Property="MinHeight" Value="0" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
-        </Transitions>
-      </Setter>
-    </Style>
+    结构与数值逐条取自样板 .oil-ui/nebula-2/explore/mods-glass.html：
+      Row0 40  五页签（胶囊 36）+ 右端统计
+      Row1 48  搜索 320 + 筛选分段 + 目标下拉 + 从文件安装（ghost）
+      Row2 *   玻璃框内唯一滚动条，行高 56、行间距 4、框内边距 8
+      Row3 44  批量条（选中 > 0 才出现）
 
-    <Style Selector="Button.targetitem:pointerover">
-      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
-    </Style>
+    四条与旧实现的关键差异：
+      1. 左栏 212 的常驻目标列表删掉，目标改 Row1 的下拉——1024 档那 212 是纯损失。
+      2. 页签用 TabControl（同级视图），筛选用 ToggleButton 组（轻量选中）；
+         旧实现用同一个 Button.pill.tab 同时扮演两个角色，违反契约 §6 规则 2。
+      3. 列表从「WrapPanel 卡片网格」改成单列行列表：样板的行是一行数据，
+         不是一张卡；卡片网格一屏只看得到 4 个，行列表能看到 8 个。
+      4. 批量条是 Row3 的一条，不是浮层；删除确认走浮层（DialogOverlay 形态）。
+  -->
 
-    <Style Selector="Button.targetitem.active">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-    </Style>
+  <Panel>
 
-    <!-- 卡片悬停时才露出操作按钮；按钮始终占位，避免 hover 时布局跳动 -->
-    <Style Selector="Border.modcard StackPanel.hoverActions">
-      <Setter Property="Opacity" Value="0" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <DoubleTransition Property="Opacity" Duration="{x:Static services:Motion.Fast}" />
-        </Transitions>
-      </Setter>
-    </Style>
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
 
-    <Style Selector="Border.modcard:pointerover StackPanel.hoverActions">
-      <Setter Property="Opacity" Value="1" />
-    </Style>
+      <!-- ==================== Row0（40）：内容页签 + 统计 ==================== -->
+      <Grid Grid.Row="0" Height="40" ColumnDefinitions="*,Auto">
 
-    <Style Selector="Border.modcard">
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
-          <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
-        </Transitions>
-      </Setter>
-    </Style>
+        <!-- 同级视图：模组 / 资源包 / 光影包 / 数据包 / 皮肤。
+             皮肤不是 ContentKind 的一员，走 IsSkinTabActive 占位（见 TabIndex 注释）。 -->
+        <TabControl Grid.Column="0"
+                    Classes="strip"
+                    VerticalAlignment="Center"
+                    SelectedIndex="{Binding TabIndex, Mode=TwoWay}">
+          <TabItem Header="模组" />
+          <TabItem Header="资源包" />
+          <TabItem Header="光影包" />
+          <TabItem Header="数据包" />
+          <TabItem Header="皮肤" />
+        </TabControl>
 
-    <Style Selector="Border.toneBar">
-      <Setter Property="Background" Value="{DynamicResource Status.Warning.Soft}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Status.Warning}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
-      <Setter Property="Padding" Value="14,10" />
-    </Style>
-
-    <Style Selector="Border.toneBar.danger">
-      <Setter Property="Background" Value="{DynamicResource Status.Danger.Soft}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Status.Danger}" />
-    </Style>
-  </UserControl.Styles>
-
-  <!-- 两栏：左栏是按加载器分组的内容目标，右栏只显示「当前目标」的内容。
-       页面根不放 ScrollViewer —— 两栏各自滚动，左栏目标多时右栏工具行不会被顶出视野。 -->
-  <Grid ColumnDefinitions="212,16,*">
-
-    <!-- ==================== 左：内容目标（按加载器分组） ==================== -->
-    <ctrl:GlassPanel Grid.Column="0" Padding="8,6">
-      <Grid RowDefinitions="Auto,*">
-        <TextBlock Grid.Row="0"
-                   Text="游戏目录"
+        <TextBlock Grid.Column="1"
                    Classes="caption"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,6" />
-
-        <!-- 左栏目标列表：玻璃框内滚动（票 #106），框边留给滚动条 -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="0,0,4,8">
-          <!-- 全局目录：独立置顶，不进加载器分组。它是 .minecraft 根目录本身，
-               不属于任何版本，因此这里不出现「1.21 · 原版」这类标签。 -->
-          <StackPanel Spacing="4" Margin="0,0,0,10" IsVisible="{Binding HasGlobalTarget}">
-            <TextBlock Text="全局"
-                       Classes="caption"
-                       FontWeight="SemiBold"
-                       Margin="4,0,4,2" />
-            <ContentControl Content="{Binding GlobalTarget}"
-                            ContentTemplate="{StaticResource TargetItem}" />
-          </StackPanel>
-
-          <ItemsControl ItemsSource="{Binding TargetGroups}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:ModsTargetGroup">
-                <StackPanel Spacing="4" Margin="0,0,0,10">
-                  <!-- 组头：加载器名 + 该组目标数量 -->
-                  <Grid ColumnDefinitions="*,Auto" Margin="4,0,4,2">
-                    <TextBlock Text="{Binding LoaderLabel}"
-                               Classes="caption"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding CountText}"
-                               Classes="caption"
-                               VerticalAlignment="Center" />
-                  </Grid>
-
-                  <ItemsControl ItemsSource="{Binding Items}"
-                                ItemTemplate="{StaticResource TargetItem}" />
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-        </ScrollViewer>
+                   Text="{Binding StatsText}"
+                   Foreground="{DynamicResource Text.Tertiary}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
       </Grid>
-    </ctrl:GlassPanel>
 
-    <!-- ==================== 右：当前目标的内容 ==================== -->
-    <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto">
+      <!-- ==================== Row1（48）：工具条 ==================== -->
+      <Grid Grid.Row="1" Height="48" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
 
-      <!-- 工具行：分类胶囊 / 搜索 / 操作。用 WrapPanel 是为了窄窗口下自动换行而不是裁切。 -->
-      <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
-        <!-- 「模组」入口随目标能力收起：原版没有 mod API，点进去只会得到一个永远空的列表。
-             用 CollapseHost 而不是 IsVisible，是为了让消失 / 出现有个短过渡（见 Controls/CollapseHost.cs）。 -->
-        <ctrl:CollapseHost IsExpanded="{Binding CanLoadMods}">
-          <Button Classes="pill tab" Classes.active="{Binding IsModTabActive}"
-                  Content="模组"
-                  Margin="0,0,6,6"
-                  Command="{Binding SelectKindCommand}"
-                  CommandParameter="{x:Static models:ContentKind.Mod}" />
-        </ctrl:CollapseHost>
-        <Button Classes="pill tab" Classes.active="{Binding IsResourcePackTabActive}"
-                Content="资源包"
-                Margin="0,0,6,6"
-                Command="{Binding SelectKindCommand}"
-                CommandParameter="{x:Static models:ContentKind.ResourcePack}" />
-        <Button Classes="pill tab" Classes.active="{Binding IsShaderPackTabActive}"
-                Content="光影包"
-                Margin="0,0,6,6"
-                Command="{Binding SelectKindCommand}"
-                CommandParameter="{x:Static models:ContentKind.ShaderPack}" />
-        <Button Classes="pill tab" Classes.active="{Binding IsDataPackTabActive}"
-                Content="数据包"
-                Margin="0,0,6,6"
-                Command="{Binding SelectKindCommand}"
-                CommandParameter="{x:Static models:ContentKind.DataPack}" />
-
-        <!-- 状态筛选：与分类 chip 同一行，中间用一根竖线分组。
-             四档对应 PCL2 的 CanPassFilter（全部 / 已启用 / 已禁用 / 可更新）；
-             「可更新」没有检查结果时置灰，而不是隐藏——按钮消失会让人以为页面变了。 -->
-        <Border Width="1"
-                Height="18"
-                Margin="2,0,8,6"
-                VerticalAlignment="Center"
-                Background="{DynamicResource Stroke.Subtle}" />
-
-        <Button Classes="pill tab" Classes.active="{Binding IsFilterAll}"
-                Content="全部"
-                Margin="0,0,6,6"
-                Command="{Binding SetFilterCommand}"
-                CommandParameter="{x:Static vm:ModsFilter.All}" />
-        <Button Classes="pill tab" Classes.active="{Binding IsFilterEnabled}"
-                Content="已启用"
-                Margin="0,0,6,6"
-                Command="{Binding SetFilterCommand}"
-                CommandParameter="{x:Static vm:ModsFilter.Enabled}" />
-        <Button Classes="pill tab" Classes.active="{Binding IsFilterDisabled}"
-                Content="已禁用"
-                Margin="0,0,6,6"
-                Command="{Binding SetFilterCommand}"
-                CommandParameter="{x:Static vm:ModsFilter.Disabled}" />
-        <Button Classes="pill tab" Classes.active="{Binding IsFilterCanUpdate}"
-                Content="可更新"
-                Margin="0,0,6,6"
-                IsEnabled="{Binding HasKnownUpdates}"
-                ToolTip.Tip="从最近一次「检查更新」的结果派生；没有检查结果时不可用"
-                Command="{Binding SetFilterCommand}"
-                CommandParameter="{x:Static vm:ModsFilter.CanUpdate}" />
-
-        <TextBox Width="200"
-                 Margin="4,0,10,6"
+        <!-- 搜索：文本框自带圆角与底色，外层不再套 Border，否则会有两个滚动/描边层 -->
+        <TextBox Grid.Column="0"
+                 Classes="modsearch"
+                 Height="36"
+                 HorizontalAlignment="Left"
                  VerticalAlignment="Center"
-                 Watermark="搜索名称 / 作者 / 文件名"
-                 Text="{Binding SearchText}" />
+                 VerticalContentAlignment="Center"
+                 Watermark="搜索模组名称、作者或 ID"
+                 Text="{Binding SearchText, Mode=TwoWay}"
+                 CornerRadius="{DynamicResource Radius.Md}" />
 
-        <Button Classes="pill" Content="{Binding ToggleAllLabel}"
-                Margin="0,0,6,6"
-                Command="{Binding ToggleAllCommand}" />
-        <Button Classes="pill" Content="冲突检测"
-                Margin="0,0,6,6"
-                Command="{Binding CheckConflictsCommand}" />
-        <Button Classes="pill" Content="检查更新"
-                Margin="0,0,6,6"
-                Command="{Binding CheckUpdatesCommand}"
-                ToolTip.Tip="用文件哈希反查 Modrinth / CurseForge，判断有没有新版本（游戏运行期间不可用）" />
-        <Button Classes="pill" Content="刷新"
-                Margin="0,0,6,6"
-                Command="{Binding RefreshCommand}" />
+        <!-- 筛选：轻量选中（白底蓝字），与实心主色的页签分开 -->
+        <Border Grid.Column="1"
+                Classes="sunken"
+                Padding="3"
+                Height="36"
+                VerticalAlignment="Center"
+                CornerRadius="{DynamicResource Radius.Md}">
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <ToggleButton Classes="segmented"
+                          Content="全部"
+                          IsChecked="{Binding IsFilterAll, Mode=OneWay}"
+                          Command="{Binding SetFilterCommand}"
+                          CommandParameter="{x:Static vm:ModsFilter.All}" />
+            <ToggleButton Classes="segmented"
+                          Content="已启用"
+                          IsChecked="{Binding IsFilterEnabled, Mode=OneWay}"
+                          Command="{Binding SetFilterCommand}"
+                          CommandParameter="{x:Static vm:ModsFilter.Enabled}" />
+            <ToggleButton Classes="segmented"
+                          Content="已禁用"
+                          IsChecked="{Binding IsFilterDisabled, Mode=OneWay}"
+                          Command="{Binding SetFilterCommand}"
+                          CommandParameter="{x:Static vm:ModsFilter.Disabled}" />
+            <ToggleButton Classes="segmented"
+                          Content="可更新"
+                          IsChecked="{Binding IsFilterCanUpdate, Mode=OneWay}"
+                          IsEnabled="{Binding HasKnownUpdates}"
+                          ToolTip.Tip="从最近一次「检查更新」的结果派生；没有检查结果时不可用"
+                          Command="{Binding SetFilterCommand}"
+                          CommandParameter="{x:Static vm:ModsFilter.CanUpdate}" />
+          </StackPanel>
+        </Border>
 
-        <!-- 回收站入口：常驻显示，带条数。删除默认进回收站，没有这个入口等于删了就没了。 -->
-        <Button Classes="pill"
-                Margin="0,0,0,6"
-                Content="{Binding TrashButtonText}"
-                Command="{Binding ToggleTrashCommand}"
-                ToolTip.Tip="查看已删除的文件，可恢复或彻底删除" />
-      </WrapPanel>
-
-      <!-- 当前目标：让用户一眼看到文件到底在哪个绝对目录里 -->
-      <Border Grid.Row="1" Classes="sunken" Padding="10,8" Margin="0,0,0,10">
-        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
-          <TextBlock Text="目标："
-                     Classes="caption"
+        <!--
+          次要入口（检查更新 / 冲突检测 / 回收站 / 刷新 / 切换全部启用状态）。
+          样板 Row1 只有四个元素，没有这些按钮；它们是既有功能，不能因为改版丢失，
+          所以收进一个 30×30 的图标按钮，不占视觉重心。
+        -->
+        <Button Grid.Column="2"
+                Classes="icon"
+                Width="30" Height="30"
+                VerticalAlignment="Center"
+                ToolTip.Tip="更多操作">
+          <!-- 用文字省略号而不是三点几何：18×18 视口里三个 0.01 长的圆头点在 Uniform 拉伸下会糊成一个点 -->
+          <TextBlock Text="…"
+                     FontSize="{DynamicResource FontSize.Subtitle}"
+                     FontWeight="Bold"
+                     Foreground="{DynamicResource Text.Secondary}"
+                     HorizontalAlignment="Center"
                      VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1"
-                     Text="{Binding SelectedTargetName}"
-                     FontWeight="SemiBold"
-                     MaxWidth="220"
-                     TextTrimming="CharacterEllipsis"
-                     VerticalAlignment="Center" />
-          <TextBlock Grid.Column="2"
-                     Text="·"
-                     Classes="caption"
-                     Margin="6,0"
-                     VerticalAlignment="Center" />
-          <TextBlock Grid.Column="3"
-                     Text="{Binding TargetDirectory}"
-                     Classes="mono"
-                     TextTrimming="CharacterEllipsis"
-                     VerticalAlignment="Center"
-                     ToolTip.Tip="{Binding TargetDirectory}" />
-          <!-- pack_format 兼容判断用的游戏版本；取不到时写「MC 未知」，明确不做判断 -->
-          <Border Grid.Column="4"
-                  Classes="badge"
-                  Margin="10,0,0,0"
-                  ToolTip.Tip="pack_format 兼容判断使用的 Minecraft 版本">
-            <TextBlock Text="{Binding GameVersionBadgeText}" />
-          </Border>
-        </Grid>
-      </Border>
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+              <MenuItem Header="检查更新" Command="{Binding CheckUpdatesCommand}" />
+              <MenuItem Header="冲突检测" Command="{Binding CheckConflictsCommand}" />
+              <MenuItem Header="刷新列表" Command="{Binding RefreshCommand}" />
+              <Separator />
+              <MenuItem Header="{Binding ToggleAllLabel}" Command="{Binding ToggleAllCommand}" />
+              <MenuItem Header="{Binding TrashButtonText}" Command="{Binding ToggleTrashCommand}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
 
-      <!-- ==================== 批量操作条 ====================
-           与「全部启用 / 全部禁用」并存：那两个作用于当前列表的全部项，这一条只作用于勾选项。
-           常驻显示而不是选中才出现：没有它用户根本不知道卡片左上角的勾选框是干什么的。 -->
-      <Border Grid.Row="3" Classes="sunken" Padding="10,8" Margin="0,0,0,10">
-        <WrapPanel Orientation="Horizontal">
-          <TextBlock Text="{Binding SelectionSummary}"
-                     Classes="secondary"
-                     FontWeight="Medium"
-                     VerticalAlignment="Center"
-                     Margin="0,0,10,4" />
-
-          <Button Classes="pill"
-                  Content="全选"
-                  Margin="0,0,6,4"
-                  Command="{Binding SelectAllCommand}" />
-          <Button Classes="pill"
-                  Content="清除选择"
-                  Margin="0,0,6,4"
-                  IsEnabled="{Binding HasSelection}"
-                  Command="{Binding ClearSelectionCommand}" />
-          <Button Classes="pill"
-                  Content="启用选中"
-                  Margin="0,0,6,4"
-                  IsEnabled="{Binding CanBatch}"
-                  Command="{Binding EnableSelectedCommand}" />
-          <Button Classes="pill"
-                  Content="禁用选中"
-                  Margin="0,0,6,4"
-                  IsEnabled="{Binding CanBatch}"
-                  Command="{Binding DisableSelectedCommand}" />
-          <Button Classes="pill danger"
-                  Content="删除选中"
-                  Margin="0,0,10,4"
-                  IsEnabled="{Binding CanBatch}"
-                  Command="{Binding RequestBatchDeleteCommand}" />
-
-          <TextBlock Text="批量任务进行中，请稍候…"
-                     Classes="muted"
-                     VerticalAlignment="Center"
-                     Margin="0,0,0,4"
-                     IsVisible="{Binding IsBatchBusy}" />
-        </WrapPanel>
-      </Border>
-
-      <!-- 右栏内容列表：玻璃框内滚动（票 #106） -->
-      <ctrl:GlassPanel Grid.Row="2" Padding="0">
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="12" Margin="16,14,16,16">
-
-          <ProgressBar IsVisible="{Binding IsLoading}" IsIndeterminate="True" Height="4" />
-
-          <!-- ============ 回收站 ============
-               删除默认进 <data>/trash/contents/，「更新完崩了换回旧版」这条路才成立。
-               与更新面板、批量条并列，折叠在工具行按钮后面。 -->
-          <Border Classes="card" IsVisible="{Binding IsTrashOpen}" Padding="14,12">
-            <StackPanel Spacing="8">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock Text="回收站" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <!-- 目标选择器：替代原来的左栏常驻列表 -->
+        <ComboBox Grid.Column="3"
+                  Classes="modtarget"
+                  Height="36"
+                  VerticalAlignment="Center"
+                  ItemsSource="{Binding AllTargets}"
+                  SelectedItem="{Binding SelectedTarget, Mode=OneWay}"
+                  SelectionChanged="OnTargetSelectionChanged"
+                  CornerRadius="{DynamicResource Radius.Md}"
+                  ToolTip.Tip="{Binding TargetDirectory}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:TargetItemViewModel">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
+                <Path Grid.Column="0"
+                      Data="{StaticResource Icon.Folder}"
+                      Stroke="{DynamicResource Text.Tertiary}"
+                      StrokeThickness="1.8"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Stretch="Uniform"
+                      Width="14" Height="14" />
                 <TextBlock Grid.Column="1"
-                           Text="{Binding TrashSummary}"
-                           Classes="muted"
-                           Margin="10,0,0,0"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" />
-                <Button Grid.Column="2"
-                        Classes="ghost"
-                        Content="收起"
-                        Padding="8,2"
-                        MinHeight="24"
-                        Command="{Binding ToggleTrashCommand}" />
-              </Grid>
-
-              <Border Classes="toneBar danger" IsVisible="{Binding HasTrashError}" Padding="10,8">
-                <TextBlock Text="{Binding TrashError}"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource Status.Danger}" />
-              </Border>
-
-              <ListBox ItemsSource="{Binding TrashEntries}"
-                       MaxHeight="160"
-                       IsEnabled="{Binding IsTrashBusy, Converter={x:Static conv:Converters.InverseBool}}"
-                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ContentTrashRow">
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                      <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip.Tip="{Binding OriginalPath}" />
-                        <TextBlock Text="{Binding MetaText}"
-                                   Classes="muted"
-                                   TextTrimming="CharacterEllipsis" />
-                      </StackPanel>
-                      <Button Grid.Column="1"
-                              Classes="pill"
-                              Content="恢复"
-                              Padding="10,2"
-                              MinHeight="24"
-                              FontSize="{DynamicResource FontSize.Small}"
-                              Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).RestoreTrashCommand}"
-                              CommandParameter="{Binding}" />
-                      <Button Grid.Column="2"
-                              Classes="pill danger"
-                              Content="彻底删除"
-                              Padding="10,2"
-                              MinHeight="24"
-                              FontSize="{DynamicResource FontSize.Small}"
-                              Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).PurgeTrashCommand}"
-                              CommandParameter="{Binding}" />
-                    </Grid>
-                  </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
-            </StackPanel>
-          </Border>
-
-          <!-- ============ 提示条 ============ -->
-          <Border Classes="toneBar" IsVisible="{Binding IsDemoMode}" Padding="12,8">
-            <TextBlock Text="示例数据 · Core 服务尚未接线，以下卡片仅用于预览布局"
-                       Classes="muted"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Status.Warning}" />
-          </Border>
-
-          <Border Classes="toneBar danger" IsVisible="{Binding HasError}" Padding="12,8">
-            <TextBlock Text="{Binding ErrorText}"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Status.Danger}" />
-          </Border>
-
-          <!-- ============ 批量操作结果 ============ -->
-          <!-- 逐项容错之后必须把「成功 N / 失败 M」摊开：只改一部分的文件，用户不看汇总就发现不了。 -->
-          <Border Classes="toneBar" Padding="12,8" IsVisible="{Binding HasBatchResult}">
-            <StackPanel Spacing="4">
-              <TextBlock Text="{Binding BatchResultText}"
-                         FontWeight="SemiBold"
-                         TextWrapping="Wrap" />
-              <TextBlock Text="{Binding BatchFailureText}"
-                         IsVisible="{Binding HasBatchFailures}"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         Foreground="{DynamicResource Status.Warning}" />
-            </StackPanel>
-          </Border>
-
-          <!-- ============ 批量删除确认 ============ -->
-          <Border Classes="toneBar danger" IsVisible="{Binding IsBatchDeleteConfirmOpen}">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="2" VerticalAlignment="Center">
-                <TextBlock Text="{Binding BatchDeleteSummary}"
+                           Text="{Binding DisplayName}"
+                           Classes="caption"
                            FontWeight="SemiBold"
-                           Foreground="{DynamicResource Status.Danger}" />
-                <TextBlock Text="{Binding BatchDeleteListText}"
-                           Classes="muted"
-                           TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding BatchDeleteModeText}"
-                           Classes="muted"
-                           TextWrapping="Wrap"
-                           Margin="0,2,0,0" />
-                <CheckBox Content="彻底删除（不进回收站）"
-                          IsChecked="{Binding BatchDeletePermanent, Mode=TwoWay}"
-                          Margin="0,4,0,0"
-                          MinHeight="0"
-                          Padding="0" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0,0,0">
-                <Button Classes="danger" Content="删除选中" Command="{Binding ConfirmBatchDeleteCommand}" />
-                <Button Classes="ghost" Content="取消" Command="{Binding CancelBatchDeleteCommand}" />
-              </StackPanel>
-            </Grid>
-          </Border>
-
-          <!-- ============ 冲突与兼容性 ============ -->
-          <Border Classes="card accentEdge" IsVisible="{Binding HasWarnings}" Padding="14,12">
-            <StackPanel Spacing="8">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock Text="冲突与版本兼容性" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Warnings.Count, StringFormat='共 {0} 条'}"
-                           Classes="muted"
-                           Margin="10,0,0,0"
+                           TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
-                  <Button Classes="ghost" Content="展开 / 收起" Command="{Binding ToggleWarningListCommand}" />
-                  <Button Classes="icon" Content="✕" Command="{Binding CloseWarningsCommand}" ToolTip.Tip="关闭" />
-                </StackPanel>
               </Grid>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
 
-              <ItemsControl ItemsSource="{Binding Warnings}" IsVisible="{Binding IsWarningListVisible}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="sys:String">
-                    <TextBlock Text="{Binding}"
-                               Classes="muted"
-                               TextWrapping="Wrap"
-                               Margin="0,3" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </Border>
+        <!-- 次级行动：ghost，不是实心主色（一屏唯一主行动在 Row3 的「启用」） -->
+        <Button Grid.Column="4"
+                Classes="ghost"
+                Height="36"
+                VerticalAlignment="Center"
+                Click="OnInstallFromFileClick"
+                ToolTip.Tip="把 .jar / .zip 文件复制进当前目标的对应目录">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Path Data="{StaticResource Icon.Upload}"
+                  Stroke="{DynamicResource Text.Secondary}"
+                  StrokeThickness="1.8"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="Uniform"
+                  Width="14" Height="14" />
+            <TextBlock Text="从文件安装" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
 
-          <!-- ============ 模组更新 ============ -->
-          <!-- 与「冲突与版本兼容性」并列，卡片样式复用同一套 card / accentEdge / badge，
-               不改动上面任何布局，避免影响已验收的冲突检测区域。 -->
-          <Border Classes="card accentEdge" IsVisible="{Binding HasUpdates}" Padding="14,12">
-            <StackPanel Spacing="8">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
-                <TextBlock Text="模组更新" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <ProgressBar Grid.Column="1"
-                             IsVisible="{Binding IsCheckingUpdates}"
-                             IsIndeterminate="True"
-                             Width="64"
-                             Height="4"
-                             Margin="10,0,0,0"
-                             VerticalAlignment="Center" />
-                <TextBlock Grid.Column="2"
-                           Text="{Binding UpdateSummary}"
-                           Classes="muted"
-                           Margin="10,0,0,0"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis" />
-                <!-- 一键更新：只作用在已勾选且确认有新版本的条目上 -->
-                <Button Grid.Column="3"
-                        Classes="accent"
-                        Content="{Binding UpdateButtonText}"
-                        Command="{Binding RequestUpdateSelectedCommand}"
-                        IsEnabled="{Binding CanUpdateSelected}"
-                        ToolTip.Tip="{Binding UpdateSelectedHint}"
-                        Padding="12,4"
-                        MinHeight="26"
-                        Margin="0,0,8,0"
-                        VerticalAlignment="Center" />
-                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6">
-                  <Button Classes="ghost" Content="展开 / 收起" Command="{Binding ToggleUpdateListCommand}" />
-                  <Button Classes="icon" Content="✕" Command="{Binding CloseUpdatesCommand}" ToolTip.Tip="关闭" />
-                </StackPanel>
-              </Grid>
+      <!-- ==================== Row2（*）：内容框 ==================== -->
+      <controls:GlassPanel Grid.Row="2" Padding="0">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+          <Panel Margin="8">
 
-              <!-- 更新前的警告 + 二次确认。抄 PCL2 UpdateMods 的「可能崩存档」提示，
-                   但把「我已了解风险」做成页面内的确认条而不是模态框。 -->
-              <Border Classes="toneBar danger" IsVisible="{Binding IsUpdateConfirmOpen}" Padding="12,10">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel Spacing="2" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding UpdateConfirmText}"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource Status.Danger}" />
-                    <TextBlock Text="新版本模组可能不兼容旧存档或其他模组，更新前建议先备份存档。更新后出问题可以在「回收站」找回旧文件。"
-                               Classes="muted"
-                               TextWrapping="Wrap"
-                               LineHeight="20"
-                               Margin="0,2,0,0" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
-                              VerticalAlignment="Center" Margin="12,0,0,0">
-                    <Button Classes="danger" Content="开始更新" Command="{Binding ConfirmUpdateSelectedCommand}" />
-                    <Button Classes="ghost" Content="取消" Command="{Binding CancelUpdateSelectedCommand}" />
-                  </StackPanel>
-                </Grid>
-              </Border>
+            <!-- 列表：行高 56、间距 4。一屏 8 行（(509−16)/60 ≈ 8.2） -->
+            <ItemsControl ItemsSource="{Binding Items}"
+                          IsVisible="{Binding IsContentViewActive}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="4" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ContentCardViewModel">
+                  <Border Classes="listrow"
+                          Classes.selected="{Binding IsChecked}"
+                          ToolTip.Tip="{Binding ToolTipText}">
 
-              <TextBlock Text="正在下载并替换文件，请勿关闭游戏…"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         IsVisible="{Binding IsUpdating}" />
+                    <!-- 右键菜单：批量动作之外的单条动作都在这里，行内只留一个图标按钮 -->
+                    <Border.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="打开所在文件夹"
+                                  Command="{Binding Owner.RevealCommand}"
+                                  CommandParameter="{Binding}" />
+                        <MenuItem Header="去资源站查找"
+                                  Command="{Binding Owner.LookupInLibraryCommand}"
+                                  CommandParameter="{Binding}" />
+                        <MenuItem Header="在 MC 百科搜索"
+                                  Command="{Binding Owner.SearchMcmodCommand}"
+                                  CommandParameter="{Binding}" />
+                        <Separator />
+                        <MenuItem Header="复制文件名"
+                                  Command="{Binding Owner.CopyFileNameCommand}"
+                                  CommandParameter="{Binding}" />
+                        <MenuItem Header="复制完整路径"
+                                  Command="{Binding Owner.CopyPathCommand}"
+                                  CommandParameter="{Binding}" />
+                        <Separator />
+                        <MenuItem Header="启用 / 禁用"
+                                  Command="{Binding Owner.ToggleEnabledCommand}"
+                                  CommandParameter="{Binding}" />
+                        <MenuItem Header="删除…"
+                                  Command="{Binding Owner.RequestDeleteCommand}"
+                                  CommandParameter="{Binding}" />
+                      </ContextMenu>
+                    </Border.ContextMenu>
 
-              <Border Classes="toneBar danger" IsVisible="{Binding HasUpdateError}" Padding="10,8">
-                <TextBlock Text="{Binding UpdateError}"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource Status.Danger}" />
-              </Border>
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="12">
 
-              <TextBlock Text="游戏正在运行，更新检查已禁用。请先关闭游戏。"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         IsVisible="{Binding IsGameRunning}" />
-
-              <ItemsControl ItemsSource="{Binding Updates}" IsVisible="{Binding IsUpdateListVisible}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ModUpdateRowViewModel">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,4">
-                      <!-- 左：文件名 + 版本变化 + 数据源 -->
-                      <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding FileName}"
-                                   FontWeight="SemiBold"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding VersionText}"
-                                   Classes="muted"
-                                   TextTrimming="CharacterEllipsis" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <Border Classes="badge">
-                            <TextBlock Text="{Binding SourceText}" />
-                          </Border>
-                          <Border Classes="badge danger"
-                                  IsVisible="{Binding HasError}"
-                                  ToolTip.Tip="{Binding ErrorText}">
-                            <TextBlock Text="查询出错" />
-                          </Border>
-                        </StackPanel>
-                      </StackPanel>
-
-                      <!-- 右：状态徽标 + 项目 / 更新说明 -->
-                      <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                        <Border Classes="badge"
-                                Classes.success="{Binding IsUpToDate}"
-                                Classes.warning="{Binding HasUpdate}"
-                                Classes.danger="{Binding IsFailed}"
-                                HorizontalAlignment="Right">
-                          <TextBlock Text="{Binding Status}" />
-                        </Border>
-                        <TextBlock Text="{Binding DetailText}"
-                                   Classes="muted"
-                                   IsVisible="{Binding HasDetail}"
-                                   MaxWidth="240"
-                                   HorizontalAlignment="Right"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip.Tip="{Binding DetailText}" />
-                      </StackPanel>
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </Border>
-
-          <!-- ============ 删除确认 ============ -->
-          <Border Classes="toneBar danger" IsVisible="{Binding HasPendingDelete}">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="2" VerticalAlignment="Center">
-                <TextBlock Text="确定要删除这个文件吗？" FontWeight="SemiBold"
-                           Foreground="{DynamicResource Status.Danger}" />
-                <TextBlock Text="{Binding PendingDelete.Name}" Classes="muted" TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="移入回收站后可在本页找回；彻底删除不可恢复。"
-                           Classes="muted"
-                           TextWrapping="Wrap"
-                           Margin="0,2,0,0" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Button Classes="danger" Content="移到回收站" Command="{Binding ConfirmDeleteCommand}" />
-                <Button Classes="ghost" Content="彻底删除" Command="{Binding ConfirmDeletePermanentCommand}" />
-                <Button Classes="ghost" Content="取消" Command="{Binding CancelDeleteCommand}" />
-              </StackPanel>
-            </Grid>
-          </Border>
-
-          <!-- ============ 内容卡片网格 ============ -->
-          <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding !IsEmpty}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:ContentCardViewModel">
-                <Border Classes="card modcard hoverable"
-                        Width="248"
-                        MinHeight="140"
-                        Margin="0,0,12,12"
-                        Padding="14"
-                        ToolTip.Tip="{Binding ToolTipText}">
-                  <!--
-                    右键菜单：卡片上只有「打开目录 / 删除」两个图标按钮，批量改名、去网页搜同名项目、
-                    贴路径给反馈这三件事都得先拿到磁盘名，鼠标悬停再点太慢。
-                    「去资源站查找」是唯一不需要磁盘名的一项：它要的是项目名，由卡片从元数据里取。
-                    ContextMenu 是弹出层，不继承视觉树的 $parent[UserControl]，所以命令走卡片的 Owner。
-                  -->
-                  <Border.ContextMenu>
-                    <ContextMenu>
-                      <MenuItem Header="打开所在文件夹"
-                                Command="{Binding Owner.RevealCommand}"
-                                CommandParameter="{Binding}" />
-                      <!-- 跳到资源页并自动按项目名搜索。预填词与搜索都发生在目标页的导航生命周期里，
-                           所以这里只是「发请求 + 导航」，不碰资源页的搜索状态。 -->
-                      <MenuItem Header="去资源站查找"
-                                Command="{Binding Owner.LookupInLibraryCommand}"
-                                CommandParameter="{Binding}" />
-                      <MenuItem Header="在 MC 百科搜索"
-                                Command="{Binding Owner.SearchMcmodCommand}"
-                                CommandParameter="{Binding}" />
-                      <Separator />
-                      <MenuItem Header="复制文件名"
-                                Command="{Binding Owner.CopyFileNameCommand}"
-                                CommandParameter="{Binding}" />
-                      <MenuItem Header="复制完整路径"
-                                Command="{Binding Owner.CopyPathCommand}"
-                                CommandParameter="{Binding}" />
-                      <Separator />
-                      <MenuItem Header="启用 / 禁用"
-                                Command="{Binding Owner.ToggleEnabledCommand}"
-                                CommandParameter="{Binding}" />
-                      <MenuItem Header="删除…"
-                                Command="{Binding Owner.RequestDeleteCommand}"
-                                CommandParameter="{Binding}" />
-                    </ContextMenu>
-                  </Border.ContextMenu>
-
-                  <Grid RowDefinitions="Auto,8,Auto,8,Auto">
-
-                    <!-- 勾选框 / 图标 / 标题区（标题三行：主标题、英文名、版本·作者） -->
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,44,*">
-                      <!-- 勾选 = 参与批量操作，与右侧「启用」开关是两件事，所以放在卡片左上而不是开关旁边。 -->
+                      <!-- 勾选 = 参与批量操作，与右侧「启用」开关是两件事 -->
                       <CheckBox Grid.Column="0"
                                 IsChecked="{Binding IsChecked, Mode=TwoWay}"
                                 MinWidth="0"
                                 Padding="0"
-                                Margin="0,1,8,0"
-                                VerticalAlignment="Top"
+                                VerticalAlignment="Center"
                                 IsEnabled="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).IsBatchBusy, Converter={x:Static conv:Converters.InverseBool}}"
                                 ToolTip.Tip="勾选后参与批量启用 / 禁用 / 删除" />
 
-                      <Border Grid.Column="1"
-                              Width="44" Height="44"
-                              CornerRadius="{DynamicResource Radius.Md}"
-                              ClipToBounds="True"
-                              Background="{DynamicResource Gradient.Accent}">
+                      <!-- 图标：有真实项目图标就显示，没有用稳定的立方体几何兜底 -->
+                      <Border Grid.Column="1" Classes="rowicon" VerticalAlignment="Center">
                         <Panel>
-                          <TextBlock Text="{Binding Initial}"
-                                     FontSize="{DynamicResource FontSize.Subtitle}"
-                                     FontWeight="SemiBold"
-                                     Foreground="{DynamicResource Text.OnAccent}"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Center" />
-                          <!-- 优先在线项目图标（资源站 logo），没有才回退到 jar 内图标。 -->
+                          <Path Data="{StaticResource Icon.Mod}"
+                                Stroke="{DynamicResource Accent.Primary}"
+                                StrokeThickness="1.8"
+                                StrokeLineCap="Round"
+                                StrokeJoin="Round"
+                                Stretch="Uniform"
+                                Width="17" Height="17"
+                                IsVisible="{Binding !HasIcon}" />
                           <Image Source="{Binding DisplayIconPath, Converter={StaticResource PathToImage}}"
-                                 Stretch="UniformToFill" />
+                                 Stretch="UniformToFill"
+                                 IsVisible="{Binding HasIcon}" />
                         </Panel>
                       </Border>
 
-                      <StackPanel Grid.Column="2" Margin="10,0,0,0" Spacing="1" VerticalAlignment="Center">
-                        <!-- 主标题：MC 百科译名 → 资源站原名 → jar 内显示名 → 文件名 -->
+                      <!-- 主名 13（Body）/ 副行 11（Caption）：样板 .row .rn 的口径 -->
+                      <StackPanel Grid.Column="2"
+                                  VerticalAlignment="Center"
+                                  Spacing="2">
                         <TextBlock Text="{Binding TitleText}"
+                                   FontSize="{DynamicResource FontSize.Body}"
                                    FontWeight="SemiBold"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTip.Tip="{Binding TitleText}" />
-                        <!-- 译名做主标题时，把英文原名放第二行，方便对照资源站搜索 -->
-                        <TextBlock Text="{Binding EnglishNameText}"
-                                   Classes="muted"
-                                   FontSize="{DynamicResource FontSize.Caption}"
-                                   TextTrimming="CharacterEllipsis"
-                                   IsVisible="{Binding HasEnglishName}" />
                         <TextBlock Text="{Binding DetailText}"
-                                   Classes="muted"
+                                   Classes="caption"
+                                   Foreground="{DynamicResource Text.Tertiary}"
                                    TextTrimming="CharacterEllipsis" />
                       </StackPanel>
+
+                      <!-- 行尾徽标：可更新 / 已禁用 / 解析失败 -->
+                      <Border Grid.Column="3"
+                              Classes="badge warning"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding HasPendingUpdate}">
+                        <TextBlock Text="可更新" />
+                      </Border>
+
+                      <Border Grid.Column="3"
+                              Classes="badge"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding HasParseError}"
+                              ToolTip.Tip="{Binding ParseErrorText}">
+                        <TextBlock Text="解析失败" Foreground="{DynamicResource Status.Danger}" />
+                      </Border>
+
+                      <Border Grid.Column="3"
+                              Classes="badge"
+                              VerticalAlignment="Center"
+                              IsVisible="{Binding !IsEnabled}">
+                        <TextBlock Text="已禁用" Foreground="{DynamicResource Text.Tertiary}" />
+                      </Border>
+
+                      <ToggleSwitch Grid.Column="4"
+                                    IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                    OnContent="{x:Null}"
+                                    OffContent="{x:Null}"
+                                    MinWidth="0"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="启用 / 禁用" />
+
+                      <!-- 行内动作只有一个：打开目录（样板 .ract 只放 .ibtn） -->
+                      <Button Grid.Column="5"
+                              Classes="icon"
+                              Width="30" Height="30"
+                              VerticalAlignment="Center"
+                              ToolTip.Tip="打开所在目录"
+                              Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).RevealCommand}"
+                              CommandParameter="{Binding}">
+                        <Path Data="{StaticResource Icon.Folder}"
+                              Stroke="{DynamicResource Text.Secondary}"
+                              StrokeThickness="1.7"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="15" Height="15" />
+                      </Button>
                     </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-                    <!-- 描述两行：原来只挂在 ToolTip 上，用户得逐个悬停才知道这是什么模组 -->
-                    <TextBlock Grid.Row="2"
-                               Text="{Binding DescriptionText}"
-                               Classes="muted"
-                               FontSize="{DynamicResource FontSize.Caption}"
-                               LineHeight="16"
-                               MaxLines="2"
-                               TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding HasDescription}" />
-
-                    <!-- 状态与操作 -->
-                    <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto">
-                      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <Border Classes="badge">
-                          <TextBlock Text="{Binding LoaderText}" />
-                        </Border>
-                        <!-- 在线识别成功时标出数据源：用户据此判断「这个译名是从哪来的」 -->
-                        <Border Classes="badge"
-                                IsVisible="{Binding HasSourceBadge}">
-                          <TextBlock Text="{Binding SourceBadgeText}" />
-                        </Border>
-                        <!-- 存档级数据包：不标世界名的话，两个世界的同名包在列表里无法区分 -->
-                        <Border Classes="badge"
-                                MaxWidth="104"
-                                IsVisible="{Binding HasSourceHint}"
-                                ToolTip.Tip="{Binding SourceHintText}">
-                          <TextBlock Text="{Binding SourceHintText}"
-                                     TextTrimming="CharacterEllipsis" />
-                        </Border>
-                        <Border Classes="badge danger" IsVisible="{Binding HasParseError}"
-                                ToolTip.Tip="{Binding ParseErrorText}">
-                          <TextBlock Text="解析失败" />
-                        </Border>
-                        <!-- pack_format 与当前游戏版本不匹配：只提示，不禁用启用/启动；兼容时不显示。 -->
-                        <Border Classes="badge warning"
-                                MaxWidth="120"
-                                IsVisible="{Binding HasPackFormatWarning}"
-                                ToolTip.Tip="{Binding PackFormatDetail}">
-                          <TextBlock Text="{Binding PackFormatBadge}"
-                                     Foreground="{DynamicResource Status.Warning}"
-                                     TextTrimming="CharacterEllipsis" />
-                        </Border>
-                      </StackPanel>
-
-                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                        <ToggleSwitch IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                      OnContent="{x:Null}"
-                                      OffContent="{x:Null}"
-                                      MinWidth="0"
-                                      Padding="0"
-                                      VerticalAlignment="Center"
-                                      ToolTip.Tip="启用 / 禁用" />
-
-                        <StackPanel Classes="hoverActions" Orientation="Horizontal" Spacing="2">
-                          <!-- 父级取 UserControl：卡片列表在左栏有了嵌套 ItemsControl 之后，
-                               $parent[ItemsControl] 会解析到最近的那个，命令就会绑到错误的 DataContext。 -->
-                          <Button Classes="icon"
-                                  ToolTip.Tip="打开所在目录"
-                                  Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).RevealCommand}"
-                                  CommandParameter="{Binding}">
-                            <Path Data="M4 6h5l2 2h9v10H4z"
-                                  Stroke="{DynamicResource Text.Tertiary}"
-                                  StrokeThickness="1.5"
-                                  StrokeLineCap="Round"
-                                  StrokeJoin="Round"
-                                  Stretch="Uniform"
-                                  Width="15" Height="15" />
-                          </Button>
-                          <Button Classes="icon"
-                                  ToolTip.Tip="删除"
-                                  Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).RequestDeleteCommand}"
-                                  CommandParameter="{Binding}">
-                            <Path Data="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v5M14 11v5"
-                                  Stroke="{DynamicResource Status.Danger}"
-                                  StrokeThickness="1.5"
-                                  StrokeLineCap="Round"
-                                  StrokeJoin="Round"
-                                  Stretch="Uniform"
-                                  Width="15" Height="15" />
-                          </Button>
-                        </StackPanel>
-                      </StackPanel>
-                    </Grid>
-                  </Grid>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-
-          <!-- ============ 空状态 ============ -->
-          <Border Classes="card" IsVisible="{Binding IsEmpty}" Padding="32,36">
-            <StackPanel Spacing="10" HorizontalAlignment="Center" MaxWidth="560">
-              <Border Width="56" Height="56"
-                      CornerRadius="{DynamicResource Radius.Pill}"
-                      Background="{DynamicResource Accent.Soft}"
+            <!-- 空态：图标 48 + 一句说明 + 一个动作，框内居中 -->
+            <StackPanel IsVisible="{Binding IsEmpty}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="320"
+                        Spacing="10">
+              <Border Width="48" Height="48"
+                      CornerRadius="{DynamicResource Radius.Md}"
+                      Background="{DynamicResource Surface.CardSolid}"
+                      BorderThickness="1"
+                      BorderBrush="{DynamicResource Stroke.Subtle}"
                       HorizontalAlignment="Center">
-                <Path Data="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5zM4 8.5 12 13l8-4.5M12 13v7"
-                      Stroke="{DynamicResource Accent.Primary}"
+                <Path Data="{StaticResource Icon.Mod}"
+                      Stroke="{DynamicResource Text.Tertiary}"
                       StrokeThickness="1.6"
                       StrokeLineCap="Round"
                       StrokeJoin="Round"
                       Stretch="Uniform"
-                      Width="26" Height="26"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center" />
+                      Width="24" Height="24" />
               </Border>
-
               <TextBlock Text="{Binding EmptyTitle}"
                          Classes="h3"
-                         TextAlignment="Center"
+                         HorizontalAlignment="Center"
                          TextWrapping="Wrap"
-                         HorizontalAlignment="Center" />
+                         TextAlignment="Center" />
               <TextBlock Text="{Binding EmptyHint}"
-                         Classes="muted"
+                         Classes="caption"
+                         Foreground="{DynamicResource Text.Tertiary}"
+                         HorizontalAlignment="Center"
                          TextWrapping="Wrap"
                          TextAlignment="Center"
-                         LineHeight="20" />
-
-              <!-- 数据包空态专用出口：在线安装入口在资源页。 -->
+                         LineHeight="17" />
               <Button Classes="accent"
-                      Content="去资源页找数据包"
                       HorizontalAlignment="Center"
-                      Margin="0,6,0,0"
-                      IsVisible="{Binding IsDataPackEmpty}"
-                      Command="{Binding OpenLibraryForDataPacksCommand}" />
+                      Content="从文件安装"
+                      Click="OnInstallFromFileClick" />
             </StackPanel>
+
+            <!-- 加载态：4 条骨架，行高与真实行一致 -->
+            <StackPanel IsVisible="{Binding IsLoading}" Spacing="4">
+              <Border Classes="listrow" Height="56" Background="{DynamicResource Surface.Hover}" />
+              <Border Classes="listrow" Height="56" Background="{DynamicResource Surface.Hover}" />
+              <Border Classes="listrow" Height="56" Background="{DynamicResource Surface.Hover}" />
+              <Border Classes="listrow" Height="56" Background="{DynamicResource Surface.Hover}" />
+            </StackPanel>
+
+            <!-- 皮肤占位：本票只留外框，完整换肤流程见 #92 -->
+            <StackPanel IsVisible="{Binding IsSkinTabActive}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="320"
+                        Spacing="10">
+              <Border Width="48" Height="48"
+                      CornerRadius="{DynamicResource Radius.Md}"
+                      Background="{DynamicResource Surface.CardSolid}"
+                      BorderThickness="1"
+                      BorderBrush="{DynamicResource Stroke.Subtle}"
+                      HorizontalAlignment="Center">
+                <Path Data="{StaticResource Icon.Account}"
+                      Stroke="{DynamicResource Text.Tertiary}"
+                      StrokeThickness="1.6"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Stretch="Uniform"
+                      Width="24" Height="24" />
+              </Border>
+              <TextBlock Text="皮肤不在这五个分类里"
+                         Classes="h3"
+                         HorizontalAlignment="Center"
+                         TextAlignment="Center" />
+              <TextBlock Text="皮肤有独立的来源、体型与 3D 预览流程，等它落地后从这里进入。"
+                         Classes="caption"
+                         Foreground="{DynamicResource Text.Tertiary}"
+                         HorizontalAlignment="Center"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center"
+                         LineHeight="17" />
+            </StackPanel>
+          </Panel>
+        </ScrollViewer>
+      </controls:GlassPanel>
+
+      <!-- ==================== Row3（44）：批量条 / 结果条 ==================== -->
+      <Grid Grid.Row="3" Height="44">
+
+        <!-- 批量条：有选中才出现 -->
+        <Border IsVisible="{Binding HasSelection}"
+                Padding="12,0"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Background="{DynamicResource Surface.Sunken}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource Stroke.Subtle}">
+          <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Grid.Column="0"
+                       Classes="caption"
+                       FontWeight="SemiBold"
+                       Text="{Binding SelectionSummary}"
+                       VerticalAlignment="Center" />
+
+            <Button Grid.Column="1"
+                    Classes="ghost"
+                    Height="28"
+                    Padding="8,0"
+                    Content="全选"
+                    Command="{Binding SelectAllCommand}" />
+
+            <Button Grid.Column="2"
+                    Classes="ghost"
+                    Height="28"
+                    Padding="8,0"
+                    Content="清除选择"
+                    Command="{Binding ClearSelectionCommand}" />
+
+            <Button Grid.Column="4"
+                    Classes="accent"
+                    Height="30"
+                    Content="启用"
+                    IsEnabled="{Binding CanBatch}"
+                    Command="{Binding EnableSelectedCommand}" />
+
+            <Button Grid.Column="5"
+                    Classes="ghost"
+                    Height="30"
+                    Content="禁用"
+                    IsEnabled="{Binding CanBatch}"
+                    Command="{Binding DisableSelectedCommand}" />
+
+            <Button Grid.Column="6"
+                    Classes="danger"
+                    Height="30"
+                    Content="删除"
+                    IsEnabled="{Binding CanBatch}"
+                    Command="{Binding RequestBatchDeleteCommand}" />
+          </Grid>
+        </Border>
+
+        <!-- 结果条：与批量条同格，互斥显示 -->
+        <Border IsVisible="{Binding HasBatchResult}"
+                Padding="12,0"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Background="{DynamicResource Surface.Sunken}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource Stroke.Subtle}">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0"
+                       Classes="caption"
+                       FontWeight="SemiBold"
+                       Text="{Binding BatchResultText}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+
+            <TextBlock Grid.Column="1"
+                       Classes="caption"
+                       Foreground="{DynamicResource Status.Danger}"
+                       Text="{Binding BatchFailureText}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding HasBatchFailures}" />
+
+            <Button Grid.Column="2"
+                    Classes="icon"
+                    Width="26" Height="26"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="关闭结果"
+                    Command="{Binding ClearBatchResultCommand}">
+              <Path Data="{StaticResource Icon.Close}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    Stretch="Uniform"
+                    Width="11" Height="11" />
+            </Button>
+          </Grid>
+        </Border>
+
+        <!-- 页面级错误：同一格，优先级最高 -->
+        <Border IsVisible="{Binding HasError}"
+                Padding="12,0"
+                CornerRadius="{DynamicResource Radius.Md}"
+                Background="{DynamicResource Surface.Sunken}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource Status.Danger}">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0"
+                       Classes="caption"
+                       Foreground="{DynamicResource Status.Danger}"
+                       Text="{Binding ErrorText}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+            <Button Grid.Column="1"
+                    Classes="icon"
+                    Width="26" Height="26"
+                    VerticalAlignment="Center"
+                    ToolTip.Tip="关闭"
+                    Click="OnDismissErrorClick">
+              <Path Data="{StaticResource Icon.Close}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    Stretch="Uniform"
+                    Width="11" Height="11" />
+            </Button>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- ==================== 浮层：批量删除确认 ==================== -->
+    <Panel IsVisible="{Binding IsBatchDeleteConfirmOpen}">
+      <Border Background="{DynamicResource Surface.Scrim}" />
+
+      <Border Width="420"
+              Padding="20"
+              CornerRadius="{DynamicResource Radius.Xl}"
+              Background="{DynamicResource Surface.CardSolid}"
+              BorderThickness="1"
+              BorderBrush="{DynamicResource Stroke.Default}"
+              BoxShadow="{DynamicResource Shadow.Overlay}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="12">
+          <TextBlock Text="删除选中的内容？"
+                     Classes="h3" />
+
+          <TextBlock Text="{Binding BatchDeleteSummary}"
+                     Classes="caption"
+                     Foreground="{DynamicResource Text.Tertiary}"
+                     TextWrapping="Wrap"
+                     LineHeight="17" />
+
+          <Border Classes="sunken" MaxHeight="120">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <TextBlock Text="{Binding BatchDeleteListText}"
+                         Classes="mono"
+                         TextWrapping="Wrap" />
+            </ScrollViewer>
           </Border>
 
+          <CheckBox Content="永久删除（不进回收站）"
+                    IsChecked="{Binding BatchDeletePermanent, Mode=TwoWay}" />
+
+          <StackPanel Orientation="Horizontal"
+                      Spacing="8"
+                      HorizontalAlignment="Right">
+            <Button Classes="ghost"
+                    Content="取消"
+                    Command="{Binding CancelBatchDeleteCommand}" />
+            <Button Classes="danger"
+                    Content="删除"
+                    IsEnabled="{Binding CanBatch}"
+                    Command="{Binding ConfirmBatchDeleteCommand}" />
+          </StackPanel>
         </StackPanel>
-        </ScrollViewer>
-      </ctrl:GlassPanel>
-    </Grid>
-  </Grid>
+      </Border>
+    </Panel>
+
+    <!-- ==================== 浮层：单条删除确认 ==================== -->
+    <Panel IsVisible="{Binding HasPendingDelete}">
+      <Border Background="{DynamicResource Surface.Scrim}" />
+
+      <Border Width="420"
+              Padding="20"
+              CornerRadius="{DynamicResource Radius.Xl}"
+              Background="{DynamicResource Surface.CardSolid}"
+              BorderThickness="1"
+              BorderBrush="{DynamicResource Stroke.Default}"
+              BoxShadow="{DynamicResource Shadow.Overlay}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="12">
+          <TextBlock Text="删除这个内容？"
+                     Classes="h3" />
+
+          <TextBlock Text="{Binding PendingDelete.TitleText}"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+
+          <TextBlock Text="删除默认进回收站，可以恢复。依赖该项的整合包记录会同时失效。"
+                     Classes="caption"
+                     Foreground="{DynamicResource Text.Tertiary}"
+                     TextWrapping="Wrap"
+                     LineHeight="17" />
+
+          <StackPanel Orientation="Horizontal"
+                      Spacing="8"
+                      HorizontalAlignment="Right">
+            <Button Classes="ghost"
+                    Content="取消"
+                    Command="{Binding CancelDeleteCommand}" />
+            <Button Classes="ghost"
+                    Content="永久删除"
+                    Command="{Binding ConfirmDeletePermanentCommand}" />
+            <Button Classes="danger"
+                    Content="删除"
+                    Command="{Binding ConfirmDeleteCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Panel>
+
+    <!-- ==================== 浮层：回收站 ==================== -->
+    <Panel IsVisible="{Binding IsTrashOpen}">
+      <Border Background="{DynamicResource Surface.Scrim}" />
+
+      <Border Width="520"
+              MaxHeight="440"
+              Padding="20"
+              CornerRadius="{DynamicResource Radius.Xl}"
+              Background="{DynamicResource Surface.CardSolid}"
+              BorderThickness="1"
+              BorderBrush="{DynamicResource Stroke.Default}"
+              BoxShadow="{DynamicResource Shadow.Overlay}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="回收站" Classes="h3" VerticalAlignment="Center" />
+            <Button Grid.Column="1"
+                    Classes="icon"
+                    Width="26" Height="26"
+                    ToolTip.Tip="关闭"
+                    Command="{Binding ToggleTrashCommand}">
+              <Path Data="{StaticResource Icon.Close}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    Stretch="Uniform"
+                    Width="11" Height="11" />
+            </Button>
+          </Grid>
+
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="8">
+              <Border Classes="toneBar danger"
+                      IsVisible="{Binding HasTrashError}">
+                <TextBlock Text="{Binding TrashError}" Classes="caption" TextWrapping="Wrap" />
+              </Border>
+
+              <ItemsControl ItemsSource="{Binding TrashEntries}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ContentTrashRow">
+                    <Border Classes="listrow" MinHeight="40" ToolTip.Tip="{Binding OriginalPath}">
+                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" Classes="caption" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding MetaText}"
+                                     Classes="caption"
+                                     Foreground="{DynamicResource Text.Tertiary}"
+                                     TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghost" Height="26" Content="恢复"
+                                Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).RestoreTrashCommand}"
+                                CommandParameter="{Binding}" />
+                        <Button Grid.Column="2" Classes="ghost" Height="26" Content="彻底删除"
+                                Command="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).PurgeTrashCommand}"
+                                CommandParameter="{Binding}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Text="{Binding TrashSummary}"
+                         Classes="caption"
+                         Foreground="{DynamicResource Text.Tertiary}" />
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Panel>
+
+    <!-- ==================== 浮层：更新结果 ==================== -->
+    <Panel IsVisible="{Binding HasUpdates}">
+      <Border Background="{DynamicResource Surface.Scrim}" />
+
+      <Border Width="560"
+              MaxHeight="480"
+              Padding="20"
+              CornerRadius="{DynamicResource Radius.Xl}"
+              Background="{DynamicResource Surface.CardSolid}"
+              BorderThickness="1"
+              BorderBrush="{DynamicResource Stroke.Default}"
+              BoxShadow="{DynamicResource Shadow.Overlay}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+          <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="更新检查" Classes="h3" VerticalAlignment="Center" />
+            <Button Grid.Column="1"
+                    Classes="icon"
+                    Width="26" Height="26"
+                    ToolTip.Tip="关闭"
+                    Command="{Binding CloseUpdatesCommand}">
+              <Path Data="{StaticResource Icon.Close}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    Stretch="Uniform"
+                    Width="11" Height="11" />
+            </Button>
+          </Grid>
+
+          <StackPanel Grid.Row="1" Spacing="6">
+            <TextBlock Text="{Binding UpdateSummary}"
+                       Classes="caption"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding UpdateError}"
+                       Classes="caption"
+                       Foreground="{DynamicResource Status.Danger}"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasUpdateError}" />
+          </StackPanel>
+
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Updates}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModUpdateRowViewModel">
+                  <Border Classes="listrow" MinHeight="40">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                      <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Classes="caption" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding DetailText}"
+                                   Classes="caption"
+                                   Foreground="{DynamicResource Text.Tertiary}"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Status}" />
+                      </Border>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Panel>
+  </Panel>
 </UserControl>

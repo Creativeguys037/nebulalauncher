@@ -461,6 +461,59 @@
     <Setter Property="BorderBrush" Value="{DynamicResource Accent.Soft}" />
   </Style>
 
+  <!--
+    列表行（票 #90 起）：高 56、圆角 12、横向内边距 12，L3 实心。
+
+    取样板 _page-shell.html 的 .row：
+      hover  = 白 62% 底 + 白 95% 边 + 右移 2px
+      sel    = 主色 10% 底 + 主色 28% 边 + 左侧 3px 主色条
+    主色条用 BoxShadow 的 inset 表达要写字面量，这里用 1px 主色边框近似——
+    「选中」在一屏十几行里靠底色与边框已经足够分辨。
+
+    与 Border.card 的区别是语义：card 是可嵌套的容器（圆角 20、内边距 20），
+    listrow 是一行数据（圆角 12、横向 12），行里禁止再放 card。
+  -->
+  <Style Selector="Border.listrow">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+    <Setter Property="Padding" Value="0,12" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="{x:Static services:Motion.Fast}" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.listrow:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+    <Setter Property="RenderTransform" Value="translate(2px,0)" />
+  </Style>
+
+  <Style Selector="Border.listrow.selected">
+    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+  </Style>
+
+  <!--
+    行内图标底座：32×32 圆角 9、白 80% 底 + 白 95% 边（样板 .row .ric）。
+    深色主题下 Surface.CardSolid 是近黑，Counter 一样成立：图标始终坐在「比行底亮一点」的方块上。
+  -->
+  <Style Selector="Border.rowicon">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.CardSolid}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+
   <Style Selector="Border.glass">
     <Setter Property="Background" Value="{DynamicResource Surface.Glass}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
@@ -546,14 +599,23 @@
   -->
   <Style Selector="ToggleButton.segmented">
     <Setter Property="MinHeight" Value="32" />
-    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
-    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+    <Setter Property="Padding" Value="11,0" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-    <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <!-- 边框常态占位：选中态只换颜色不换厚度，否则按钮内容会横向跳 2px。 -->
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="Foreground" Duration="{x:Static services:Motion.Fast}" />
+        <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
+      </Transitions>
+    </Setter>
   </Style>
 
   <Style Selector="ToggleButton.segmented:pointerover">
@@ -561,13 +623,66 @@
     <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
   </Style>
 
+  <!--
+    选中态是「白底 + 主色字 + 主色细边」，不是实心主色块。
+    取样板 mods-glass.html 的 .tgls a.on：筛选是**轻量选中**，与页签（实心主色胶囊）
+    是两种控件、两套视觉——同屏若都用实心主色，用户会分不清哪个在切换视图、哪个在过滤。
+  -->
   <Style Selector="ToggleButton.segmented:checked">
-    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.CardSolid}" />
+    <Setter Property="Foreground" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
   </Style>
 
+  <Style Selector="ToggleButton.segmented:checked:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.CardSolid}" />
+  </Style>
+
+  <!--
+    必须打到模板内部的 ContentPresenter：Fluent 的 ToggleButton 主题在
+    `^:checked /template/ ContentPresenter#PART_ContentPresenter` 上直接设了
+    Background / Foreground，控件级的 setter 会被它盖掉（截图上表现为「选中仍是实心主色」）。
+    这是 PITFALLS 记的同一类坑：模板内部件的本地值优先于外层样式。
+  -->
   <Style Selector="ToggleButton.segmented:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Setter Property="Background" Value="{DynamicResource Surface.CardSolid}" />
+    <Setter Property="Foreground" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="ToggleButton.segmented /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!--
+    内容页工具条的宽度档（票 #90）：宽屏 320 / 216，紧凑 196 / 168。
+    写进样式而不是页面内联——内联 Width 是本地值，会压过 Window.compact 档（PITFALLS 4.2）。
+    取样板 mods-glass.html 的 .search 与 .pick。
+  -->
+  <Style Selector="TextBox.modsearch">
+    <Setter Property="MaxWidth" Value="320" />
+  </Style>
+
+  <Style Selector="Window.compact TextBox.modsearch">
+    <Setter Property="MaxWidth" Value="196" />
+  </Style>
+
+  <Style Selector="ComboBox.modtarget">
+    <Setter Property="MinWidth" Value="180" />
+    <Setter Property="MaxWidth" Value="216" />
+  </Style>
+
+  <Style Selector="Window.compact ComboBox.modtarget">
+    <Setter Property="MinWidth" Value="130" />
+    <Setter Property="MaxWidth" Value="168" />
+  </Style>
+
+  <!-- 紧凑档筛选按钮收窄内边距（样板 .tgls a 在 1024 档是 0 8px） -->
+  <Style Selector="Window.compact ToggleButton.segmented">
+    <Setter Property="Padding" Value="8,0" />
   </Style>
 
   <!-- ================= 一级导航（票 #85） ================= -->

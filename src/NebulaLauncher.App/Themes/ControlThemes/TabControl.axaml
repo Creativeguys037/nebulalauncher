@@ -12,8 +12,13 @@
   -->
   <ControlTheme x:Key="{x:Type TabItem}" TargetType="TabItem">
     <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-    <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <!--
+      字号取 Caption（11）：全部样板页（mods-glass 的 .tab36、versions-glass 的 .seg、
+      instance-detail-glass 的 .dtabs）页签都是 10.5–11px / 600，而不是正文档。
+      页签是「同级视图的名字」，不是内容，跟着正文档走会把它做成正文行。
+    -->
+    <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="MinHeight" Value="36" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="FocusAdorner">
@@ -37,7 +42,7 @@
         <Border x:Name="PART_LayoutRoot"
                 Background="Transparent"
                 CornerRadius="{DynamicResource Radius.Pill}"
-                Padding="18,0"
+                Padding="14,0"
                 MinHeight="36"
                 RenderTransformOrigin="50%,50%">
           <ContentPresenter x:Name="PART_ContentPresenter"
@@ -106,8 +111,10 @@
       <ControlTemplate>
         <Border x:Name="PART_TabStrip"
                 Background="{DynamicResource Surface.Sunken}"
+                BorderBrush="{DynamicResource Stroke.Subtle}"
+                BorderThickness="1"
                 CornerRadius="{DynamicResource Radius.Pill}"
-                Padding="4"
+                Padding="3"
                 HorizontalAlignment="Left">
           <ItemsPresenter Name="PART_ItemsPresenter"
                           ItemsPanel="{TemplateBinding ItemsPanel}" />

@@ -237,10 +237,10 @@ powershell -File build.ps1 -Clean
 - **成因**：横向 `StackPanel` 的可用宽度不传递给子元素——它按「要多少给多少」测量，放进 `*` 列后列宽分配与内容互相压制，最终把后面的元素压成 0 宽（宽屏下不缺空间，肉眼测不出来）；`SelectedItems` 则不是可绑定的依赖属性，写上去编译通过、运行期什么也不发生。③ `Grid` 的 `*` 行只限制**自己**的高度，子元素超出部分默认照画不误——页面上常驻工具行（账号、分类、搜索、上传、页码）一多，`*` 行被挤到小于内容所需高度，超出的行就叠到相邻的 Auto 行下面，不报错也不出滚动条。
 - **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`，改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）；多选改用 `ItemsControl` + 每行一个复选框，选中状态做成行视图模型上的可绑定属性。同一类「漏写 `x:DataType` 也是编译过、运行错」见 `CONVENTIONS.md` §4。截图流程见 `CONVENTIONS.md` §8.4。`*` 行里的列表容器还要显式 `ClipToBounds="True"`，且常驻工具行能压就压（`src/NebulaLauncher.App/Views/CloudClosetView.axaml` 把账号行、分类+搜索、上传+动作压成三段，行卡片从 3 行文字压到 2 行），改完同时出 1240 与 1024 两档截图。 **另一类同形坑**：`ContentPresenter` 的 `HorizontalContentAlignment`/`VerticalContentAlignment` 默认 `Left`/`Top`，填满高度的内容宿主拿不到有限高度，超出部分被裁且滚不动（`PageHost`、`UserControl` 样式、`TabControl` 的内容宿主都已显式 `Stretch`）；判据是「滚一下内容动不动」，滚得动只是视口小（正常），滚不动才是没拿到约束。
 
-### 4.2 样式 setter 打不过构造函数里的本地值
-- **症状**：给控件写了主题样式，运行后部分控件完全不变；把样式搬到更具体的选择器上仍然无效。
-- **成因**：Avalonia 的优先级里本地值高于样式 setter，构造函数里赋的值就是本地值。样式系统没错，是它在正确地输给一个看不见的赋值。
-- **规避**：控件里不要在构造函数写死视觉参数（含 `ClipToBounds`、`CornerRadius`、指针光标这类），或改用可控的属性/绑定；`src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` 的构造函数注释就写明「裁剪与指针光标交给 XAML 设」。换主题时只有三处必须单独处理（`src/NebulaLauncher.App/Controls/GlassBackdrop.cs GlassBackdrop`、`src/NebulaLauncher.App/Controls/RingProgress.cs RingProgress（:13）`、ServersView 的 MOTD 协议色），其余换一套资源字典即可。
+### 4.2 样式 setter 打不过本地值，也打不过模板内部件的 setter
+- **症状**：给控件写了主题样式，运行后完全不变；搬到更具体的选择器仍无效。另一类：控件级 setter 明明生效了，却被 Fluent 主题在 `^:checked /template/ ContentPresenter` 上设的值盖掉（#90 把筛选按钮选中态从「实心主色」改成「白底主色字」时踩到——截图上仍是实心）。
+- **成因**：Avalonia 里本地值高于样式 setter（构造函数赋的值就是本地值）；模板内部件的 Setter 又高于控件级 Setter。
+- **规避**：控件里不要在构造函数写死视觉参数（含 `ClipToBounds`、`CornerRadius`、指针光标），或改用可控的属性/绑定，如 `src/NebulaLauncher.App/Controls/SkinModelView.cs SkinModelView` 的注释所写；要改模板内部件就写 `/template/` 选择器（`ToggleButton.segmented:checked /template/ ContentPresenter#PART_ContentPresenter`）。玻璃背景的换主题特例见 `src/NebulaLauncher.App/Controls/GlassBackdrop.cs GlassBackdrop`。
 
 ### 4.3 `ColumnDefinition.Width` 绑不上 ViewModel
 - **症状**：想把两段进度条按比例分配宽度，绑定 `ColumnDefinition.Width` 后毫无反应，也没有绑定错误提示。

@@ -62,4 +62,10 @@
   <!-- 打开目录：文件夹轮廓 -->
   <StreamGeometry x:Key="Icon.Folder">M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z</StreamGeometry>
 
+  <!-- 模组：立方体轮廓（票 #90 行图标兜底，模组没有内嵌图标时的稳定几何） -->
+  <StreamGeometry x:Key="Icon.Mod">M12 2.8 20 7v9.6L12 21 4 16.6V7zM4 7l8 4.4L20 7M12 11.4V21</StreamGeometry>
+
+  <!-- 从文件安装：向上箭头 + 托盘（票 #90 工具条次级行动，与 Icon.Download 的下箭头区分开） -->
+  <StreamGeometry x:Key="Icon.Upload">M12 16V4.5m0 0L8 8.5M12 4.5l4 4M4.5 19.5h15</StreamGeometry>
+
 </ResourceDictionary>
