@@ -2139,7 +2139,7 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         StorageCategories.Clear();
         foreach (var usage in report.Categories)
         {
-            var row = new StorageCategoryRow(usage);
+            var row = new StorageCategoryRow(usage, report.TotalBytes);
             row.PropertyChanged += OnStorageRowPropertyChanged;
             StorageCategories.Add(row);
         }
@@ -2960,8 +2960,15 @@ public sealed partial class SettingsSection : ObservableObject
 public sealed partial class StorageCategoryRow : ObservableObject
 {
     private readonly StorageCategoryUsage _usage;
+    private readonly long _totalBytes;
 
-    public StorageCategoryRow(StorageCategoryUsage usage) => _usage = usage;
+    // 总量在构造时就定下来：页面上的占比条是「这一类比整块存储占多少」，
+    // 重扫时会整批重建行，所以不需要可变的总量。
+    public StorageCategoryRow(StorageCategoryUsage usage, long totalBytes = 0)
+    {
+        _usage = usage;
+        _totalBytes = totalBytes;
+    }
 
     /// <summary>稳定键，清理时按它下发，不用显示名。</summary>
     public string Key => _usage.Key;
@@ -2974,6 +2981,17 @@ public sealed partial class StorageCategoryRow : ObservableObject
     public long TotalBytes => _usage.TotalBytes;
 
     public string SizeText => Conv.FormatSize(_usage.TotalBytes);
+
+    /// <summary>这一类占整块存储的比例，用来画占用条。总占用为 0 时给 0，不画超范围的条。</summary>
+    public double ShareRatio => _totalBytes <= 0
+        ? 0d
+        : Math.Clamp((double)_usage.TotalBytes / _totalBytes, 0d, 1d);
+
+    /// <summary>占比文字。空类别显示 0%，避免「条是空的但没数字」看着像没扫到。</summary>
+    public string ShareText => $"{Math.Round(ShareRatio * 100)}%";
+
+    /// <summary>占用条的绑定值。ProgressBar 的口径是 0–100，不是 0–1。</summary>
+    public double SharePercent => ShareRatio * 100d;
 
     public string FileCountText => _usage.FileCount == 0 ? "没有文件" : $"{_usage.FileCount} 个文件";
 

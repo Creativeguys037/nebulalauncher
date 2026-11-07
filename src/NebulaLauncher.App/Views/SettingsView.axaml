@@ -87,6 +87,63 @@
       <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+
+    <!-- 存储类别行：一行一类，不再一卡一类，卡片竖排会把可扫视列表拆成一叠块。 -->
+    <Style Selector="Border.storagerow">
+      <Setter Property="MinHeight" Value="56" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
+    </Style>
+
+    <Style Selector="Border.storagerow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+
+    <!-- 占用条是 L3 内凹：槽走 Surface.Sunken，填充走进度渐变，不套玻璃（契约 §6 规则 6）。 -->
+    <Style Selector="ProgressBar.sharebar">
+      <Setter Property="Height" Value="8" />
+      <Setter Property="MinHeight" Value="8" />
+      <Setter Property="Foreground" Value="{DynamicResource Gradient.Progress}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.Sunken}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- 主题选项是单选组：用 RadioButton 而不是三张 Button，
+         方向键能切、读屏能报「已选 3 之 1」，这是票 #97 明确要求的语义。 -->
+    <Style Selector="RadioButton.themecard">
+      <Setter Property="Width" Value="120" />
+      <Setter Property="Height" Value="80" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+      <Setter Property="Background" Value="{DynamicResource Surface.Sunken}" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+
+    <Style Selector="RadioButton.themecard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+    </Style>
+
+    <Style Selector="RadioButton.themecard:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!-- 卡片里是自定义内容，单选圆点不显示；选中状态由主色边表达。 -->
+    <Style Selector="RadioButton.themecard /template/ Ellipse#PART_RadioOuterEllipse">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <Style Selector="RadioButton.themecard /template/ Ellipse#PART_RadioInnerEllipse">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
@@ -989,9 +1046,14 @@
             </Border>
 
             <Border Classes="card">
-              <StackPanel Spacing="14">
-                <TextBlock Text="并发下载数" Classes="label" />
-                <Grid ColumnDefinitions="*,86">
+              <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+                <StackPanel Spacing="2" VerticalAlignment="Top" Margin="0,9,0,0">
+                  <TextBlock Text="并发下载数" Classes="label" />
+                  <TextBlock Text="网络较差时降低并发可以减少超时；默认 64。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <Grid Grid.Column="1" ColumnDefinitions="*,86">
                   <Slider Minimum="8" Maximum="256"
                           TickFrequency="8"
                           IsSnapToTickEnabled="True"
@@ -1002,16 +1064,18 @@
                              HorizontalAlignment="Right"
                              VerticalAlignment="Center" />
                 </Grid>
-                <TextBlock Text="网络较差时降低并发可以减少超时；默认 64。"
-                           Classes="muted"
-                           TextWrapping="Wrap" />
-              </StackPanel>
+              </Grid>
             </Border>
 
             <Border Classes="card">
-              <StackPanel Spacing="14">
-                <TextBlock Text="下载限速" Classes="label" />
-                <Grid ColumnDefinitions="*,110">
+              <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+                <StackPanel Spacing="2" VerticalAlignment="Top" Margin="0,9,0,0">
+                  <TextBlock Text="下载限速" Classes="label" />
+                  <TextBlock Text="拖到最左为「不限速」。只约束启动器自身的下载队列，适合按流量计费的网络或边下载边看视频的场景。"
+                             Classes="muted"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <Grid Grid.Column="1" ColumnDefinitions="*,110">
                   <Slider Minimum="0" Maximum="10240"
                           TickFrequency="128"
                           IsSnapToTickEnabled="True"
@@ -1022,10 +1086,7 @@
                              HorizontalAlignment="Right"
                              VerticalAlignment="Center" />
                 </Grid>
-                <TextBlock Text="拖到最左为「不限速」。限速只约束启动器自身的下载队列，适合按流量计费的网络或边下载边看视频的场景。"
-                           Classes="muted"
-                           TextWrapping="Wrap" />
-              </StackPanel>
+              </Grid>
             </Border>
 
             <Border Classes="card">
@@ -1209,33 +1270,38 @@
               <StackPanel Spacing="14">
                 <TextBlock Text="主题" Classes="label" />
                 <UniformGrid Columns="3">
-                  <Button Classes="option"
-                          Classes.active="{Binding IsThemeDark}"
-                          Command="{Binding SelectThemeCommand}"
-                          CommandParameter="dark">
-                    <StackPanel Spacing="4">
-                      <TextBlock Text="深色" FontWeight="Medium" />
-                      <TextBlock Text="默认星云配色" Classes="muted" TextWrapping="Wrap" />
-                    </StackPanel>
-                  </Button>
-                  <Button Classes="option"
-                          Classes.active="{Binding IsThemeLight}"
-                          Command="{Binding SelectThemeCommand}"
-                          CommandParameter="light">
-                    <StackPanel Spacing="4">
-                      <TextBlock Text="浅色" FontWeight="Medium" />
-                      <TextBlock Text="白色卡片 + 淡雾蓝背景" Classes="muted" TextWrapping="Wrap" />
-                    </StackPanel>
-                  </Button>
-                  <Button Classes="option"
-                          Classes.active="{Binding IsThemeSystem}"
-                          Command="{Binding SelectThemeCommand}"
-                          CommandParameter="system">
-                    <StackPanel Spacing="4">
-                      <TextBlock Text="跟随系统" FontWeight="Medium" />
-                      <TextBlock Text="读取系统的深浅色偏好" Classes="muted" TextWrapping="Wrap" />
-                    </StackPanel>
-                  </Button>
+                  <StackPanel Orientation="Horizontal" Spacing="12" Grid.ColumnSpan="3">
+                    <RadioButton GroupName="ThemeChoice"
+                                 Classes="themecard"
+                                 IsChecked="{Binding IsThemeDark, Mode=OneWay}"
+                                 Command="{Binding SelectThemeCommand}"
+                                 CommandParameter="dark">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="深色" FontWeight="Medium" />
+                        <TextBlock Text="默认星云配色" Classes="muted" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </RadioButton>
+                    <RadioButton GroupName="ThemeChoice"
+                                 Classes="themecard"
+                                 IsChecked="{Binding IsThemeLight, Mode=OneWay}"
+                                 Command="{Binding SelectThemeCommand}"
+                                 CommandParameter="light">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="浅色" FontWeight="Medium" />
+                        <TextBlock Text="白色卡片 + 淡雾蓝背景" Classes="muted" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </RadioButton>
+                    <RadioButton GroupName="ThemeChoice"
+                                 Classes="themecard"
+                                 IsChecked="{Binding IsThemeSystem, Mode=OneWay}"
+                                 Command="{Binding SelectThemeCommand}"
+                                 CommandParameter="system">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="跟随系统" FontWeight="Medium" />
+                        <TextBlock Text="读取系统的深浅色偏好" Classes="muted" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </RadioButton>
+                  </StackPanel>
                 </UniformGrid>
               </StackPanel>
             </Border>
@@ -1455,37 +1521,46 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:StorageCategoryRow">
-                  <Border Classes="card">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                  <!-- 行式而不是卡片：类别数不定，卡片竖排会把可扫视列表拆成一叠看不过来的块。 -->
+                  <Border Classes="storagerow" ToolTip.Tip="{Binding Path}">
+                    <!-- 占用条固定 240 宽（票面 #97）：条跟着可用宽度拉伸会让「289 KB 和 0 B 的条一样长」，比较意义就没了。
+                         列到这里就结束，右侧留白——用 * 填空会把清理按钮一起拉扁。 -->
+                    <Grid ColumnDefinitions="Auto,168,240,72,40,Auto" ColumnSpacing="12">
                       <CheckBox IsChecked="{Binding IsSelected}"
                                 IsEnabled="{Binding CanClean}"
-                                VerticalAlignment="Top"
-                                Margin="0,4,0,0" />
+                                VerticalAlignment="Center" />
 
-                      <StackPanel Grid.Column="1" Spacing="4">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                          <Border Classes="badge" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding SizeText}" />
-                          </Border>
-                        </StackPanel>
-
-                        <TextBlock Text="{Binding Path}"
-                                   Classes="mono"
-                                   TextTrimming="CharacterEllipsis" />
-
-                        <StackPanel Orientation="Horizontal" Spacing="14">
-                          <TextBlock Text="{Binding FileCountText}" Classes="muted" />
-                          <TextBlock Text="{Binding OldestText}" Classes="muted" />
-                        </StackPanel>
-
-                        <TextBlock Text="{Binding CleanHint}" Classes="muted" TextWrapping="Wrap" />
+                      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" />
+                        <TextBlock Text="{Binding FileCountText}" Classes="caption" />
                       </StackPanel>
 
-                      <Button Grid.Column="2"
-                              Classes="pill"
+                      <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
+                        <ProgressBar Classes="sharebar"
+                                     Minimum="0" Maximum="100"
+                                     Value="{Binding SharePercent}" />
+                        <TextBlock Text="{Binding CleanHint}"
+                                   Classes="muted"
+                                   MaxLines="1"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+
+                      <TextBlock Grid.Column="3"
+                                 Text="{Binding SizeText}"
+                                 Classes="mono"
+                                 TextAlignment="Right"
+                                 VerticalAlignment="Center" />
+
+                      <TextBlock Grid.Column="4"
+                                 Text="{Binding ShareText}"
+                                 Classes="caption"
+                                 TextAlignment="Right"
+                                 VerticalAlignment="Center" />
+
+                      <Button Grid.Column="5"
+                              Classes="tglass"
                               Content="清理"
-                              VerticalAlignment="Top"
+                              VerticalAlignment="Center"
                               IsEnabled="{Binding CanClean}"
                               Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RequestCleanStorageCommand}"
                               CommandParameter="{Binding}" />
