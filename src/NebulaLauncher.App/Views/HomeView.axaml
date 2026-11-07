@@ -45,9 +45,69 @@
                    Foreground="{DynamicResource Status.Warning}" />
       </Border>
 
+      <!-- 提示条 -->
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Accent.Soft}"
+              BorderBrush="{DynamicResource Accent.Primary}"
+              IsVisible="{Binding Notice, Converter={x:Static conv:Converters.HasValue}}">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+          <TextBlock Text="{Binding Notice}"
+                     TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Classes="pill" Content="账户" Command="{Binding NavigateToCommand}" CommandParameter="accounts" />
+            <Button Classes="pill" Content="下载" Command="{Binding NavigateToCommand}" CommandParameter="download" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 官方正式版更新提示：同一版本只提示一次（已读过就写回 settings） -->
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Accent.Soft}"
+              BorderBrush="{DynamicResource Accent.Primary}"
+              IsVisible="{Binding HasGameUpdate}">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="有新版本可安装" FontWeight="Medium" />
+            <TextBlock Text="{Binding GameUpdateNotice}"
+                       Classes="muted"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="accent"
+                    Content="去下载"
+                    Command="{Binding NavigateToCommand}"
+                    CommandParameter="download" />
+            <Button Classes="ghost"
+                    Content="知道了"
+                    Command="{Binding AcknowledgeGameUpdateCommand}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Classes="card"
+              Padding="14,10"
+              Background="{DynamicResource Status.Danger.Soft}"
+              BorderBrush="{DynamicResource Status.Danger}"
+              IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
+        <TextBlock Text="{Binding ErrorText}"
+                   TextWrapping="Wrap"
+                   FontSize="{DynamicResource FontSize.Small}"
+                   Foreground="{DynamicResource Status.Danger}" />
+      </Border>
+    </StackPanel>
+
+    <!-- ==================== Row2：内容框（玻璃框内唯一滚动，票 #106） ==================== -->
+    <controls:GlassPanel Grid.Row="1" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="20,16,20,20">
+
       <!-- Hero：「继续游戏」大卡（票 #86）。承载最近实例与唯一主行动；
            账户与统计不在本页重复出现，账户信息只缩成一行身份文字。 -->
-      <Border Classes="glass hero"
+      <Border Classes="card hero"
               Padding="24">
         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
 
@@ -135,65 +195,7 @@
         </Grid>
       </Border>
 
-      <!-- 提示条 -->
-      <Border Classes="card"
-              Padding="14,10"
-              Background="{DynamicResource Accent.Soft}"
-              BorderBrush="{DynamicResource Accent.Primary}"
-              IsVisible="{Binding Notice, Converter={x:Static conv:Converters.HasValue}}">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-          <TextBlock Text="{Binding Notice}"
-                     TextWrapping="Wrap"
-                     VerticalAlignment="Center" />
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <Button Classes="pill" Content="账户" Command="{Binding NavigateToCommand}" CommandParameter="accounts" />
-            <Button Classes="pill" Content="下载" Command="{Binding NavigateToCommand}" CommandParameter="download" />
-          </StackPanel>
-        </Grid>
-      </Border>
-
-      <!-- 官方正式版更新提示：同一版本只提示一次（已读过就写回 settings） -->
-      <Border Classes="card"
-              Padding="14,10"
-              Background="{DynamicResource Accent.Soft}"
-              BorderBrush="{DynamicResource Accent.Primary}"
-              IsVisible="{Binding HasGameUpdate}">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-          <StackPanel Spacing="2" VerticalAlignment="Center">
-            <TextBlock Text="有新版本可安装" FontWeight="Medium" />
-            <TextBlock Text="{Binding GameUpdateNotice}"
-                       Classes="muted"
-                       TextWrapping="Wrap" />
-          </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <Button Classes="accent"
-                    Content="去下载"
-                    Command="{Binding NavigateToCommand}"
-                    CommandParameter="download" />
-            <Button Classes="ghost"
-                    Content="知道了"
-                    Command="{Binding AcknowledgeGameUpdateCommand}" />
-          </StackPanel>
-        </Grid>
-      </Border>
-
-      <Border Classes="card"
-              Padding="14,10"
-              Background="{DynamicResource Status.Danger.Soft}"
-              BorderBrush="{DynamicResource Status.Danger}"
-              IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
-        <TextBlock Text="{Binding ErrorText}"
-                   TextWrapping="Wrap"
-                   FontSize="{DynamicResource FontSize.Small}"
-                   Foreground="{DynamicResource Status.Danger}" />
-      </Border>
-    </StackPanel>
-
-    <!-- ==================== Row2：内容框（玻璃框内唯一滚动，票 #106） ==================== -->
-    <controls:GlassPanel Grid.Row="1" Padding="0">
-      <ScrollViewer VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled">
-        <Grid RowDefinitions="Auto,Auto" RowSpacing="16" Margin="20,16,20,20">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="16">
 
     <!-- ==================== 中部：最近版本 + 统计 ==================== -->
     <Grid Grid.Row="0" RowDefinitions="Auto,Auto" RowSpacing="16">
@@ -752,6 +754,7 @@
       </Button>
     </Grid>
         </Grid>
+        </StackPanel>
       </ScrollViewer>
     </controls:GlassPanel>
 </Grid>
