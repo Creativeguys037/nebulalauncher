@@ -68,7 +68,7 @@
                  HorizontalAlignment="Left"
                  VerticalAlignment="Center"
                  VerticalContentAlignment="Center"
-                 Watermark="搜索模组名称、作者或 ID"
+                 Watermark="{Binding SearchWatermark}"
                  Text="{Binding SearchText, Mode=TwoWay}"
                  CornerRadius="{DynamicResource Radius.Md}" />
 
@@ -98,8 +98,9 @@
             <ToggleButton Classes="segmented"
                           Content="可更新"
                           IsChecked="{Binding IsFilterCanUpdate, Mode=OneWay}"
+                          IsVisible="{Binding IsModTabActive}"
                           IsEnabled="{Binding HasKnownUpdates}"
-                          ToolTip.Tip="从最近一次「检查更新」的结果派生；没有检查结果时不可用"
+                          ToolTip.Tip="从最近一次「检查更新」的结果派生；只在模组页可用"
                           Command="{Binding SetFilterCommand}"
                           CommandParameter="{x:Static vm:ModsFilter.CanUpdate}" />
           </StackPanel>
@@ -203,6 +204,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ContentCardViewModel">
                   <Border Classes="listrow"
+                          Classes.compact="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).IsCompactRowKind}"
                           Classes.selected="{Binding IsChecked}"
                           ToolTip.Tip="{Binding ToolTipText}">
 
@@ -247,7 +249,10 @@
                                 ToolTip.Tip="勾选后参与批量启用 / 禁用 / 删除" />
 
                       <!-- 图标：有真实项目图标就显示，没有用稳定的立方体几何兜底 -->
-                      <Border Grid.Column="1" Classes="rowicon" VerticalAlignment="Center">
+                      <Border Grid.Column="1"
+                                Classes="rowicon"
+                                Classes.small="{Binding $parent[UserControl].((vm:ModsViewModel)DataContext).IsCompactRowKind}"
+                                VerticalAlignment="Center">
                         <Panel>
                           <Path Data="{StaticResource Icon.Mod}"
                                 Stroke="{DynamicResource Accent.Primary}"
@@ -368,6 +373,13 @@
                       HorizontalAlignment="Center"
                       Content="从文件安装"
                       Click="OnInstallFromFileClick" />
+
+              <!-- 数据包还有一条出路：它们是资源站上的项目，本地目录空了可以去搜（票 #91） -->
+              <Button Classes="ghost"
+                      HorizontalAlignment="Center"
+                      Content="去资源页找数据包"
+                      IsVisible="{Binding IsDataPackEmpty}"
+                      Command="{Binding OpenLibraryForDataPacksCommand}" />
             </StackPanel>
 
             <!-- 加载态：4 条骨架，行高与真实行一致 -->

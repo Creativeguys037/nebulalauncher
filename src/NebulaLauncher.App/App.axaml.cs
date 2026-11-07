@@ -273,6 +273,30 @@ public partial class App : Application
                     }
                 }
 
+                // 内容页：切到指定分类（resourcepack / shaderpack / datapack / skin）。
+                // 页签切换在截图模式里点不到，而资源类行的 48 高与各自的空态文案正是 #91 的验收对象。
+                if (window.DataContext is MainWindowViewModel shellForTabs
+                    && shellForTabs.CurrentPage is ModsViewModel modsForTab
+                    && ScreenshotMode.SectionKey is { } tabKey)
+                {
+                    var wantedTab = tabKey.ToLowerInvariant() switch
+                    {
+                        "resourcepack" or "resources" => 1,
+                        "shaderpack" or "shaders" => 2,
+                        "datapack" or "datapacks" => 3,
+                        "skin" or "skins" => 4,
+                        _ => -1,
+                    };
+
+                    if (wantedTab >= 0 && modsForTab.TabIndex != wantedTab)
+                    {
+                        modsForTab.TabIndex = wantedTab;
+
+                        // 切分类会重扫目录，给它一点时间落盘再截。
+                        await Task.Delay(1200);
+                    }
+                }
+
                 var size = window.Bounds.Size;
                 var pixelSize = new PixelSize(
                     Math.Max(1, (int)Math.Round(size.Width)),

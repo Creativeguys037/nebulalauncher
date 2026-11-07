@@ -501,6 +501,17 @@
   </Style>
 
   <!--
+    矮行变体（48）：模组的行要放 32×32 图标 + 两行文字，56（票 #90）。
+    资源包 / 光影包 / 数据包只有 24×24 图标 + 一行短元数据，48 就够，一屏能多一行（票 #91）。
+    同一份 DataTemplate 靠这个类切换高度，不为三个分类各抄一遍模板。
+  -->
+  <Style Selector="Border.listrow.compact">
+    <Setter Property="MinHeight" Value="48" />
+    <!-- 竖向内边距也要收：行内最高的是 ToggleSwitch（32），32 + 12×2 仍是 56，只改 MinHeight 不起作用 -->
+    <Setter Property="Padding" Value="0,8" />
+  </Style>
+
+  <!--
     行内图标底座：32×32 圆角 9、白 80% 底 + 白 95% 边（样板 .row .ric）。
     深色主题下 Surface.CardSolid 是近黑，Counter 一样成立：图标始终坐在「比行底亮一点」的方块上。
   -->
@@ -512,6 +523,13 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Subtle}" />
     <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+
+  <!-- 资源类行的图标 24×24 / 圆角 6：行高 48，32 的底座会把行撑满、没有呼吸（票 #91） -->
+  <Style Selector="Border.rowicon.small">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xs}" />
   </Style>
 
   <Style Selector="Border.glass">

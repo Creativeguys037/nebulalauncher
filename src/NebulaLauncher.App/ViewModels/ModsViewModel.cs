@@ -191,6 +191,8 @@ public sealed partial class ModsViewModel : PageViewModelBase
     [NotifyPropertyChangedFor(nameof(KindLabel))]
     [NotifyPropertyChangedFor(nameof(TabIndex))]
     [NotifyPropertyChangedFor(nameof(StatsText))]
+    [NotifyPropertyChangedFor(nameof(IsCompactRowKind))]
+    [NotifyPropertyChangedFor(nameof(SearchWatermark))]
     private ContentKind _activeKind = ContentKind.Mod;
 
     public bool IsModTabActive => ActiveKind == ContentKind.Mod;
@@ -246,6 +248,17 @@ public sealed partial class ModsViewModel : PageViewModelBase
 
     /// <summary>Row2 显示内容列表（而非皮肤占位）的判据。</summary>
     public bool IsContentViewActive => !IsSkinTabActive;
+
+    /// <summary>
+    /// 当前分类的行用 48 高（资源类）而不是 56 高（模组）。
+    ///
+    /// 模组的行要放 32×32 图标 + 两行文字；资源包 / 光影包 / 数据包只有 24×24 图标 + 一行短元数据，
+    /// 48 就够，一屏能多一行（票 #91）。同一份 `DataTemplate` 靠这个开关切 `Border.listrow.tall`。
+    /// </summary>
+    public bool IsCompactRowKind => ActiveKind != ContentKind.Mod;
+
+    /// <summary>搜索框水印跟着分类走：在资源包页提示「搜索资源包名称」比「搜索模组名称」诚实。</summary>
+    public string SearchWatermark => $"搜索{KindLabel}名称、作者或 ID";
 
     /// <summary>
     /// 内容页签索引，双向绑到 Row0 的 <c>TabControl.SelectedIndex</c>。
@@ -3188,23 +3201,11 @@ public sealed partial class ContentCardViewModel : ObservableObject
 
     private static string ComposeDetail(ContentItem item)
     {
-        // 数据包没有作者与语义版本号，`pack_format` 只是适配数字。
-        // 详情行优先放 pack.mcmeta 的 description——它是唯一「这个包是什么」的说明。
-        if (item.Kind == ContentKind.DataPack)
+        // 资源包 / 光影包 / 数据包没有作者，`pack_format` 只是适配数字，都不是用户想看的。
+        // 票 #91 定的副行是「大小 · 最后修改」——回答「这个包多大、什么时候放进来的」。
+        if (item.Kind is ContentKind.ResourcePack or ContentKind.ShaderPack or ContentKind.DataPack)
         {
-            var packParts = new List<string>();
-
-            if (!string.IsNullOrWhiteSpace(item.Description))
-            {
-                packParts.Add(item.Description);
-            }
-
-            if (!string.IsNullOrWhiteSpace(item.Version))
-            {
-                packParts.Add(item.Version);
-            }
-
-            return packParts.Count > 0 ? string.Join(" · ", packParts) : item.FileName;
+            return ComposeResourceDetail(item);
         }
 
         var parts = new List<string>();
@@ -3220,6 +3221,48 @@ public sealed partial class ContentCardViewModel : ObservableObject
 
         return parts.Count > 0 ? string.Join(" · ", parts) : item.FileName;
     }
+
+    /// <summary>
+    /// 资源类行的副行：版本（可选）· 大小 · 最后修改。
+    ///
+    /// 文件信息在构造卡片时读一次：扫描阶段已经遍历过这些文件，这里只是补两个 stat 字段。
+    /// 读不到（扫描后文件被删/被移走）时退化成不含文件信息的版本行，不让副行整块消失。
+    /// </summary>
+    private static string ComposeResourceDetail(ContentItem item)
+    {
+        var parts = new List<string>(3);
+
+        if (!string.IsNullOrWhiteSpace(item.Version))
+        {
+            parts.Add(item.Version);
+        }
+
+        try
+        {
+            var info = new FileInfo(item.FilePath);
+
+            if (info.Exists)
+            {
+                parts.Add(FormatFileSize(info.Length));
+                parts.Add(info.LastWriteTime.ToString("MM-dd HH:mm"));
+            }
+        }
+        catch (Exception)
+        {
+            // 路径形态异常或权限不足：保留版本信息即可，副行不该因为一次 stat 失败变空。
+        }
+
+        return parts.Count > 0 ? string.Join(" · ", parts) : item.FileName;
+    }
+
+    /// <summary>字节数 → 人读的大小。列表副行与回收站共用同一张表，避免两处口径不一致。</summary>
+    private static string FormatFileSize(long bytes) => bytes switch
+    {
+        < 0 => "大小未知",
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024):0.#} MB",
+    };
 
     private static string StripExtension(string fileName)
         => fileName.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)
