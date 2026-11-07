@@ -66,7 +66,31 @@
     <!-- 右栏：正文 -->
     <Border Grid.Column="1" Classes="card">
       <Grid RowDefinitions="*,Auto" RowSpacing="12">
-        <ScrollViewer Grid.Row="0">
+        <!-- 空态：未选中条目时显示（契约：图标 + 一句说明 + 一个动作） -->
+        <StackPanel Spacing="12"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding SelectedTopic, Converter={x:Static ObjectConverters.IsNull}}">
+          <Path Data="{StaticResource Icon.Search}"
+                Stroke="{DynamicResource Text.Muted}"
+                StrokeThickness="1.8"
+                StrokeLineCap="Round"
+                Stretch="Uniform"
+                Width="32" Height="32"
+                HorizontalAlignment="Center" />
+          <TextBlock Text="选择一个帮助条目查看详细说明"
+                     Classes="muted"
+                     HorizontalAlignment="Center"
+                     TextWrapping="Wrap" />
+          <Button Classes="pill"
+                  Content="查看全部条目"
+                  Command="{Binding SelectCategoryCommand}"
+                  CommandParameter="全部"
+                  HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="0"
+                      IsVisible="{Binding SelectedTopic, Converter={x:Static ObjectConverters.IsNotNull}}">
           <StackPanel Spacing="12"
                       IsVisible="{Binding SelectedTopic, Converter={x:Static ObjectConverters.IsNotNull}}">
             <TextBlock Text="{Binding SelectedTopic.Title}" Classes="h3" TextWrapping="Wrap" />

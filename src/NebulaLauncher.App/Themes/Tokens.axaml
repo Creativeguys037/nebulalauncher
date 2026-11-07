@@ -60,6 +60,24 @@
         <GradientStop Color="#00E80018" Offset="0.66" />
       </RadialGradientBrush>
 
+      <!-- bg-layers（CSS 变量）的三层大 radial（色块之下、linear 之上，样张全强度 .78/.66/.55）。
+           与 Haze1 到 Haze3 同位置同尺寸：样张 body 背景与 body::before 各画一遍。 -->
+      <RadialGradientBrush x:Key="Surface.BackdropGlow1" Center="50%,50%" GradientOrigin="50%,50%"
+                           RadiusX="50%" RadiusY="50%">
+        <GradientStop Color="#C7E80018" Offset="0" />
+        <GradientStop Color="#00E80018" Offset="0.62" />
+      </RadialGradientBrush>
+      <RadialGradientBrush x:Key="Surface.BackdropGlow2" Center="50%,50%" GradientOrigin="50%,50%"
+                           RadiusX="50%" RadiusY="50%">
+        <GradientStop Color="#A8B53131" Offset="0" />
+        <GradientStop Color="#00B53131" Offset="0.60" />
+      </RadialGradientBrush>
+      <RadialGradientBrush x:Key="Surface.BackdropGlow3" Center="50%,50%" GradientOrigin="50%,50%"
+                           RadiusX="50%" RadiusY="50%">
+        <GradientStop Color="#8CFFFAFA" Offset="0" />
+        <GradientStop Color="#00FFFAFA" Offset="0.66" />
+      </RadialGradientBrush>
+
       <!-- 玻璃组：tint 底、edge 亮边、topLight 顶亮线、innerShadow 底内阴影、shadow 外投影 -->
       <SolidColorBrush x:Key="Glass.Tint" Color="#0FE80018" />
       <!-- 次级玻璃：侧卡 / 小面板用，比主卡更透，露出更多背景色（更暗更蓝） -->
@@ -229,24 +247,42 @@
       <SolidColorBrush x:Key="Surface.Glass" Color="#47E8F0FF" />
       <SolidColorBrush x:Key="Surface.Sidebar" Color="#EDF3FF" />
       <SolidColorBrush x:Key="Surface.NavHover" Color="#B3FFFFFF" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#B31668FF" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#CC37D6FF" />
-      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#8C0B3FCC" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob1" Color="#8C1668FF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob2" Color="#9E37D6FF" />
+      <SolidColorBrush x:Key="Surface.BackdropBlob3" Color="#6B0B3FCC" />
 
       <!-- 背景蓝雾：见 Dark 段同名注释。浅色是样板 body::before 的 22,104,255 / 55,214,255 / 11,63,204 三层。 -->
       <RadialGradientBrush x:Key="Surface.BackdropHaze1" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#F21668FF" Offset="0" />
+        <GradientStop Color="#6E1668FF" Offset="0" />
         <GradientStop Color="#001668FF" Offset="0.62" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Surface.BackdropHaze2" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#D937D6FF" Offset="0" />
+        <GradientStop Color="#5C37D6FF" Offset="0" />
         <GradientStop Color="#0037D6FF" Offset="0.60" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Surface.BackdropHaze3" Center="50%,50%" GradientOrigin="50%,50%"
                            RadiusX="50%" RadiusY="50%">
-        <GradientStop Color="#CC0B3FCC" Offset="0" />
+        <GradientStop Color="#4D0B3FCC" Offset="0" />
+        <GradientStop Color="#000B3FCC" Offset="0.66" />
+      </RadialGradientBrush>
+
+      <!-- bg-layers（CSS 变量）的三层大 radial（色块之下、linear 之上，样张全强度 .78/.66/.55）。
+           与 Haze1 到 Haze3 同位置同尺寸：样张 body 背景与 body::before 各画一遍。 -->
+      <RadialGradientBrush x:Key="Surface.BackdropGlow1" Center="50%,50%" GradientOrigin="50%,50%"
+                           RadiusX="50%" RadiusY="50%">
+        <GradientStop Color="#C71668FF" Offset="0" />
+        <GradientStop Color="#001668FF" Offset="0.62" />
+      </RadialGradientBrush>
+      <RadialGradientBrush x:Key="Surface.BackdropGlow2" Center="50%,50%" GradientOrigin="50%,50%"
+                           RadiusX="50%" RadiusY="50%">
+        <GradientStop Color="#A837D6FF" Offset="0" />
+        <GradientStop Color="#0037D6FF" Offset="0.60" />
+      </RadialGradientBrush>
+      <RadialGradientBrush x:Key="Surface.BackdropGlow3" Center="50%,50%" GradientOrigin="50%,50%"
+                           RadiusX="50%" RadiusY="50%">
+        <GradientStop Color="#8C0B3FCC" Offset="0" />
         <GradientStop Color="#000B3FCC" Offset="0.66" />
       </RadialGradientBrush>
 
@@ -255,27 +291,21 @@
       <!-- 次级玻璃：侧卡 / 小面板用，比主卡更透，露出更多背景色（更暗更蓝） -->
       <SolidColorBrush x:Key="Glass.TintSoft" Color="#1FFFFFFF" />
 
-      <!-- 玻璃内部泛光（#105）：见 Dark 段同名注释。浅色主光更亮（左上 25% 白），底部反光带 20% 白。 -->
+      <!-- 玻璃内部泛光（#105）：样张 .glass::before 的三层白——左上主光 92%→42%、右下 50%、纵向 34%→19%。 -->
       <RadialGradientBrush x:Key="Glass.GlowTopLeft" Center="6%,-14%" GradientOrigin="6%,-14%"
                            RadiusX="126%" RadiusY="62%">
-        <GradientStop Color="#4DFFFFFF" Offset="0" />
-        <GradientStop Color="#33FFFFFF" Offset="0.18" />
-        <GradientStop Color="#1AFFFFFF" Offset="0.32" />
-        <GradientStop Color="#0DFFFFFF" Offset="0.44" />
-        <GradientStop Color="#07FFFFFF" Offset="0.50" />
+        <GradientStop Color="#EBFFFFFF" Offset="0" />
+        <GradientStop Color="#6BFFFFFF" Offset="0.32" />
         <GradientStop Color="#00FFFFFF" Offset="0.56" />
       </RadialGradientBrush>
       <RadialGradientBrush x:Key="Glass.GlowBottomRight" Center="96%,108%" GradientOrigin="96%,108%"
                            RadiusX="90%" RadiusY="50%">
-        <GradientStop Color="#40FFFFFF" Offset="0" />
-        <GradientStop Color="#26FFFFFF" Offset="0.25" />
-        <GradientStop Color="#14FFFFFF" Offset="0.42" />
-        <GradientStop Color="#07FFFFFF" Offset="0.52" />
+        <GradientStop Color="#80FFFFFF" Offset="0" />
         <GradientStop Color="#00FFFFFF" Offset="0.58" />
       </RadialGradientBrush>
       <LinearGradientBrush x:Key="Glass.GlowWash" StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#03FFFFFF" Offset="0" />
-        <GradientStop Color="#02FFFFFF" Offset="1" />
+        <GradientStop Color="#57FFFFFF" Offset="0" />
+        <GradientStop Color="#30FFFFFF" Offset="1" />
       </LinearGradientBrush>
       <!-- 色彩增强：见 Dark 段注释。浅色用品牌蓝 12%，让背景色块发光变艳。 -->
       <SolidColorBrush x:Key="Glass.Saturate" Color="#1F1668FF" />
@@ -299,7 +329,7 @@
         <GradientStop Color="#260B3FCC" Offset="0" />
         <GradientStop Color="#000B3FCC" Offset="0.70" />
       </RadialGradientBrush>
-      <SolidColorBrush x:Key="Surface.BackdropGrid" Color="#0D1668FF" />
+      <SolidColorBrush x:Key="Surface.BackdropGrid" Color="#1A1668FF" />
       <RadialGradientBrush x:Key="Surface.BackdropGridMask" Center="50%,42%" GradientOrigin="50%,42%"
                            RadiusX="50%" RadiusY="50%">
         <GradientStop Color="#FFFFFFFF" Offset="0" />
