@@ -34,7 +34,7 @@ public class GlassPanel : ContentControl
 
     /// <summary>副本层模糊半径。Avalonia 的 Radius 与 CSS blur 不是同一标度，按视觉调。</summary>
     public static readonly StyledProperty<double> BlurRadiusProperty =
-        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 18d);
+        AvaloniaProperty.Register<GlassPanel, double>(nameof(BlurRadius), 24d);
 
     private Rectangle? _copy;
     private Visual? _lastBackdrop;
@@ -120,6 +120,13 @@ public class GlassPanel : ContentControl
             return;
         }
 
+        var origin = this.TranslatePoint(new Point(0, 0), backdrop);
+        if (origin is null || Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        // 背景控件换了、或 Fill 还不是 VisualBrush，就重挂一次；否则只更新 SourceRect。
         if (!ReferenceEquals(_lastBackdrop, backdrop) || _copy.Fill is not VisualBrush)
         {
             _copy.Fill = new VisualBrush(backdrop)
@@ -132,18 +139,11 @@ public class GlassPanel : ContentControl
             _lastBackdrop = backdrop;
         }
 
-        if (_copy.Fill is not VisualBrush brush)
+        if (_copy.Fill is VisualBrush brush)
         {
-            return;
+            brush.SourceRect = new RelativeRect(
+                origin.Value.X, origin.Value.Y, Bounds.Width, Bounds.Height, RelativeUnit.Absolute);
         }
-
-        var origin = this.TranslatePoint(new Point(0, 0), backdrop);
-        if (origin is null || Bounds.Width <= 0 || Bounds.Height <= 0)
-        {
-            return;
-        }
-
-        brush.SourceRect = new RelativeRect(origin.Value.X, origin.Value.Y, Bounds.Width, Bounds.Height, RelativeUnit.Absolute);
     }
 
     /// <summary>

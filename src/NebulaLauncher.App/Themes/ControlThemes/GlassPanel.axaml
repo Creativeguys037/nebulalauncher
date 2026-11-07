@@ -3,12 +3,28 @@
                     xmlns:controls="using:NebulaLauncher.Controls">
 
   <!--
-    玻璃面板：背景副本层 + 色调层 + 内容层。
-    BlurEffect 只挂在副本 Rectangle 上；挂在根节点会把文字一起糊掉（票 #84 的边界条款）。
+    玻璃面板：背景副本层 + 色调层 + 内部泛光（三层）+ 描边与 inset 光影 + 内容层。
+
+    这一版严格按定版样张 `.oil-ui/nebula-2/explore/glass.css` 的 `.glass` 复刻：
+
+    1. `.glass::after`（内衬）→ PART_Copy：
+       与页面背景同源的副本 + BlurEffect。样张还叠了 saturate(190%) brightness(1.04)，
+       Avalonia 的 BlurEffect 不支持饱和度/亮度，这部分由背景本身（Haze/Blob 色阶）补。
+    2. `.glass::before`（内部泛光）→ 三层 Border：
+       · Glass.GlowTopLeft      左上 126%×62% @ 6%,-14%，白 92% → 42% → 透明
+       · Glass.GlowBottomRight  右下 90%×50% @ 96%,108%，白 50% → 透明
+       · Glass.GlowWash         纵向 linear(白 34% → 19%)
+       这三层是「卡片内部有灯」的来源，缺了它玻璃就是一块平的半透明白板。
+    3. `.glass` 的 border + glass-sh → 描边 Border + Shadow.Glass：
+       1px 白 86% 边 + 8 条 inset/外投影（顶 2px 纯白、底 1px 白 60%、左右 1px 白 75%、
+       顶部 14px 大高光、底部 16px 深内影、两层外投影）。厚度感全靠这组 inset。
+
+    BlurEffect 只挂在副本 Rectangle 上；挂在根节点会把文字糊掉（票 #84 的边界条款）。
+    副本的 SourceRect 由 GlassPanel.UpdateCopy() 按卡片在背景坐标系里的位置算。
   -->
   <ControlTheme x:Key="{x:Type controls:GlassPanel}" TargetType="controls:GlassPanel">
     <Setter Property="Background" Value="{DynamicResource Gradient.Canvas}" />
-    <Setter Property="Tint" Value="{DynamicResource Surface.Glass}" />
+    <Setter Property="Tint" Value="Transparent" />
     <Setter Property="Padding" Value="20" />
     <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xl}" />
     <Setter Property="Template">
@@ -23,10 +39,14 @@
                          Fill="{TemplateBinding Background}"
                          IsHitTestVisible="False" />
               <Border Background="{TemplateBinding Tint}" IsHitTestVisible="False" />
+              <!-- 内部泛光：照样张 .glass::before 的三层 -->
+              <Border Background="{DynamicResource Glass.GlowTopLeft}" IsHitTestVisible="False" />
+              <Border Background="{DynamicResource Glass.GlowBottomRight}" IsHitTestVisible="False" />
+              <Border Background="{DynamicResource Glass.GlowWash}" IsHitTestVisible="False" />
             </Panel>
           </Border>
 
-          <!-- 描边与内/外阴影在独立层，不参与命中。 -->
+          <!-- 描边 + glass-sh 的八条 inset / 外投影（厚度与光照全在这里） -->
           <Border BorderBrush="{DynamicResource Glass.Edge}"
                   BorderThickness="1"
                   CornerRadius="{TemplateBinding CornerRadius}"

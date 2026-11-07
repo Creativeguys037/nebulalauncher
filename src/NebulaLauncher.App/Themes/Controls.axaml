@@ -1,7 +1,8 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:services="using:NebulaLauncher.Services"
-        xmlns:primitives="using:Avalonia.Controls.Primitives">
+        xmlns:primitives="using:Avalonia.Controls.Primitives"
+        xmlns:controls="using:NebulaLauncher.Controls">
 
   <!--
     Nebula 控件样式表（A/B 档：只改属性、改模板内部件）。
@@ -530,6 +531,12 @@
     <Setter Property="Width" Value="24" />
     <Setter Property="Height" Value="24" />
     <Setter Property="CornerRadius" Value="{DynamicResource Radius.Xs}" />
+  </Style>
+
+  <!-- 次级玻璃：侧卡 / 小面板用。比主卡更透，露出更多背景色（更暗更蓝），
+       和主卡形成材质层级——主次靠材质分，不靠位置（#105）。 -->
+  <Style Selector="controls|GlassPanel.soft">
+    <Setter Property="Tint" Value="{DynamicResource Glass.TintSoft}" />
   </Style>
 
   <Style Selector="Border.glass">

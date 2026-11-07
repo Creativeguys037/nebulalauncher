@@ -35,6 +35,13 @@
                               Blob1="{DynamicResource Surface.BackdropBlob1}"
                               Blob2="{DynamicResource Surface.BackdropBlob2}"
                               Blob3="{DynamicResource Surface.BackdropBlob3}"
+                              Haze1="{DynamicResource Surface.BackdropHaze1}"
+                              Haze2="{DynamicResource Surface.BackdropHaze2}"
+                              Haze3="{DynamicResource Surface.BackdropHaze3}"
+                              Haze4="{DynamicResource Surface.BackdropHaze4}"
+                              Haze5="{DynamicResource Surface.BackdropHaze5}"
+                              Grid="{DynamicResource Surface.BackdropGrid}"
+                              GridMask="{DynamicResource Surface.BackdropGridMask}"
                               IsAnimated="{Binding BackgroundAnimationsActive}" />
 
       <Image Source="{Binding BackgroundImage}"

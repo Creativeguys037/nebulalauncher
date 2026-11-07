@@ -743,7 +743,7 @@
       <StackPanel Grid.Column="1" Classes="side" Spacing="16">
 
         <!-- 盒一：启动进度 / 就绪说明 -->
-        <controls:GlassPanel Padding="16,17">
+        <controls:GlassPanel Padding="16,17" Classes="soft">
           <StackPanel Spacing="10">
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Text="启动状态" Classes="boxh3" />
@@ -782,7 +782,7 @@
         </controls:GlassPanel>
 
         <!-- 盒二：运行环境（统计口径与副标题一致） -->
-        <controls:GlassPanel Padding="16,17">
+        <controls:GlassPanel Padding="16,17" Classes="soft">
           <StackPanel Spacing="4">
             <TextBlock Text="运行环境" Classes="boxh3" Margin="0,0,0,6" />
 
