@@ -370,7 +370,7 @@
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                           <StackPanel Spacing="1" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Name}" Classes="section-row-title" />
-                            <TextBlock Text="{Binding LastWriteTimeText}" Classes="section-row-meta" />
+                            <TextBlock Text="{Binding MetadataText}" Classes="section-row-meta" />
                           </StackPanel>
 
                           <StackPanel Grid.Column="1"
@@ -466,17 +466,36 @@
                           <ItemsControl ItemsSource="{Binding Backups}">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="vm:BackupRowItem">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Height="40">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6" Height="40">
                                   <StackPanel Spacing="0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding CreatedText}" Classes="section-row-meta" />
                                     <TextBlock Text="{Binding SizeText}" Classes="section-row-meta" />
                                   </StackPanel>
-                                  <Button Grid.Column="1"
-                                          Classes="pill danger"
-                                          Content="还原这份"
-                                          VerticalAlignment="Center"
-                                          Command="{Binding $parent[ItemsControl].((vm:WorldRowItem)DataContext).PickRestoreCommand}"
-                                          CommandParameter="{Binding Source}" />
+                                  <StackPanel Grid.Column="1"
+                                              Orientation="Horizontal"
+                                              Spacing="4"
+                                              VerticalAlignment="Center">
+                                    <Button Classes="pill danger"
+                                            Content="还原这份"
+                                            Command="{Binding $parent[ItemsControl].((vm:WorldRowItem)DataContext).PickRestoreCommand}"
+                                            CommandParameter="{Binding Source}" />
+                                    <Button Classes="ghost icon"
+                                            Width="24" Height="24" MinHeight="24"
+                                            Padding="0"
+                                            ToolTip.Tip="删除这份备份"
+                                            Command="{Binding $parent[ItemsControl].((vm:WorldRowItem)DataContext).PickDeleteBackupCommand}"
+                                            CommandParameter="{Binding}">
+                                      <Path Data="{StaticResource Icon.Close}"
+                                            Stroke="{DynamicResource Text.Secondary}"
+                                            StrokeThickness="1.6"
+                                            StrokeLineCap="Round"
+                                            StrokeJoin="Round"
+                                            Stretch="Uniform"
+                                            Width="11" Height="11"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center" />
+                                    </Button>
+                                  </StackPanel>
                                 </Grid>
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -487,6 +506,23 @@
                                   HorizontalAlignment="Left"
                                   Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).CancelRestoreCommand}"
                                   CommandParameter="{Binding}" />
+                        </StackPanel>
+
+                        <!-- 删除备份的二次确认：写清「删了就没了」 -->
+                        <StackPanel Spacing="4" IsVisible="{Binding ShowBackupDeleteConfirm}">
+                          <TextBlock Text="确认删除这份备份？删除后无法恢复。"
+                                     Classes="section-row-meta"
+                                     Foreground="{DynamicResource Status.Danger}"
+                                     TextWrapping="Wrap" />
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Classes="pill danger"
+                                    Content="确认删除"
+                                    Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).ConfirmDeleteBackupCommand}"
+                                    CommandParameter="{Binding}" />
+                            <Button Classes="pill"
+                                    Content="取消"
+                                    Command="{Binding CancelDeleteBackupCommand}" />
+                          </StackPanel>
                         </StackPanel>
 
                         <!-- 二次确认：写明会覆盖什么 -->

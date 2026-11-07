@@ -275,6 +275,33 @@ public sealed partial class InstanceWorldsSectionViewModel : ObservableObject
     [RelayCommand]
     private void CancelRestore(WorldRowItem? row) => row?.ResetRestore();
 
+    /// <summary>删掉一份备份。调用前用户已在行内点过「删除」并看到确认文案。</summary>
+    [RelayCommand]
+    private async Task ConfirmDeleteBackupAsync(WorldRowItem? row)
+    {
+        if (row?.PendingDeleteBackup is not { } backup || _backupService is null || IsLoading)
+        {
+            return;
+        }
+
+        try
+        {
+            await _backupService.DeleteAsync(backup.Source).ConfigureAwait(false);
+
+            row.RemoveBackup(backup);
+            ResultText = $"已删除「{row.Name}」在 {backup.CreatedText} 的备份";
+        }
+        catch (Exception ex)
+        {
+            row.PendingDeleteBackup = null;
+            ResultText = $"删除备份失败：{ex.Message}";
+        }
+        finally
+        {
+            NotifyState();
+        }
+    }
+
     /// <summary>在文件管理器里打开存档目录。</summary>
     [RelayCommand]
     private async Task OpenFolderAsync(WorldRowItem? row)
@@ -409,6 +436,9 @@ public sealed partial class WorldRowItem : ObservableObject
     public string LastWriteTimeText => Source.LastWriteTime.ToLocalTime()
         .ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.CurrentCulture);
 
+    /// <summary>副行：最后修改 · 大小。两段拼成一行，详情列只有 340 宽，分两行会把行高撑破 48。</summary>
+    public string MetadataText => $"{LastWriteTimeText} · {SizeText}";
+
     public string VersionText => string.IsNullOrWhiteSpace(Source.VersionName) ? "版本未知" : Source.VersionName!;
 
     [ObservableProperty]
@@ -438,6 +468,12 @@ public sealed partial class WorldRowItem : ObservableObject
     /// <summary>用户点了「还原这份」但还没确认的那一份。</summary>
     [ObservableProperty]
     private BackupEntry? _pendingRestore;
+
+    /// <summary>用户点了「删除」但还没确认的那一份备份。</summary>
+    [ObservableProperty]
+    private BackupRowItem? _pendingDeleteBackup;
+
+    public bool ShowBackupDeleteConfirm => PendingDeleteBackup is not null;
 
     public bool ShowProgress => IsBusy;
 
@@ -514,11 +550,45 @@ public sealed partial class WorldRowItem : ObservableObject
         NotifyLayout();
     }
 
+    /// <summary>用户在备份清单里点了「删除」：进入「确认删除这一份」状态（票面要求删除也要二次确认）。</summary>
+    [RelayCommand]
+    private void PickDeleteBackup(BackupRowItem? backup)
+    {
+        if (backup is null)
+        {
+            return;
+        }
+
+        PendingDeleteBackup = backup;
+        NotifyLayout();
+    }
+
+    [RelayCommand]
+    private void CancelDeleteBackup()
+    {
+        PendingDeleteBackup = null;
+        NotifyLayout();
+    }
+
+    /// <summary>删掉本地清单里的一份备份（服务层删除成功后由父视图模型调用）。</summary>
+    public void RemoveBackup(BackupRowItem backup)
+    {
+        Backups.Remove(backup);
+        PendingDeleteBackup = null;
+
+        OnPropertyChanged(nameof(BackupCountText));
+        OnPropertyChanged(nameof(HasBackups));
+        OnPropertyChanged(nameof(RestorePickerEmpty));
+        NotifyLayout();
+    }
+
     partial void OnIsBusyChanged(bool value) => NotifyLayout();
 
     partial void OnIsRestorePickerOpenChanged(bool value) => NotifyLayout();
 
     partial void OnPendingRestoreChanged(BackupEntry? value) => NotifyLayout();
+
+    partial void OnPendingDeleteBackupChanged(BackupRowItem? value) => NotifyLayout();
 
     partial void OnIconPathChanged(string? value) => OnPropertyChanged(nameof(HasIconImage));
 
@@ -529,6 +599,7 @@ public sealed partial class WorldRowItem : ObservableObject
         OnPropertyChanged(nameof(ShowRestorePicker));
         OnPropertyChanged(nameof(ShowRestoreConfirm));
         OnPropertyChanged(nameof(RestorePickerEmpty));
+        OnPropertyChanged(nameof(ShowBackupDeleteConfirm));
     }
 }
 
