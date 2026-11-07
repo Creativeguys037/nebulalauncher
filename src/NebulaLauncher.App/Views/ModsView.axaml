@@ -177,7 +177,7 @@
     </ctrl:GlassPanel>
 
     <!-- ==================== 右：当前目标的内容 ==================== -->
-    <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto,*">
+    <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto">
 
       <!-- 工具行：分类胶囊 / 搜索 / 操作。用 WrapPanel 是为了窄窗口下自动换行而不是裁切。 -->
       <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
@@ -302,7 +302,7 @@
       <!-- ==================== 批量操作条 ====================
            与「全部启用 / 全部禁用」并存：那两个作用于当前列表的全部项，这一条只作用于勾选项。
            常驻显示而不是选中才出现：没有它用户根本不知道卡片左上角的勾选框是干什么的。 -->
-      <Border Grid.Row="2" Classes="sunken" Padding="10,8" Margin="0,0,0,10">
+      <Border Grid.Row="3" Classes="sunken" Padding="10,8" Margin="0,0,0,10">
         <WrapPanel Orientation="Horizontal">
           <TextBlock Text="{Binding SelectionSummary}"
                      Classes="secondary"
@@ -344,7 +344,7 @@
       </Border>
 
       <!-- 右栏内容列表：玻璃框内滚动（票 #106） -->
-      <ctrl:GlassPanel Grid.Row="3" Padding="0">
+      <ctrl:GlassPanel Grid.Row="2" Padding="0">
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="12" Margin="16,14,16,16">

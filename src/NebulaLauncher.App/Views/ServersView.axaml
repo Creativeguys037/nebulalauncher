@@ -36,7 +36,7 @@
   <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
 
     <!-- ============ Row0：工具行（固定，不随列表滚动） ============ -->
-    <StackPanel Grid.Row="0" Spacing="6">
+    <StackPanel Grid.Row="0" Spacing="6" Height="40">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <TextBlock Text="收藏的服务器" FontWeight="SemiBold" VerticalAlignment="Center" />
