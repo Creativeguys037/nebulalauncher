@@ -21,8 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 不引 Avalonia.Fonts.Inter：界面用系统字体（见 Program.DefaultFontFamily），
-         嵌入整套 Inter 只是白白多出 1.8 MB 发布体积。 -->
+    <!-- 不引 Avalonia.Fonts.Inter：界面用项目内嵌入字体（Assets/Fonts/，见 Themes/Tokens.axaml
+         的 Font.* 令牌与 Program.DefaultFontFamily）。Inter 不含 CJK，嵌入它只是白白多出 1.8 MB。 -->
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />

@@ -32,7 +32,7 @@
     <!-- 等宽数字列：48 / 96 / 72 三档不缩窄（票面结构约束 1）。 -->
     <Style Selector="TextBlock.num">
       <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
-      <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace" />
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
       <Setter Property="TextAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />

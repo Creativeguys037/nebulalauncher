@@ -156,10 +156,19 @@ public class AppTheme_ControlLayerContractTests
         var sections = Regex.Split(text, "<!-- [0-9]+ ").Skip(1).ToList();
         var missing = new List<string>();
 
+        // 纯展示区段不参与状态切换，因此在「每段都要有 demo 目标」上豁免：
+        // 「字号样张」是 #103 的字体实测页（九档字号 × 中西文混排），里面没有控件状态可言。
+        var exemptTitles = new[] { "字号样张" };
+
         foreach (var section in sections)
         {
             var titleEnd = section.IndexOf(" -->", StringComparison.Ordinal);
             var title = titleEnd > 0 ? section[..titleEnd] : section[..Math.Min(20, section.Length)];
+            if (exemptTitles.Any(e => title.Contains(e, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
             if (!section.Contains("Tag=\"demo\"", StringComparison.Ordinal))
             {
                 missing.Add(title);

@@ -155,6 +155,76 @@ public class AppTheme_TokenContractTests
     }
 
     [Fact]
+    public void FontTokens_UseEmbeddedAssets()
+    {
+        var tokens = Load(TokensPath);
+        var rootKeys = RootKeys(tokens).ToHashSet(StringComparer.Ordinal);
+
+        // 五个字体令牌只定义在字典根部（字体不随主题变）。
+        foreach (var key in new[] { "Font.UI", "Font.UI.Bold", "Font.CJK", "Font.Numeric", "Font.Mono" })
+        {
+            Assert.Contains(key, rootKeys);
+        }
+
+        // 除 Font.Mono 外都必须指向嵌入字体目录，否则「改了字体但界面没变」。
+        foreach (var key in new[] { "Font.UI", "Font.UI.Bold", "Font.CJK", "Font.Numeric" })
+        {
+            var value = RootValue(tokens, key);
+            Assert.Contains("avares://NebulaLauncher/Assets/Fonts#", value);
+        }
+
+        // Mojang Bold 是独立族名：Font.UI.Bold 必须显式写族名，不能靠 FontWeight=Bold 伪粗。
+        Assert.Contains("Mojang Bold", RootValue(tokens, "Font.UI.Bold"));
+
+        // App.axaml 的首帧兜底必须与令牌同值，否则设计器/首帧与运行期字形不一致。
+        Assert.Equal(RootValue(tokens, "Font.UI"), RootValue(Load(AppPath), "Font.UI"));
+    }
+
+    [Fact]
+    public void Pages_HaveNoHardcodedFontFamilyLiterals()
+    {
+        var appRoot = RepoRoot();
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Relative(appRoot, Path.Combine(appRoot, TokensPath)), // 令牌定义本身就是字面值
+            Relative(appRoot, Path.Combine(appRoot, AppPath)),    // 首帧兜底，与令牌同值（上面的测试守护）
+        };
+
+        var offenders = new List<string>();
+        foreach (var file in Directory.GetFiles(Path.Combine(appRoot, "src/NebulaLauncher.App"), "*.axaml", SearchOption.AllDirectories))
+        {
+            var rel = Relative(appRoot, file);
+            if (allowed.Contains(rel))
+            {
+                continue;
+            }
+
+            var lineNo = 0;
+            foreach (var line in File.ReadAllLines(file))
+            {
+                lineNo++;
+                // 只拦属性字面值：FontFamily="{DynamicResource ...}" 与 <FontFamily x:Key=...> 都放过。
+                if (Regex.IsMatch(line, "FontFamily=\"(?!\\{)"))
+                {
+                    offenders.Add($"{rel}:{lineNo} {line.Trim()}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "页面/样式里还有 FontFamily 字面量，一律改 {DynamicResource Font.*}：" + Environment.NewLine
+            + string.Join(Environment.NewLine, offenders));
+    }
+
+    // 取某个文件里 x:Key 对应元素的文本值。用 Descendants 是因为 App.axaml 的根是 Application，
+    // 令牌在 <Application.Resources> 的 ResourceDictionary 里，不是根的直属子元素。
+    private static string RootValue(XDocument doc, string key) =>
+        doc.Root!.Descendants()
+            .Where(e => (string?)e.Attribute(X + "Key") == key)
+            .Select(e => e.Value.Trim())
+            .Single();
+
+    [Fact]
     public void DarkTheme_MatchesNebula2Values()
     {
         var doc = Load(TokensPath);

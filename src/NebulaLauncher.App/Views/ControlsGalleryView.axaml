@@ -360,6 +360,71 @@
         </StackPanel>
       </Border>
 
+      <!-- 15 · 字号样张（#103 验收：Mojang 是 8px 像素字形放大，必须实测最低可用字号）
+           内容固定为「中文 + English + 0123456789 + 长句」，同一字符串在九档字号下各排一行；
+           左列数字用 Font.Numeric（数字等宽，天然对齐），正文用 Font.UI（Mojang → 安托圆黑回退）。
+           判定线：11 / 12 档若出现笔画断裂、粘连或明显模糊，则正文这两档不走 Mojang。 -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="h3" Text="15 · 字号样张（九档 × 中西文混排）" />
+          <TextBlock Classes="muted" Text="Font.UI = Mojang, AFYuanheiCS · Font.Numeric = Mojang（数字等宽）· 左列标签即档位" TextWrapping="Wrap" />
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="11" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource FontSize.Caption}"
+                         Text="中文 Mixed 0123456789 长句：快速启动与合规模组分发" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="12" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource FontSize.Small}"
+                         Text="中文 Mixed 0123456789 长句：快速启动与合规模组分发" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="13" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource FontSize.Body}"
+                         Text="中文 Mixed 0123456789 长句：快速启动与合规模组分发" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="15" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource FontSize.BodyLg}"
+                         Text="中文 Mixed 0123456789 长句：快速启动与合规模组分发" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="17" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource FontSize.Subtitle}"
+                         Text="中文 Mixed 0123456789 长句：快速启动与合规模组分发" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="20" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource FontSize.Title}"
+                         Text="中文 Mixed 0123456789 长句" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="26" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.CJK}" FontSize="{DynamicResource FontSize.Headline}"
+                         Text="中文标题 Mixed 0123456789" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="29" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.CJK}" FontSize="{DynamicResource FontSize.Display}"
+                         Text="中文标题 Mixed 0123456789" />
+            </Grid>
+            <Grid ColumnDefinitions="44,*">
+              <TextBlock Classes="muted" FontFamily="{DynamicResource Font.Numeric}" Text="38" />
+              <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.CJK}" FontSize="{DynamicResource FontSize.DisplayLg}"
+                         Text="中文大标题"
+                         TextWrapping="Wrap" />
+            </Grid>
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <TextBlock Classes="muted" Text="真粗对照：Font.UI.Bold（族名 Mojang Bold，非伪粗）vs Font.UI + FontWeight=Bold（伪粗）" TextWrapping="Wrap" />
+            <TextBlock FontFamily="{DynamicResource Font.UI.Bold}" FontSize="{DynamicResource FontSize.Subtitle}"
+                       Text="True Bold 0123456789 真粗" />
+            <TextBlock FontFamily="{DynamicResource Font.UI}" FontWeight="Bold" FontSize="{DynamicResource FontSize.Subtitle}"
+                       Text="Synth Bold 0123456789 伪粗" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
 
       </StackPanel>
     </ScrollViewer>

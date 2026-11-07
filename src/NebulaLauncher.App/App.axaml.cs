@@ -38,7 +38,9 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        ApplyPlatformFont();
+
+        // 字体不再在运行期按平台覆盖 Font.UI：字体资产是项目内嵌入字体（见 Themes/Tokens.axaml
+        // 的 Font.* 五个令牌与 #103）。保留平台分支会让嵌入字体静默失效。
 
         // 首帧主题：设置是异步加载的（见 MainWindowViewModel.ApplyLaunchUiPreferences），
         // 这里只保证 --theme 覆盖立即生效；用户设置里持久化的主题在读盘完成后由 ApplyUi 再应用一次。
@@ -407,10 +409,4 @@ public partial class App : Application
 
         return services.BuildServiceProvider();
     }
-
-    /// <summary>
-    /// 把默认 UI 字体注入资源字典。字体选择逻辑集中在 <see cref="Program.DefaultFontFamily"/>，
-    /// 这里只负责写入，避免两处维护同一张平台表。
-    /// </summary>
-    private void ApplyPlatformFont() => Resources["Font.UI"] = Program.DefaultFontFamily;
 }

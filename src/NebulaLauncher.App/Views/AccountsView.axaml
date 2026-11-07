@@ -205,7 +205,7 @@
             <TextBlock Text="{Binding DeviceCode}"
                        FontSize="{DynamicResource FontSize.Display}"
                        FontWeight="SemiBold"
-                       FontFamily="Cascadia Code, Consolas, monospace" />
+                       FontFamily="{DynamicResource Font.Mono}" />
             <TextBlock Text="{Binding VerificationUri}"
                        Classes="mono"
                        Foreground="{DynamicResource Text.Tertiary}"

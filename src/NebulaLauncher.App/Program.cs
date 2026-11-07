@@ -479,27 +479,14 @@ internal static class Program
     }
 
     /// <summary>
-    /// 按平台设置默认字体。
+    /// 默认 UI 字体：项目内嵌入字体链（西文与数字走 Mojang，汉字回退安托圆黑 AFYuanheiCS）。
     ///
-    /// 之前用 <c>Avalonia.Fonts.Inter</c> 嵌入了整套 Inter（发布后 1.8 MB），但 Inter 不含 CJK，
-    /// 界面实际一直在用系统字体回退，这份资源是纯体积负担。现在直接取系统字体，
-    /// 缺字由系统字体链回落。
+    /// 历史：先用 <c>Avalonia.Fonts.Inter</c> 嵌入整套 Inter（发布后 1.8 MB，但 Inter 不含 CJK，
+    /// 界面实际一直靠系统回退，是纯体积负担）；随后改成按平台取系统字体
+    /// （Windows / macOS / Linux 各一种）。按平台取字体让三个平台长出三种字形、产品没有自己的
+    /// 字形识别，还会在启动时覆盖资源字典里的嵌入字体，让字体改动静默失效。
+    /// 现在固定为项目内字体资产：<c>src/NebulaLauncher.App/Assets/Fonts/</c>，见 #103。
     /// </summary>
-    public static FontFamily DefaultFontFamily
-    {
-        get
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                return new FontFamily("Microsoft YaHei UI");
-            }
-
-            if (OperatingSystem.IsMacOS())
-            {
-                return new FontFamily("PingFang SC");
-            }
-
-            return new FontFamily("Noto Sans CJK SC");
-        }
-    }
+    public static FontFamily DefaultFontFamily =>
+        new("avares://NebulaLauncher/Assets/Fonts#Mojang, avares://NebulaLauncher/Assets/Fonts#AFYuanheiCS");
 }

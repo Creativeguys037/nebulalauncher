@@ -423,7 +423,7 @@
                 <StackPanel Grid.Column="1" Spacing="8">
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <TextBox Text="{Binding JavaPath}"
-                             FontFamily="Cascadia Code, Consolas, monospace"
+                             FontFamily="{DynamicResource Font.Mono}"
                              Watermark="留空表示自动选择，例如 C:\Program Files\Java\jdk-21\bin\javaw.exe" />
                     <Button Grid.Column="1" Classes="pill" Content="浏览…" Click="OnBrowseJavaClick" />
                   </Grid>
@@ -503,7 +503,7 @@
                   <StackPanel Grid.Column="1" Spacing="8">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                       <TextBox Text="{Binding GameDirectory}"
-                               FontFamily="Cascadia Code, Consolas, monospace"
+                               FontFamily="{DynamicResource Font.Mono}"
                                Watermark="{Binding DefaultGameDirectory}" />
                       <Button Grid.Column="1" Classes="pill" Content="浏览…" Click="OnBrowseGameDirectoryClick" />
                     </Grid>
@@ -1265,7 +1265,7 @@
                 <TextBlock Text="Base URL 覆盖（可选）" Classes="label" />
                 <TextBox Text="{Binding CurseForgeBaseUrl}"
                          Watermark="https://api.curseforge.com"
-                         FontFamily="Cascadia Code, Consolas, monospace" />
+                         FontFamily="{DynamicResource Font.Mono}" />
                 <TextBlock Classes="muted"
                            TextWrapping="Wrap"
                            Text="留空使用官方地址 https://api.curseforge.com。填镜像时镜像需接受本程序内置的 x-api-key（或自行忽略它）。第三方镜像可用性由镜像方维护，遇到失败请清空这里回到官方地址。" />

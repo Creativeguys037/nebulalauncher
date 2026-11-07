@@ -16,11 +16,11 @@
       </ResourceDictionary.MergedDictionaries>
 
       <!--
-        UI 字体栈：CJK 优先，西文缺字回退 Segoe UI，最后交给系统无衬线。
-        运行期由 App.axaml.cs 的 ApplyPlatformFont 换成 Program.DefaultFontFamily
-        （Windows / macOS / Linux 各取系统字体），这里保留完整栈给设计器与首帧兜底。
+        UI 字体栈：嵌入字体，西文/数字走 Mojang，缺字（含全部汉字）回退安托圆黑。
+        字体令牌由 Themes/Tokens.axaml 的根级定义提供，运行期不再按平台覆盖：
+        平台分支会让嵌入字体静默失效（用户看到「改了字体但界面没变」）。见 #103。
       -->
-      <FontFamily x:Key="Font.UI">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
+      <FontFamily x:Key="Font.UI">avares://NebulaLauncher/Assets/Fonts#Mojang, avares://NebulaLauncher/Assets/Fonts#AFYuanheiCS</FontFamily>
     </ResourceDictionary>
   </Application.Resources>
 

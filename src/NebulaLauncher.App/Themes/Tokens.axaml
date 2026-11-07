@@ -313,7 +313,24 @@
   <!-- ============ 间距（Thickness 直接内联使用，此处仅列数值刻度）
        4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 ============ -->
 
-  <!-- ============ 字体 ============ -->
+  <!-- ============ 字体家族（不随主题变；字体令牌只在根级定义一次） ============
+       资产在 src/NebulaLauncher.App/Assets/Fonts/，随 AvaloniaResource 打包。
+
+       三条实测事实（#103，fontTools 核对）：
+       1. `Mojang Bold` 是**独立族名**，两份 usWeightClass 都是 400。
+          用 `#Mojang` + FontWeight=Bold 不会切到粗体，会走合成伪粗（像素字形会糊）。
+          要真粗必须显式用族名 `Mojang Bold`。
+       2. Mojang 数字等宽（0–9 宽 800/Bold 928）、字母不等宽（i=288、I=544、空格 160、W=800），
+          所以 **Font.Numeric 可对齐数字列，但不能顶替 Font.Mono**。
+       3. 安托圆黑（AFYuanheiCS）只有 Regular 一档，中文标题靠字号与颜色对比，不靠 FontWeight=Bold。
+  -->
+  <FontFamily x:Key="Font.UI">avares://NebulaLauncher/Assets/Fonts#Mojang, avares://NebulaLauncher/Assets/Fonts#AFYuanheiCS</FontFamily>
+  <FontFamily x:Key="Font.UI.Bold">avares://NebulaLauncher/Assets/Fonts#Mojang Bold, avares://NebulaLauncher/Assets/Fonts#AFYuanheiCS</FontFamily>
+  <FontFamily x:Key="Font.CJK">avares://NebulaLauncher/Assets/Fonts#AFYuanheiCS</FontFamily>
+  <FontFamily x:Key="Font.Numeric">avares://NebulaLauncher/Assets/Fonts#Mojang</FontFamily>
+  <FontFamily x:Key="Font.Mono">Cascadia Code, Consolas, monospace</FontFamily>
+
+  <!-- ============ 字号九档 ============ -->
   <x:Double x:Key="FontSize.Caption">11</x:Double>
   <x:Double x:Key="FontSize.Small">12</x:Double>
   <x:Double x:Key="FontSize.Body">13</x:Double>

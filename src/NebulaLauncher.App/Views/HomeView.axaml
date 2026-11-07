@@ -78,7 +78,7 @@
 
     <Style Selector="TextBlock.statv">
       <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
-      <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace" />
+      <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
       <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
       <Setter Property="HorizontalAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Center" />

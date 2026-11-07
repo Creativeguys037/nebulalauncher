@@ -156,6 +156,30 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 
 ### 7.4 排版
 
+**字体**：项目内嵌三份字体（`src/NebulaLauncher.App/Assets/Fonts/`，来源与许可见同目录 `FONT-NOTICE.md`），
+通过 `Tokens.axaml` **字典根部**的五个字体令牌取用。字体不随主题变，五个令牌只在根部定义一次。
+**页面与样式里不许出现任何 `FontFamily` 字面量**，一律 `{DynamicResource Font.*}`（契约测试会拦）。
+
+| 令牌 | 字体链 | 用途 |
+|---|---|---|
+| `Font.UI` | `#Mojang, #AFYuanheiCS` | 正文、说明、元信息：西文与数字走 Mojang，汉字回退安托圆黑 |
+| `Font.UI.Bold` | `#Mojang Bold, #AFYuanheiCS` | 需要**真粗**的西文/混合标题与强调行 |
+| `Font.CJK` | `#AFYuanheiCS` | 纯中文大标题（跳过 Mojang 的逐字回退开销） |
+| `Font.Numeric` | `#Mojang` | 版本号、大小、百分比、计数、时间戳（数字等宽，右对齐） |
+| `Font.Mono` | `Cascadia Code, Consolas, monospace` | 日志、路径、代码、STDOUT |
+
+三条实测约束（#103，fontTools 核对 + 九档样张截图）：
+
+1. **`Mojang Bold` 是独立族名**，两份文件的 `usWeightClass` 都是 400。`#Mojang` + `FontWeight=Bold`
+   不会切到粗体，只会走合成伪粗把像素字形糊掉。要真粗用 `Font.UI.Bold`，不要 `Font.UI` 配 `FontWeight="Bold"`。
+2. Mojang **只有数字等宽**（`0–9` 宽 800 / Bold 928），字母不等宽（`i=288`、`I=544`、空格 160、`W=800`）。
+   `Font.Numeric` 能对齐数字列，**不能**顶替 `Font.Mono`。
+3. 安托圆黑只有 Regular 一档：中文标题不吃 `FontWeight=Bold`（伪粗会糊），层级靠字号与颜色对比拉开。
+
+**11 / 12 档结论**：九档样张（`--page controls` 第 15 节，深色 / 浅色 / 1024×660 三张，见
+`.probe/font-01..04.png`）里 `Font.UI` 在 11 与 12 档可用——汉字回退安托圆黑后无断裂，
+Mojang 数字在 11px 下仍等宽、无粘连。**不加特例**：`.caption` / `.muted` 继续用 `Font.UI`。
+
 字号九档，与 `Tokens.axaml` 的 `FontSize.*` 一一对应：**11 / 12 / 13 / 15 / 17 / 20 / 26 / 29 / 38**。
 
 | 样式类 | 字号 | 令牌 | 用途 |
@@ -170,7 +194,7 @@ Core/Accounts/AccountServiceCollectionExtensions.cs   → IServiceCollection Add
 | — | 29 | `FontSize.Display` | 页面标题（少用） |
 | `.h1` | 38 | `FontSize.DisplayLg` | 首屏主标题（极少用） |
 
-字重只有 `Normal` / `Medium` / `SemiBold` / `Bold` 四档，**不要用 Light**（深色底上发虚）。多行段落用 `TextWrapping="Wrap"` + `LineHeight="20"`。数字（版本号、大小、进度、时间戳）用等宽（`.mono`），右对齐。
+字重只有 `Normal` / `Medium` / `SemiBold` / `Bold` 四档，**不要用 Light**（深色底上发虚）。多行段落用 `TextWrapping="Wrap"` + `LineHeight="20"`。数字（版本号、大小、进度、时间戳）用 `Font.Numeric`（数字等宽）并右对齐；日志、路径、STDOUT 用 `.mono`（`Font.Mono`），不要拿 `Font.Numeric` 顶替。
 
 ### 7.5 间距与圆角
 
@@ -400,6 +424,8 @@ dotnet $bin\NebulaLauncher.dll --screenshot out.png --page home --delay 4000 --d
 | `portable` | 自包含、裁剪、单个 exe | 24.1 MB / 1 文件 | `%TEMP%\.net\<app>` 可写 |
 
 这张表是最近一次 win-x64 发布实测记录，**每次发布以当版 release notes 为准**：`minimal` 与 `portable` 两行在 2026-10-25 的 `v1.0.1` 发布前实测（`minimal` 解压后 26,510,634 字节 / 3 文件，`portable` 25,273,560 字节 / 1 文件）；`fdd` 与 `folder` 两行是更早一次实测，未在本次重测，发布这两种形态时现测并补进 release notes。仓内旧记录里的 23.4 MB / 47 文件是 ANGLE 剔除前或标注错误的口径；`v1.0.0` 的对应数字是 `minimal` 25,926,442 字节 / `portable` 24,958,622 字节（那时 JSON 通路在便携版里是坏的，见 `docs/PITFALLS.md` 3.16）。
+
+**体积口径变更（#103，2026-11-08）**：界面改为内嵌字体（`src/NebulaLauncher.App/Assets/Fonts/`，安托圆黑 3,434,348 B + Mojang 两份 54,944 B，见同目录 `FONT-NOTICE.md`），上表四行体积各 **+约 3.4 MB**（`minimal` 预计约 28.7 MB）。这是按资产大小的推算值，**不是实测**：下一次 `build.ps1` 发布后把实际数字回填到本表与该版 release notes。
 
 **产物可用 = 三道关都过**（`build.ps1` 发布后自动跑；拿到别人的产物时要自己跑一次）：
 
