@@ -42,11 +42,13 @@
     <Style Selector="TextBlock.hero-inst-name">
       <Setter Property="FontSize" Value="{DynamicResource FontSize.Subtitle}" />
       <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
     <Style Selector="TextBlock.hero-inst-meta">
       <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
       <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
     <!-- 侧栏盒子：标题 12/700，右上角的强调注 11/600 主色（样板 .box h3 + em）。 -->
