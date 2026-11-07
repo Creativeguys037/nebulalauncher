@@ -204,6 +204,31 @@ public sealed partial class ModsViewModel : PageViewModelBase
     /// <summary>数据包分类为空时给「去资源页找数据包」的出口；其它分类的空态不显示这个按钮。</summary>
     public bool IsDataPackEmpty => IsEmpty && ActiveKind == ContentKind.DataPack;
 
+    /// <summary>
+    /// 每个分类上一次用的搜索词与筛选档。
+    ///
+    /// 票 #90 要求「五个页签各保留自己的筛选与滚动」：模组页搜「sodium」切去资源包再切回来，
+    /// 搜索框不该是空的，筛选也不该被重置成「全部」。滚动位置由 View 侧重建时不保留（如实记在票面）。
+    /// </summary>
+    private readonly Dictionary<ContentKind, (string Search, ModsFilter Filter)> _shellStateByKind = [];
+
+    /// <summary>切走之前先把自己的状态存进字典——<c>Changed</c> 触发时旧分类已经读不到了。</summary>
+    partial void OnActiveKindChanging(ContentKind oldValue, ContentKind newValue)
+        => _shellStateByKind[oldValue] = (SearchText, ActiveFilter);
+
+    partial void OnActiveKindChanged(ContentKind value)
+    {
+        var saved = _shellStateByKind.TryGetValue(value, out var state)
+            ? state
+            : (Search: string.Empty, Filter: ModsFilter.All);
+
+        // 顺序有讲究：SearchText 的 setter 自己会 ApplyFilter，此时 _all 还是上一个分类的卡片，
+        // 所以只把它当「赋值」，等 ActiveFilter 也落定后再统一过滤一次。
+        SearchText = saved.Search;
+        ActiveFilter = saved.Filter;
+        ApplyFilter();
+    }
+
     public string KindLabel => KindLabelOf(ActiveKind);
 
     /// <summary>

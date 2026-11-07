@@ -63,6 +63,35 @@ public class AppMods_TabShellTests
         Assert.Equal(string.Empty, viewModel.StatsText);
     }
 
+    /// <summary>
+    /// 票面「五页签各保留自己的筛选」：模组页搜过、筛过，切去资源包再切回来要原样恢复，
+    /// 而资源包自己的那份是空的（没搜过就是空搜索词 + 全部）。
+    /// </summary>
+    [Fact]
+    public void 切走再切回保留各自的搜索词与筛选()
+    {
+        var viewModel = new ModsViewModel(new EmptyServices());
+
+        viewModel.SearchText = "sodium";
+        viewModel.SetFilterCommand.Execute(ModsFilter.Enabled);
+
+        // 切到资源包：它自己还没有状态，应当是空搜索词 + 全部。
+        viewModel.TabIndex = 1;
+        Assert.Equal(ContentKind.ResourcePack, viewModel.ActiveKind);
+        Assert.Equal(string.Empty, viewModel.SearchText);
+        Assert.True(viewModel.IsFilterAll);
+
+        // 在资源包页搜别的词，然后切回模组：两边各记各的。
+        viewModel.SearchText = "faithful";
+        viewModel.TabIndex = 0;
+        Assert.Equal("sodium", viewModel.SearchText);
+        Assert.True(viewModel.IsFilterEnabled);
+
+        viewModel.TabIndex = 1;
+        Assert.Equal("faithful", viewModel.SearchText);
+        Assert.True(viewModel.IsFilterAll);
+    }
+
     /// <summary>没有注册任何服务的容器：构造 ModsViewModel 时每个服务都取到 null，走「服务未接入」分支。</summary>
     private sealed class EmptyServices : IServiceProvider
     {
