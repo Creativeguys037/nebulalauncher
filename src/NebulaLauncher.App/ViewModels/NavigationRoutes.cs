@@ -59,14 +59,16 @@ public static class NavigationRoutes
     public static readonly IReadOnlyList<string> Primary = Items.Select(item => item.Key).ToArray();
 
     /// <summary>
-    /// 旧键到一级键的落点。内容三键（模组 / 资源 / 皮肤）归内容页，
+    /// 旧键到一级键的落点。模组与资源库归内容页，
     /// 世界归版本页的实例详情，日志与帮助归设置页的关于区。
+    ///
+    /// **皮肤不在这张表里**（#92）：它有独立页面（来源 Tab + 网格 + 固定 300 预览列），
+    /// 归一化到内容页会让 `Navigate("skins")` 落到模组页——那正是 D9 记的「不可达缺陷」。
     /// </summary>
     private static readonly Dictionary<string, string> LegacyToPrimary = new(StringComparer.Ordinal)
     {
         [NavigationKeys.Mods] = NavigationKeys.Content,
         [NavigationKeys.Library] = NavigationKeys.Content,
-        [NavigationKeys.Skins] = NavigationKeys.Content,
         [NavigationKeys.Worlds] = NavigationKeys.Versions,
         [NavigationKeys.Logs] = NavigationKeys.Settings,
         [NavigationKeys.Help] = NavigationKeys.Settings,

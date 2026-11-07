@@ -11,8 +11,14 @@ public partial class MainWindowViewModel
     partial void RegisterContentPages()
     {
         // 内容页外壳由 #90 把 ModsView 改造成五页签；在此之前「内容」先落到模组页，
-        // 旧的 mods / library / skins 三个键都由 NavigationRoutes 归一化到这里。
+        // 旧的 mods / library 两个键由 NavigationRoutes 归一化到这里。
         RegisterPage(NavigationKeys.Content, () => Resolve<ModsViewModel>());
+
+        // 皮肤不再归一化到内容页（#92）：它有独立的来源 Tab、体型切换、3D 预览与上传冷却，
+        // 塞进内容页的第五个页签会撑破 Row2 的两列布局（网格 + 固定 300 预览列）。
+        // 侧栏「内容」仍然进 ModsView；皮肤页由内容页的占位卡与 --page skins 进入。
+        RegisterPage(NavigationKeys.Skins, () => Resolve<SkinsViewModel>());
+
         RegisterPage(NavigationKeys.Accounts, () => Resolve<AccountsViewModel>());
         RegisterPage(NavigationKeys.Servers, () => Resolve<ServersViewModel>());
     }

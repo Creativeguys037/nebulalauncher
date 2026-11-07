@@ -414,13 +414,18 @@
                          Classes="h3"
                          HorizontalAlignment="Center"
                          TextAlignment="Center" />
-              <TextBlock Text="皮肤有独立的来源、体型与 3D 预览流程，等它落地后从这里进入。"
+              <TextBlock Text="皮肤有独立的来源、体型与 3D 预览流程，网格与固定 300 的预览列放不进这一格。"
                          Classes="caption"
                          Foreground="{DynamicResource Text.Tertiary}"
                          HorizontalAlignment="Center"
                          TextWrapping="Wrap"
                          TextAlignment="Center"
                          LineHeight="17" />
+
+              <Button Classes="accent"
+                      HorizontalAlignment="Center"
+                      Content="打开皮肤页"
+                      Command="{Binding OpenSkinPageCommand}" />
             </StackPanel>
           </Panel>
         </ScrollViewer>

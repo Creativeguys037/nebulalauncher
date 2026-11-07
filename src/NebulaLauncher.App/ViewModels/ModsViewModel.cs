@@ -686,6 +686,13 @@ public sealed partial class ModsViewModel : PageViewModelBase
     [RelayCommand]
     private void OpenLibraryForDataPacks() => _navigation?.Navigate(NavigationKeys.Library);
 
+    /// <summary>
+    /// 皮肤占位卡里的出口：皮肤有独立页面（来源 Tab + 网格 + 固定 300 预览列），
+    /// 撑不进内容页的 Row2 两列布局，所以第五个页签只做介绍、真页面在 NebulaLauncher.Views.SkinsView（#92）。
+    /// </summary>
+    [RelayCommand]
+    private void OpenSkinPage() => _navigation?.Navigate(NavigationKeys.Skins);
+
     [RelayCommand]
     private async Task SelectTargetAsync(TargetItemViewModel? item)
     {
