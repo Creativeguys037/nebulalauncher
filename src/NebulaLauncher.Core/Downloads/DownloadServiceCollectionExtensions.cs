@@ -67,6 +67,11 @@ public static class DownloadServiceCollectionExtensions
             return queue;
         });
 
+        // 高层任务汇总：下载页那七行「装版本 / 导整合包 / 备份 / 装 Java」来自这里，
+        // 而不是 DownloadQueue 的文件级快照（后者 3000 行，读不出「哪件事进行到哪」）。
+        // 单例：任务表必须跨页面存活，否则切一次页就丢进度。
+        services.AddSingleton(sp => new DownloadTaskCenter(sp.GetService<IAppLog>()));
+
         return services;
     }
 }

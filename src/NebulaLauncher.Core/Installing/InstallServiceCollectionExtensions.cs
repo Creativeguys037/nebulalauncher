@@ -25,7 +25,8 @@ public static class InstallServiceCollectionExtensions
                 sp.GetRequiredService<DownloadHttpClientFactory>(),
                 sp.GetService<IAppLog>(),
                 sp.GetService<DownloadQueue>(),
-                sp.GetService<IModrinthService>());
+                sp.GetService<IModrinthService>(),
+                sp.GetService<DownloadTaskCenter>());
 
             var settings = sp.GetService<ISettingsService>();
             if (settings is not null)

@@ -38,6 +38,15 @@ public sealed partial class InstallService : IInstallService, IDisposable
     /// </summary>
     private readonly DownloadQueue? _queue;
 
+    /// <summary>
+    /// 高层任务中心。安装开始/进度/收尾在这里登记成一条「任务」，
+    /// 下载页那条「荒野生存 · 1.21.1 · 模组包 62%」就是它。
+    ///
+    /// 与 <see cref="_queue"/> 的分工：队列管逐文件（3000 行 detail），
+    /// 任务中心管「这一次安装整体到哪了」（一行）。为 null 时只上报聚合进度。
+    /// </summary>
+    private readonly DownloadTaskCenter? _taskCenter;
+
     private readonly SemaphoreSlim _installGate = new(1, 1);
 
     /// <summary>
@@ -89,7 +98,8 @@ public sealed partial class InstallService : IInstallService, IDisposable
         DownloadHttpClientFactory httpClientFactory,
         IAppLog? log = null,
         DownloadQueue? downloadQueue = null,
-        IModrinthService? modrinth = null)
+        IModrinthService? modrinth = null,
+        DownloadTaskCenter? taskCenter = null)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
@@ -99,6 +109,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
         _log = log;
         _queue = downloadQueue;
         _modrinth = modrinth;
+        _taskCenter = taskCenter;
     }
 
     /// <summary>
@@ -115,7 +126,8 @@ public sealed partial class InstallService : IInstallService, IDisposable
         HttpClient httpClient,
         IAppLog? log,
         DownloadQueue? downloadQueue = null,
-        IModrinthService? modrinth = null)
+        IModrinthService? modrinth = null,
+        DownloadTaskCenter? taskCenter = null)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
@@ -125,6 +137,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
         _log = log;
         _queue = downloadQueue;
         _modrinth = modrinth;
+        _taskCenter = taskCenter;
     }
 
     public DownloadSource Source
@@ -196,6 +209,9 @@ public sealed partial class InstallService : IInstallService, IDisposable
 
         // 在 try 外声明：catch 里要把失败批次收尾（写进历史），finally 里兜底释放。
         IDownloadTaskScope? taskScope = null;
+
+        // 高层任务行（下载页那一行「安装 1.21.1 · Fabric」）。
+        ILauncherTaskHandle? launcherTask = null;
         try
         {
             Source = request.Source;
@@ -210,6 +226,14 @@ public sealed partial class InstallService : IInstallService, IDisposable
             // 游戏本体的逐文件进度走下载队列的「外部批次」：下载页的任务面板与普通下载
             // 共用同一套快照 / 失败项 / 批次历史。队列没注册或面板正忙时降级为只上报聚合进度。
             taskScope = TryBeginTaskScope($"安装 {minecraftVersion}");
+
+            // 任务行与逐文件批次并行：批次回答「哪几个文件失败了」，
+            // 任务行回答「这次安装整体到哪一步」——两者粒度不同，不是冗余。
+            launcherTask = _taskCenter?.Register(
+                $"安装 {minecraftVersion} · {DescribeLoader(request.Loader)}",
+                LauncherTaskKind.Install);
+            launcherTask?.Begin("准备游戏文件…");
+            progress = BridgeProgress(progress, launcherTask);
 
             var installedName = request.Loader switch
             {
@@ -241,6 +265,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
 
             // 批次在清单写完之后收尾：面板上的「完成」与磁盘上的状态一致。
             taskScope?.Complete();
+            launcherTask?.Complete("安装完成");
             _log?.Info($"安装完成：{installedName}");
 
             return installedName;
@@ -256,6 +281,7 @@ public sealed partial class InstallService : IInstallService, IDisposable
             // 失败的批次也要收尾：面板要能回答「这次安装是哪几个文件没下来」。
             // 收尾本身出错不能盖掉安装的原始异常。
             CompleteQuietly(taskScope);
+            launcherTask?.Fail(ex.Message);
 
             // 之前失败只把 ex.Message 抛给 UI，用户看到的多是英文栈信息，日志里也没有记录。
             // 这里统一落日志，并把最常见的几类失败翻译成可执行的中文提示。
@@ -265,7 +291,74 @@ public sealed partial class InstallService : IInstallService, IDisposable
         finally
         {
             taskScope?.Dispose();
+            launcherTask?.Dispose();
             _installGate.Release();
+        }
+    }
+
+    /// <summary>加载器在任务行标题里的写法。「原版」比 <c>Vanilla</c> 更像用户会说的话。</summary>
+    private static string DescribeLoader(LoaderKind loader) => loader switch
+    {
+        LoaderKind.Vanilla => "原版",
+        LoaderKind.Fabric => "Fabric",
+        LoaderKind.Quilt => "Quilt",
+        LoaderKind.Forge => "Forge",
+        LoaderKind.NeoForge => "NeoForge",
+        _ => loader.ToString(),
+    };
+
+    /// <summary>
+    /// 把安装的聚合进度同时喂给调用方与任务中心。
+    ///
+    /// 不在四个安装分支里各自包一层：原版 / Fabric 类 / Forge / NeoForge 都在进度回调上
+    /// 接了阶段映射，让它们各自再包一次意味着四处都要记得加，
+    /// 漏一处就有一个加载器在下载页上永远停在 0%。
+    /// </summary>
+    private static IProgress<DownloadProgress>? BridgeProgress(
+        IProgress<DownloadProgress>? inner,
+        ILauncherTaskHandle? task)
+    {
+        if (task is null)
+        {
+            return inner;
+        }
+
+        return new TaskProgressBridge(inner, task);
+    }
+
+    /// <summary>
+    /// 进度桥：原样转发给调用方，同时折算成任务行的字节与副行。
+    ///
+    /// 「暂停时把速度清零」由 <see cref="ILauncherTaskHandle.Pause"/> 负责，
+    /// 这里只需按 <see cref="DownloadProgress.IsPaused"/> 切换状态——
+    /// 暂停中界面还显示「1.2 MB/s」是上一版被反馈过的问题。
+    /// </summary>
+    private sealed class TaskProgressBridge(IProgress<DownloadProgress>? inner, ILauncherTaskHandle task)
+        : IProgress<DownloadProgress>
+    {
+        public void Report(DownloadProgress value)
+        {
+            inner?.Report(value);
+
+            if (value.IsPaused)
+            {
+                task.Pause();
+            }
+            else
+            {
+                task.Resume();
+            }
+
+            var stage = string.IsNullOrWhiteSpace(value.Stage) ? "下载文件" : value.Stage;
+            task.Report(
+                value.DownloadedBytes,
+                value.TotalBytes,
+                value.SpeedBytesPerSecond,
+                LauncherTaskPresentation.DescribeDetail(
+                    stage,
+                    value.DownloadedBytes,
+                    value.TotalBytes,
+                    value.TotalFiles));
         }
     }
 
