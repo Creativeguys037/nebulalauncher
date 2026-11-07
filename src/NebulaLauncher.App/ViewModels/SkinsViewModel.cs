@@ -318,10 +318,12 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     public ObservableCollection<SkinEntryViewModel> Items { get; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SourceTabIndex))]
     private bool _isNetworkTab = true;
 
     /// <summary>云端衣柜页签。与网络/本地互斥，三个页签共用右列那张预览卡的位置。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SourceTabIndex))]
     private bool _isCloudTab;
 
     /// <summary>云端衣柜实例。数据目录或平台服务没注册时为 null，页签置灰。</summary>
@@ -330,6 +332,34 @@ public sealed partial class SkinsViewModel : PageViewModelBase
     public bool IsCloudAvailable => _cloud is not null;
 
     public bool IsLocalTab => !IsNetworkTab && !IsCloudTab;
+
+    /// <summary>
+    /// Row0 来源页签的索引，双向绑到 <c>TabControl.SelectedIndex</c>。
+    ///
+    /// 只有两格（网络皮肤库 / 本地皮肤）：云端衣柜不是「来源」，它是另一个页面
+    /// （`CloudClosetView`），在工具条上用按钮进。样板里 Row0 也只有两个页签。
+    /// </summary>
+    public int SourceTabIndex
+    {
+        get => IsLocalTab ? 1 : 0;
+
+        set
+        {
+            if (value == SourceTabIndex)
+            {
+                return;
+            }
+
+            if (value == 1)
+            {
+                SelectLocalTabCommand.Execute(null);
+            }
+            else
+            {
+                SelectNetworkTabCommand.Execute(null);
+            }
+        }
+    }
 
     [ObservableProperty]
     private bool _isLoading;
