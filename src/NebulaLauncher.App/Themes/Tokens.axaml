@@ -190,7 +190,7 @@
 
       <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0%,0%" EndPoint="100%,100%">
         <GradientStop Color="#E80018" Offset="0" />
-        <GradientStop Color="#B53131" Offset="1" />
+        <GradientStop Color="#D02020" Offset="1" />
       </LinearGradientBrush>
 
       <LinearGradientBrush x:Key="Gradient.Progress" StartPoint="0%,50%" EndPoint="100%,50%">
