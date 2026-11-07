@@ -1,834 +1,315 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
-             xmlns:models="using:NebulaLauncher.Core.Models"
+             xmlns:dl="using:NebulaLauncher.Core.Downloads"
              xmlns:controls="using:NebulaLauncher.Controls"
              xmlns:conv="using:NebulaLauncher.Converters"
              x:Class="NebulaLauncher.Views.DownloadView"
              x:DataType="vm:DownloadViewModel">
 
+  <!-- 下载页（票 #93）：任务队列，不是安装器。
+       安装入口在版本页（可下载视图），这里只回答「现在有什么在跑、进度多少、能不能管」。
+
+       布局照 downloads-glass.html：
+       Row0 概览条 40 / Row1 参数栏 48（可折叠）/ Row2 任务框 * / Row3 结果条 44。
+       RowSpacing 固定 12：行隐藏后间隔仍占位，Row2 高度按「画布 − 40 − 48 − 44 − 36」算，
+       参数栏折叠时它多出 48（票面勘误：折叠 557 / 展开 509，不是 565）。 -->
+
   <UserControl.Styles>
-    <Style Selector="ListBoxItem">
-      <Setter Property="Padding" Value="0" />
+    <!-- 任务行：64 高 / 间距 4。行内不能 accent 实心（UI-STRUCTURE §6 规则 3）。 -->
+    <Style Selector="Border.taskrow">
+      <Setter Property="Height" Value="64" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="Background" Value="Transparent" />
       <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
 
-    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+    <Style Selector="Border.taskrow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
     </Style>
 
-    <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-    </Style>
-
-    <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-    </Style>
-
-    <!-- 加载器胶囊：ToggleButton 互斥由 ViewModel 保证。 -->
-    <Style Selector="ToggleButton.loader">
-      <Setter Property="Background" Value="{DynamicResource Surface.Raised}" />
+    <!-- 等宽数字列：48 / 96 / 72 三档不缩窄（票面结构约束 1）。 -->
+    <Style Selector="TextBlock.num">
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
+      <Setter Property="FontFamily" Value="Cascadia Code, Consolas, monospace" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
-      <Setter Property="Padding" Value="16,6" />
-      <Setter Property="MinHeight" Value="32" />
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.Body}" />
-      <Setter Property="FontWeight" Value="Medium" />
-      <Setter Property="Cursor" Value="Hand" />
     </Style>
 
-    <Style Selector="ToggleButton.loader:pointerover">
-      <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Style Selector="ListBoxItem.taskitem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
     </Style>
 
-    <Style Selector="ToggleButton.loader:checked">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-    </Style>
-
-    <Style Selector="ToggleButton.loader:checked /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-    </Style>
-
-    <Style Selector="Button.pill.active">
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
-      <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    <Style Selector="ListBoxItem.taskitem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
     </Style>
   </UserControl.Styles>
 
-  <Grid ColumnDefinitions="300,*" RowDefinitions="Auto,*" ColumnSpacing="16" RowSpacing="10" Margin="0,0,0,14">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
 
-    <!-- 顶部操作区：左侧下载源状态 + 暂停 / 测速状态，右侧「源测速」「暂停 / 继续」。
-         两个按钮始终可见（无批次时暂停置灰、无测速服务时测速置灰）：它们是会话级操作，
-         藏起来会让用户以为「这个版本不支持暂停 / 没有测速」，置灰 + 状态行文案能说清原因。 -->
-    <Grid Grid.Row="0"
-          Grid.ColumnSpan="2"
-          ColumnDefinitions="*,Auto,Auto"
-          ColumnSpacing="12">
-      <StackPanel Spacing="4" VerticalAlignment="Center">
-
-        <!-- 下载源状态行：自动模式降级后用户要知道「为什么突然走官方了」。
-             手动档只显示档位，不带降级信息。 -->
-        <Border Padding="4,0"
-                IsVisible="{Binding SourceStatusText, Converter={x:Static conv:Converters.HasValue}}">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Ellipse Width="6" Height="6"
-                     VerticalAlignment="Center"
-                     IsVisible="{Binding IsSourceNormal}"
-                     Fill="{DynamicResource Text.Tertiary}" />
-            <Ellipse Width="6" Height="6"
-                     VerticalAlignment="Center"
-                     IsVisible="{Binding IsSourceDegraded}"
-                     Fill="{DynamicResource Status.Warning}" />
-            <!-- 手动镜像档的劣化提示：没有换源，只是镜像在连续失败。
-                 用同一个警示色表达「这条状态需要你看一眼」，但文案由 ViewModel 分开写。 -->
-            <Ellipse Width="6" Height="6"
-                     VerticalAlignment="Center"
-                     IsVisible="{Binding IsSourceManualHint}"
-                     Fill="{DynamicResource Status.Warning}" />
-            <TextBlock Text="{Binding SourceStatusText}"
-                       Classes="muted"
-                       Foreground="{DynamicResource Text.Secondary}"
-                       VerticalAlignment="Center" />
-          </StackPanel>
-        </Border>
-
-        <!-- 手动档劣化的整句提示。单独一行而不是塞进上面的状态行：
-             这句带「可在设置里改用自动或官方源」这条唯一的自救路径，手动档的用户
-             没有别的办法（启动器不会替他换源，见 PITFALLS D9），所以它必须完整可读，
-             不能被状态行那点宽度挤掉。 -->
-        <TextBlock Text="{Binding SourceManualHint}"
+    <!-- Row0：概览条。左三组数字右对齐，右端一个主操作（全部暂停 / 全部继续）。 -->
+    <controls:GlassPanel Grid.Row="0"
+                         Height="40"
+                         Padding="16,0">
+      <!-- 六个格子：标签 + 值成对，值用固定宽（48/96/72）保证换值时不跳动。 -->
+      <Grid ColumnDefinitions="Auto,8,Auto,24,Auto,8,Auto,16,Auto,8,Auto,*,Auto" VerticalAlignment="Center">
+        <TextBlock Grid.Column="0"
+                   Text="活跃"
                    Classes="caption"
-                   Foreground="{DynamicResource Status.Warning}"
-                   Margin="4,0,0,0"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding SourceManualHint, Converter={x:Static conv:Converters.HasValue}}" />
+                   Foreground="{DynamicResource Text.Tertiary}"
+                   VerticalAlignment="Center" />
 
-        <!-- 源测速结果：一行结论（官方 320ms · BMCLAPI 镜像 190ms · 建议用 …）。
-             只提示、不改设置；两侧都失败时用警示色，与「差不多」区分开。 -->
-        <TextBlock Text="{Binding SourceProbeNormalText}"
+        <TextBlock Grid.Column="2"
+                   Text="{Binding ActiveTasksText}"
+                   Classes="num"
+                   Width="48"
+                   HorizontalAlignment="Left"
+                   Foreground="{DynamicResource Text.Primary}" />
+
+        <TextBlock Grid.Column="4"
+                   Text="总速度"
+                   Classes="caption"
+                   Foreground="{DynamicResource Text.Tertiary}"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Grid.Column="6"
+                   Text="{Binding TotalSpeedText}"
+                   Classes="num"
+                   Width="96"
+                   HorizontalAlignment="Left"
+                   Foreground="{DynamicResource Text.Primary}" />
+
+        <TextBlock Grid.Column="8"
+                   Text="剩余"
+                   Classes="caption"
+                   Foreground="{DynamicResource Text.Tertiary}"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Grid.Column="10"
+                   Text="{Binding RemainingText}"
+                   Classes="num"
+                   Width="72"
+                   HorizontalAlignment="Left"
+                   Foreground="{DynamicResource Text.Primary}" />
+
+        <Button Grid.Column="12"
+                Content="{Binding PauseAllText}"
+                Command="{Binding TogglePauseCommand}"
+                Classes="ghost pill"
+                Height="28" />
+      </Grid>
+    </controls:GlassPanel>
+
+    <!-- Row1：参数栏。默认收起为 0 高（票面结构树：折叠态 Row2 多 48）。
+         展开时一行：下载源 + 并发 + 限速。三个值都是只读展示，改设置去设置页——
+         下载页里的可编辑参数是这次重制前的旧形态，常驻 300 宽在 1024 档下是纯损失。 -->
+    <Border Grid.Row="1"
+            IsVisible="{Binding IsParamsExpanded}"
+            Height="48"
+            Classes="sunken"
+            Padding="16,0">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center" ColumnSpacing="16">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding SourceStatusText}"
                    Classes="caption"
                    Foreground="{DynamicResource Text.Secondary}"
-                   Margin="4,0,0,0"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding SourceProbeNormalText, Converter={x:Static conv:Converters.HasValue}}" />
-        <TextBlock Text="{Binding SourceProbeFailedText}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
+
+        <TextBlock Grid.Column="1"
+                   Text="{Binding ConcurrencyText}"
                    Classes="caption"
-                   Foreground="{DynamicResource Status.Warning}"
-                   Margin="4,0,0,0"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding SourceProbeFailedText, Converter={x:Static conv:Converters.HasValue}}" />
+                   Foreground="{DynamicResource Text.Secondary}"
+                   VerticalAlignment="Center" />
 
-        <!-- 暂停状态行：在途文件还会下完，用户要知道「现在停的是新文件」。 -->
-        <TextBlock Text="{Binding PauseStatusText}"
+        <TextBlock Grid.Column="2"
+                   Text="{Binding SpeedLimitText}"
                    Classes="caption"
-                   Foreground="{DynamicResource Status.Warning}"
-                   Margin="4,0,0,0"
-                   IsVisible="{Binding PauseStatusText, Converter={x:Static conv:Converters.HasValue}}" />
+                   Foreground="{DynamicResource Text.Secondary}"
+                   VerticalAlignment="Center" />
 
-        <!-- 安装批次（外部批次）不接受暂停：说清原因，而不是让按钮莫名其妙灰着。 -->
-        <TextBlock Text="{Binding PauseUnavailableHint}"
-                   Classes="muted"
-                   Margin="4,0,0,0"
-                   TextWrapping="Wrap"
-                   IsVisible="{Binding PauseUnavailableHint, Converter={x:Static conv:Converters.HasValue}}" />
-      </StackPanel>
-
-      <Button Grid.Column="1"
-              Classes="pill"
-              Content="{Binding ProbeButtonText}"
-              VerticalAlignment="Center"
-              ToolTip.Tip="各测一次官方源与 BMCLAPI 镜像的首字节与吞吐；只给建议，不修改下载源设置"
-              Command="{Binding ProbeSourceCommand}" />
-
-      <Button Grid.Column="2"
-              Classes="pill"
-              Classes.active="{Binding IsPaused}"
-              Content="{Binding PauseButtonText}"
-              VerticalAlignment="Center"
-              ToolTip.Tip="暂停后不再启动新文件，在途文件下完即停；点「继续」恢复"
-              Command="{Binding TogglePauseCommand}" />
-    </Grid>
-
-    <!-- ==================== 左：远程版本列表 ==================== -->
-    <Border Grid.Row="1" Grid.Column="0" Classes="card" Padding="16,14">
-      <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
-
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="Minecraft 版本" Classes="h3" VerticalAlignment="Center" />
-          <Button Grid.Column="1"
-                  Classes="icon"
-                  ToolTip.Tip="重新获取版本清单"
-                  Command="{Binding RefreshRemoteCommand}">
-            <Path Data="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"
-                  Stroke="{DynamicResource Text.Secondary}"
-                  StrokeThickness="1.6"
-                  StrokeLineCap="Round"
-                  StrokeJoin="Round"
-                  Width="15" Height="15"
-                  Stretch="Uniform" />
-          </Button>
-        </Grid>
-
-        <TextBox Grid.Row="1"
-                 Watermark="搜索版本…"
-                 Text="{Binding SearchText}" />
-
-        <!--
-          渠道筛选用 WrapPanel：左栏固定 300 宽，五个胶囊（正式版 / 快照 / 远古版 / 愚人节版 / 全部）
-          横排需要约 410 逻辑像素，超出卡片内宽后「愚人节版」被裁、「全部」整个消失。
-          换行后窄栏分两行，宽栏仍是单行。
-        -->
-        <WrapPanel Grid.Row="2" Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
-          <Button Classes="pill"
-                  Classes.active="{Binding IsFilterRelease}"
-                  Content="正式版"
-                  Command="{Binding SelectChannelFilterCommand}"
-                  CommandParameter="release" />
-          <Button Classes="pill"
-                  Classes.active="{Binding IsFilterSnapshot}"
-                  Content="快照"
-                  Command="{Binding SelectChannelFilterCommand}"
-                  CommandParameter="snapshot" />
-          <Button Classes="pill"
-                  Classes.active="{Binding IsFilterOld}"
-                  Content="远古版"
-                  Command="{Binding SelectChannelFilterCommand}"
-                  CommandParameter="old" />
-          <Button Classes="pill"
-                  Classes.active="{Binding IsFilterSpecial}"
-                  Content="愚人节版"
-                  Command="{Binding SelectChannelFilterCommand}"
-                  CommandParameter="special" />
-          <Button Classes="pill"
-                  Classes.active="{Binding IsFilterAllChannels}"
-                  Content="全部"
-                  Command="{Binding SelectChannelFilterCommand}"
-                  CommandParameter="all" />
-        </WrapPanel>
-
-        <Grid Grid.Row="3">
-          <ListBox ItemsSource="{Binding VisibleVersions}"
-                   SelectedItem="{Binding SelectedRow}"
-                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:RemoteVersionRow">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="4,2">
-                  <StackPanel Spacing="1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Id}"
-                               FontWeight="Medium"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding ReleaseTimeText}" Classes="muted" />
-                  </StackPanel>
-                  <Border Grid.Column="1"
-                          Classes="badge"
-                          Classes.success="{Binding IsInstalled}"
-                          VerticalAlignment="Center">
-                    <TextBlock Text="{Binding BadgeText}" />
-                  </Border>
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-
-          <!-- 离线 / 空状态 -->
-          <StackPanel VerticalAlignment="Center"
-                      HorizontalAlignment="Center"
-                      Spacing="10"
-                      IsVisible="{Binding IsEmpty}">
-            <TextBlock Text="没有可显示的版本"
-                       Classes="secondary"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="网络不可用时会显示离线状态，缓存命中后仍可安装。"
-                       Classes="muted"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center"
-                       MaxWidth="220" />
-            <Button Classes="pill"
-                    Content="重试"
-                    HorizontalAlignment="Center"
-                    Command="{Binding RefreshRemoteCommand}" />
-          </StackPanel>
-        </Grid>
+        <Button Grid.Column="3"
+                Content="收起参数"
+                Command="{Binding ToggleParamsCommand}"
+                Classes="ghost"
+                Height="28" />
       </Grid>
     </Border>
 
-    <!-- ==================== 右：安装配置与进度 ==================== -->
-    <controls:GlassPanel Grid.Row="1" Grid.Column="1" Padding="0">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="16" Margin="20,16,20,20">
+    <!-- Row2：任务框。玻璃框内唯一滚动（UI-STRUCTURE §7）。 -->
+    <controls:GlassPanel Grid.Row="2" Padding="0">
+      <Grid RowDefinitions="*,Auto">
 
-        <Border Classes="card"
-                Padding="14,10"
-                Background="{DynamicResource Status.Warning.Soft}"
-                BorderBrush="{DynamicResource Status.Warning}"
-                IsVisible="{Binding ServiceWarning, Converter={x:Static conv:Converters.HasValue}}">
-          <TextBlock Text="{Binding ServiceWarning}"
-                     TextWrapping="Wrap"
-                     FontSize="{DynamicResource FontSize.Small}"
-                     Foreground="{DynamicResource Status.Warning}" />
-        </Border>
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto"
+                      IsVisible="{Binding HasLauncherTasks}">
+          <ItemsControl ItemsSource="{Binding LauncherTasks}" Margin="8,8,8,8">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="dl:LauncherTaskInfo">
+                <Border Classes="taskrow">
+                  <Grid ColumnDefinitions="Auto,*,190,48,96,72,Auto" ColumnSpacing="12">
 
-        <!-- 客户端 / 服务端分段：同一条右侧详情区，两种用途互斥 -->
-        <Border Classes="card" Padding="14,10">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <ToggleButton Classes="loader"
-                          Content="客户端"
-                          IsChecked="{Binding IsClientMode, Mode=TwoWay}" />
-            <ToggleButton Classes="loader"
-                          Content="服务端"
-                          IsChecked="{Binding IsServerMode, Mode=TwoWay}" />
-            <TextBlock Text="服务端区块只下载官方 server.jar"
-                       Classes="muted"
-                       VerticalAlignment="Center"
-                       Margin="8,0,0,0" />
-          </StackPanel>
-        </Border>
+                    <!-- 图标：按任务类型区分语义。 -->
+                    <Border Grid.Column="0"
+                            Width="32"
+                            Height="32"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            Background="{DynamicResource Surface.Sunken}"
+                            VerticalAlignment="Center">
+                      <Path Data="{StaticResource Icon.Download}"
+                            Stroke="{DynamicResource Text.Tertiary}"
+                            StrokeThickness="1.8"
+                            StrokeLineCap="Round"
+                            StrokeJoin="Round"
+                            Stretch="Uniform"
+                            Width="16"
+                            Height="16"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
 
-        <!-- 安装配置 -->
-        <Border Classes="card" Padding="20,18" IsVisible="{Binding IsClientMode}">
-          <StackPanel Spacing="14">
-
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="2">
-                <TextBlock Text="{Binding SelectedTitle}"
-                           Classes="h2"
-                           TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding SelectedDetail}" Classes="muted" />
-              </StackPanel>
-              <Border Grid.Column="1"
-                      Classes="badge"
-                      Classes.success="{Binding IsSelectedInstalled}"
-                      Classes.warning="{Binding !IsSelectedInstalled}"
-                      VerticalAlignment="Center">
-                <TextBlock Text="{Binding SelectedStateText}" />
-              </Border>
-            </Grid>
-
-            <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
-
-            <StackPanel Spacing="8">
-              <TextBlock Text="加载器" Classes="caption" />
-              <WrapPanel ItemWidth="NaN">
-                <ToggleButton Classes="loader"
-                              Content="原版"
-                              Margin="0,0,8,8"
-                              IsChecked="{Binding IsLoaderVanilla, Mode=TwoWay}" />
-                <ToggleButton Classes="loader"
-                              Content="Fabric"
-                              Margin="0,0,8,8"
-                              IsChecked="{Binding IsLoaderFabric, Mode=TwoWay}" />
-                <ToggleButton Classes="loader"
-                              Content="Quilt"
-                              Margin="0,0,8,8"
-                              IsChecked="{Binding IsLoaderQuilt, Mode=TwoWay}" />
-                <ToggleButton Classes="loader"
-                              Content="Forge"
-                              Margin="0,0,8,8"
-                              IsChecked="{Binding IsLoaderForge, Mode=TwoWay}" />
-                <ToggleButton Classes="loader"
-                              Content="NeoForge"
-                              Margin="0,0,8,8"
-                              IsChecked="{Binding IsLoaderNeoForge, Mode=TwoWay}" />
-              </WrapPanel>
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="加载器版本" Classes="caption" />
-                <TextBlock Grid.Column="1"
-                           Text="加载中…"
-                           Classes="caption"
-                           IsVisible="{Binding IsLoadingLoaderVersions}" />
-              </Grid>
-
-              <ComboBox ItemsSource="{Binding LoaderVersions}"
-                        SelectedItem="{Binding SelectedLoaderVersion}"
-                        HorizontalAlignment="Stretch"
-                        IsVisible="{Binding HasLoaderVersions}">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="models:LoaderVersion">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <TextBlock Text="{Binding Version}" />
-                      <!--
-                        推荐版标记自带文案：Forge 的推荐构建不一定是最新版，
-                        用户看到「推荐」两个字才知道为什么默认选中的不是最大的那个号。
-                      -->
-                      <Border Classes="badge success" IsVisible="{Binding IsRecommended}">
-                        <TextBlock Text="推荐版" />
-                      </Border>
-                      <TextBlock Text="稳定"
-                                 Classes="muted"
-                                 VerticalAlignment="Center"
-                                 IsVisible="{Binding Stable}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                      <TextBlock Text="{Binding Title}"
+                                 Classes="secondary"
+                                 Foreground="{DynamicResource Text.Primary}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Detail}"
+                                 Classes="caption"
+                                 Foreground="{DynamicResource Text.Tertiary}"
+                                 TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                  </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
 
-              <TextBlock Text="{Binding LoaderHint}"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         LineHeight="18" />
-            </StackPanel>
+                    <ProgressBar Grid.Column="2"
+                                 Value="{Binding ProgressRatio}"
+                                 Minimum="0"
+                                 Maximum="1"
+                                 Height="6"
+                                 VerticalAlignment="Center" />
 
-            <!--
-              Fabric API：Fabric 生态里绝大多数模组的前置。
-              单独一行而不是塞进「加载器版本」下拉：它不是一个版本选择，而是一个要不要装的开关。
-            -->
-            <Border Padding="14,12"
-                    CornerRadius="{DynamicResource Radius.Md}"
-                    Background="{DynamicResource Surface.Sunken}"
-                    IsVisible="{Binding ShowFabricApiOption}">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="同时安装 Fabric API" Classes="label" />
-                  <TextBlock Text="{Binding FabricApiHint}" Classes="muted" TextWrapping="Wrap" LineHeight="18" />
-                  <TextBlock Text="{Binding FabricApiVersionText}"
-                             Classes="mono"
-                             IsVisible="{Binding InstallFabricApi}" />
-                </StackPanel>
-                <ToggleSwitch Grid.Column="1"
-                              VerticalAlignment="Top"
-                              IsChecked="{Binding InstallFabricApi}"
-                              OnContent="开启"
-                              OffContent="关闭" />
-              </Grid>
-            </Border>
+                    <TextBlock Grid.Column="3" Text="{Binding PercentText}" Classes="num" />
+                    <TextBlock Grid.Column="4" Text="{Binding SpeedText}" Classes="num" />
+                    <TextBlock Grid.Column="5" Text="{Binding EtaText}" Classes="num" />
 
-            <Button Classes="accent"
-                    Content="开始安装"
-                    Height="44"
-                    CornerRadius="{DynamicResource Radius.Md}"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Command="{Binding InstallCommand}" />
-          </StackPanel>
-        </Border>
-
-        <!-- 安装目标与摘要 -->
-        <Border Classes="card" Padding="20,18" IsVisible="{Binding IsClientMode}">
-          <StackPanel Spacing="12">
-            <TextBlock Text="安装摘要" Classes="h3" />
-
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="14">
-              <TextBlock Text="目标" Classes="muted" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="1"
-                         Text="{Binding InstallTarget}"
-                         Classes="mono"
-                         TextWrapping="Wrap"
-                         VerticalAlignment="Center" />
-
-              <TextBlock Grid.Row="1" Text="内容" Classes="muted" VerticalAlignment="Center" />
-              <TextBlock Grid.Row="1" Grid.Column="1"
-                         Text="{Binding InstallSummary}"
-                         Classes="secondary"
-                         TextWrapping="Wrap"
-                         VerticalAlignment="Center" />
-            </Grid>
-
-            <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
-
-            <TextBlock Text="安装会写入 versions 目录；已存在的版本只会补全缺失文件，不会覆盖世界存档。"
-                       Classes="muted"
-                       TextWrapping="Wrap"
-                       LineHeight="18" />
-          </StackPanel>
-        </Border>
-
-        <!-- 进度 -->
-        <Border Classes="card" Padding="20,18" IsVisible="{Binding HasClientProgress}">
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
-            <controls:RingProgress Width="112" Height="112"
-                                   Value="{Binding Progress}"
-                                   Maximum="100"
-                                   Thickness="8"
-                                   FontSize="{DynamicResource FontSize.Title}"
-                                   VerticalAlignment="Center"
-                                   Text="{Binding ProgressText}"
-                                   TextBrush="{DynamicResource Text.Primary}" />
-
-            <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
-              <!-- 安装阶段（「正在执行 Forge 安装器…」）：只有分阶段安装才显示 -->
-              <TextBlock Text="{Binding StageText}"
-                         IsVisible="{Binding StageText, Converter={x:Static conv:Converters.HasValue}}"
-                         FontWeight="Medium"
-                         Foreground="{DynamicResource Accent.Primary}"
-                         TextTrimming="CharacterEllipsis" />
-
-              <TextBlock Text="{Binding CurrentFile}"
-                         Classes="secondary"
-                         TextTrimming="CharacterEllipsis" />
-
-              <StackPanel Orientation="Horizontal" Spacing="16">
-                <TextBlock Text="{Binding SpeedText}" Classes="muted" />
-                <TextBlock Text="{Binding EtaText}" Classes="muted" />
-              </StackPanel>
-
-              <TextBlock Text="{Binding FilesText}" Classes="muted" />
-
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Classes="ghost"
-                        Content="取消安装"
-                        IsVisible="{Binding IsInstalling}"
-                        Command="{Binding CancelInstallCommand}" />
-                <Button Classes="pill"
-                        Content="去版本页启动"
-                        IsVisible="{Binding !IsInstalling}"
-                        Command="{Binding NavigateToCommand}"
-                        CommandParameter="versions" />
-              </StackPanel>
-            </StackPanel>
-          </Grid>
-        </Border>
-
-        <!-- ==================== 服务端：只下载官方 server.jar ==================== -->
-        <Border Classes="card" Padding="20,18" IsVisible="{Binding IsServerMode}">
-          <StackPanel Spacing="14">
-
-            <StackPanel Spacing="2">
-              <TextBlock Text="服务端" Classes="h2" />
-              <TextBlock Text="只下载 Mojang 官方 server.jar；Paper / Forge 服务端与开服配置不在范围内。"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         LineHeight="18" />
-            </StackPanel>
-
-            <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
-
-            <!-- 版本 -->
-            <StackPanel Spacing="6">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <TextBlock Text="版本" Classes="caption" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                  <Button Classes="pill"
-                          Content="刷新"
-                          ToolTip.Tip="绕过缓存重新扫描（最近 40 个正式版 + 5 个快照）"
-                          Command="{Binding ReloadServerVersionsCommand}" />
-                  <Button Classes="ghost"
-                          Content="扫描全部版本"
-                          ToolTip.Tip="扫描清单里的所有版本，约 10–60 秒"
-                          Command="{Binding ScanAllServerVersionsCommand}" />
-                </StackPanel>
-              </Grid>
-
-              <!-- 清单来源提示：加载中 / 来自缓存 / 后台更新 / 已更新 -->
-              <TextBlock Text="{Binding ServerListStatusText}"
-                         Classes="caption"
-                         Foreground="{DynamicResource Text.Secondary}"
-                         TextWrapping="Wrap"
-                         IsVisible="{Binding ServerListStatusText, Converter={x:Static conv:Converters.HasValue}}" />
-
-              <ComboBox ItemsSource="{Binding ServerVersions}"
-                        SelectedItem="{Binding SelectedServerVersion}"
-                        HorizontalAlignment="Stretch"
-                        IsVisible="{Binding HasServerVersions}">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="vm:ServerVersionRow">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <TextBlock Text="{Binding Id}" />
-                      <TextBlock Text="{Binding ChannelText}" Classes="muted" />
-                      <TextBlock Text="{Binding SizeText}" Classes="caption" />
-                    </StackPanel>
-                  </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
-
-              <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !HasServerVersions}">
-                <TextBlock Text="没有可下载的服务端版本。"
-                           Classes="muted"
-                           VerticalAlignment="Center" />
-                <Button Classes="pill"
-                        Content="重试加载"
-                        Command="{Binding ReloadServerVersionsCommand}" />
-              </StackPanel>
-
-              <!-- 全量扫描的二次确认：一百多个 JSON 请求，代价要说清楚 -->
-              <Border Classes="sunken"
-                      Padding="12,10"
-                      IsVisible="{Binding IsConfirmingFullScan}">
-                <StackPanel Spacing="8">
-                  <TextBlock Text="扫描全部版本会逐个查询清单里的每个版本 JSON，可能需要 10–60 秒，期间列表保持可用。确定继续？"
-                             Classes="muted"
-                             TextWrapping="Wrap"
-                             LineHeight="18" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Classes="accent"
-                            Content="确认扫描"
-                            Command="{Binding ConfirmScanAllServerVersionsCommand}" />
-                    <Button Classes="ghost"
-                            Content="取消"
-                            Command="{Binding CancelScanAllServerVersionsCommand}" />
-                  </StackPanel>
-                </StackPanel>
-              </Border>
-
-              <TextBlock Text="列表只包含清单里带 downloads.server 的版本；默认扫描最近 40 个正式版 + 5 个快照，结果缓存 6 小时。"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         LineHeight="18" />
-            </StackPanel>
-
-            <!-- 目标目录 -->
-            <StackPanel Spacing="6">
-              <TextBlock Text="目标目录" Classes="caption" />
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <TextBox Text="{Binding ServerDirectory}"
-                         Watermark="服务端 jar 的保存目录" />
-                <Button Grid.Column="1"
-                        Classes="ghost"
-                        Content="默认目录"
-                        Command="{Binding UseDefaultServerDirectoryCommand}" />
-              </Grid>
-              <TextBlock Text="首次启动会在该目录生成 eula.txt，需要自己改成 eula=true 才允许开服；本启动器不代改。"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         LineHeight="18" />
-            </StackPanel>
-
-            <Button Classes="accent"
-                    Content="下载服务端"
-                    Height="44"
-                    CornerRadius="{DynamicResource Radius.Md}"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Command="{Binding DownloadServerCommand}" />
-
-            <!-- 服务端下载进度 -->
-            <StackPanel Spacing="8" IsVisible="{Binding IsDownloadingServer}">
-              <ProgressBar Value="{Binding ServerProgress}" Maximum="100" Height="8" />
-              <TextBlock Text="{Binding ServerProgressText}" Classes="muted" />
-            </StackPanel>
-
-            <!-- 结果 -->
-            <Border Classes="sunken" Padding="12,10"
-                    IsVisible="{Binding ServerResultText, Converter={x:Static conv:Converters.HasValue}}">
-              <TextBlock Text="{Binding ServerResultText}"
-                         FontSize="{DynamicResource FontSize.Small}"
-                         TextWrapping="Wrap"
-                         LineHeight="18" />
-            </Border>
-
-            <!-- 错误 -->
-            <Border Classes="card"
-                    Padding="14,10"
-                    Background="{DynamicResource Status.Danger.Soft}"
-                    BorderBrush="{DynamicResource Status.Danger}"
-                    IsVisible="{Binding ServerErrorText, Converter={x:Static conv:Converters.HasValue}}">
-              <TextBlock Text="{Binding ServerErrorText}"
-                         FontSize="{DynamicResource FontSize.Small}"
-                         Foreground="{DynamicResource Status.Danger}"
-                         TextWrapping="Wrap" />
-            </Border>
-
-            <!-- 启动命令 + eula 提示 -->
-            <Border Classes="sunken" Padding="12,10">
-              <StackPanel Spacing="8">
-                <TextBlock Text="启动命令" Classes="caption" />
-                <TextBlock Text="{Binding ServerCommand}"
-                           Classes="mono"
-                           TextWrapping="Wrap" />
-                <Button Classes="ghost"
-                        Content="复制命令"
-                        HorizontalAlignment="Left"
-                        Command="{Binding CopyServerHintCommand}" />
-                <TextBlock Text="在目标目录下执行；jar 名与所选版本对应。首次运行会因缺少 eula.txt 直接退出，属正常现象。"
-                           Classes="muted"
-                           TextWrapping="Wrap"
-                           LineHeight="18" />
-              </StackPanel>
-            </Border>
-
-          </StackPanel>
-        </Border>
-
-        <!-- 任务明细：逐文件状态、失败原因、失败项重试 -->
-        <Border Classes="card" Padding="18,16">
-          <StackPanel Spacing="12">
-
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <TextBlock Text="任务明细" Classes="h3" VerticalAlignment="Center" />
-                <Border Classes="badge"
-                        Classes.danger="{Binding HasFailures}"
-                        VerticalAlignment="Center">
-                  <TextBlock Text="{Binding FailedBadgeText}" />
-                </Border>
-              </StackPanel>
-              <Button Grid.Column="1"
-                      Classes="pill"
-                      Content="重试失败项"
-                      IsVisible="{Binding HasFailures}"
-                      Command="{Binding RetryFailedCommand}" />
-            </Grid>
-
-            <TextBlock Text="{Binding TaskPanelNote}"
-                       Classes="muted"
-                       TextWrapping="Wrap"
-                       LineHeight="18" />
-
-            <TextBlock Text="{Binding RetryNote}"
-                       Classes="muted"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Accent.Primary}"
-                       IsVisible="{Binding RetryNote, Converter={x:Static conv:Converters.HasValue}}" />
-
-            <ListBox ItemsSource="{Binding Tasks}"
-                     IsVisible="{Binding HasTasks}"
-                     MaxHeight="300"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:DownloadTaskRow">
-                  <Border Classes="sunken" Padding="10,8">
-                    <StackPanel Spacing="4">
-
-                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBlock Text="{Binding Name}"
-                                   FontSize="{DynamicResource FontSize.Small}"
-                                   TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center" />
-                        <Border Grid.Column="1"
-                                Classes="badge"
-                                Classes.danger="{Binding IsFailed}"
+                    <!-- 行内动作 ≤3 个、禁止 accent 实心（UI-STRUCTURE §6 规则 3）；取消比状态字更需要露出。 -->
+                    <StackPanel Grid.Column="6"
+                                Orientation="Horizontal"
+                                Spacing="6"
                                 VerticalAlignment="Center">
-                          <TextBlock Text="{Binding StateText}" />
-                        </Border>
-                      </Grid>
-
-                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBlock Text="{Binding SizeText}"
-                                   Classes="muted"
-                                   TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding PercentText}" Classes="muted" VerticalAlignment="Center" />
-                          <Button Classes="ghost"
-                                  Content="详情"
-                                  FontSize="{DynamicResource FontSize.Caption}"
-                                  Padding="6,0"
-                                  MinHeight="20"
-                                  IsVisible="{Binding HasDetail}"
-                                  Command="{Binding ToggleDetailCommand}" />
-                        </StackPanel>
-                      </Grid>
-
-                      <!-- 失败详情：错误原因 + 请求地址 + 落盘路径 -->
-                      <StackPanel Spacing="2" IsVisible="{Binding IsExpanded}">
-                        <TextBlock Text="{Binding Error}"
-                                   FontSize="{DynamicResource FontSize.Small}"
-                                   Foreground="{DynamicResource Status.Danger}"
-                                   TextWrapping="Wrap"
-                                   LineHeight="16" />
-                        <TextBlock Text="{Binding Url}"
-                                   Classes="mono"
-                                   Foreground="{DynamicResource Text.Tertiary}"
-                                   TextWrapping="Wrap"
-                                   IsVisible="{Binding HasUrl}" />
-                        <TextBlock Text="{Binding PathText}"
-                                   Classes="mono"
-                                   Foreground="{DynamicResource Text.Muted}"
-                                   TextWrapping="Wrap" />
-                      </StackPanel>
-
+                      <TextBlock Text="{Binding StateText}"
+                                 Classes="caption"
+                                 Foreground="{DynamicResource Text.Muted}"
+                                 VerticalAlignment="Center"
+                                 MinWidth="40" />
+                      <Button Classes="icon"
+                              Width="24"
+                              Height="24"
+                              IsVisible="{Binding IsActive}"
+                              ToolTip.Tip="取消任务"
+                              Command="{Binding $parent[ItemsControl].((vm:DownloadViewModel)DataContext).CancelTaskCommand}"
+                              CommandParameter="{Binding}">
+                        <Path Data="{StaticResource Icon.Close}"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.8"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="12"
+                              Height="12" />
+                      </Button>
                     </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
 
-            <!-- 空状态 -->
-            <StackPanel Spacing="6" IsVisible="{Binding !HasTasks}">
-              <TextBlock Text="还没有下载任务" Classes="secondary" />
-              <TextBlock Text="修复、整合包导入或在线内容下载时，这里会逐个文件显示状态；失败的条目可以单独重试。"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         LineHeight="18" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
+        <!-- 空态：必须给下一步动作，不留白屏（UI-STRUCTURE §6 规则 9）。 -->
+        <StackPanel Grid.Row="0"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="12"
+                    IsVisible="{Binding !HasLauncherTasks}">
+          <Border Width="56"
+                  Height="56"
+                  CornerRadius="{DynamicResource Radius.Pill}"
+                  Background="{DynamicResource Surface.Sunken}"
+                  HorizontalAlignment="Center">
+            <Path Data="{StaticResource Icon.Download}"
+                  Stroke="{DynamicResource Text.Muted}"
+                  StrokeThickness="1.8"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  Stretch="Uniform"
+                  Width="24"
+                  Height="24"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="当前没有下载任务"
+                     Classes="secondary"
+                     Foreground="{DynamicResource Text.Secondary}"
+                     HorizontalAlignment="Center" />
+          <TextBlock Text="在版本页安装游戏、在内容页下载资源，进度会出现在这里"
+                     Classes="caption"
+                     Foreground="{DynamicResource Text.Tertiary}"
+                     HorizontalAlignment="Center" />
+          <Button Content="去版本页安装"
+                  Command="{Binding GoToVersionsCommand}"
+                  Classes="ghost"
+                  HorizontalAlignment="Center" />
+        </StackPanel>
 
-        <!-- 批次历史：只保留本次运行最近 20 次 -->
-        <Border Classes="card" Padding="18,16" IsVisible="{Binding HasHistory}">
-          <StackPanel Spacing="10">
-            <TextBlock Text="批次历史" Classes="h3" />
-
-            <ItemsControl ItemsSource="{Binding History}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:BatchHistoryRow">
-                  <Border Classes="sunken" Padding="10,8" Margin="0,0,0,6">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                      <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Name}"
-                                   FontSize="{DynamicResource FontSize.Small}"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding CountsText}" Classes="muted" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <TextBlock Text="{Binding TimeText}" Classes="caption" />
-                          <TextBlock Text="{Binding DurationText}" Classes="caption" />
-                          <TextBlock Text="{Binding SizeText}" Classes="caption" />
-                        </StackPanel>
-                      </StackPanel>
-                      <Border Grid.Column="1"
-                              Classes="badge"
-                              Classes.success="{Binding IsSuccess}"
-                              Classes.danger="{Binding !IsSuccess}"
-                              VerticalAlignment="Center">
-                        <TextBlock Text="{Binding StateText}" />
-                      </Border>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <TextBlock Text="只保留本次运行的最近 20 次，不写入磁盘。" Classes="muted" />
-          </StackPanel>
-        </Border>
-
-        <!-- 状态 / 错误 -->
-        <Border Classes="card"
-                Padding="14,10"
-                Background="{DynamicResource Accent.Soft}"
-                BorderBrush="{DynamicResource Accent.Primary}"
-                IsVisible="{Binding StatusText, Converter={x:Static conv:Converters.HasValue}}">
-          <TextBlock Text="{Binding StatusText}"
-                     TextWrapping="Wrap"
-                     FontSize="{DynamicResource FontSize.Small}" />
-        </Border>
-
-        <Border Classes="card"
-                Padding="14,10"
-                Background="{DynamicResource Status.Danger.Soft}"
-                BorderBrush="{DynamicResource Status.Danger}"
-                IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
-          <StackPanel Spacing="8">
-            <TextBlock Text="{Binding ErrorText}"
-                       TextWrapping="Wrap"
-                       FontSize="{DynamicResource FontSize.Small}"
-                       Foreground="{DynamicResource Status.Danger}" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <!-- 之前这里的「重试」绑的是 RefreshRemoteCommand，只刷新版本列表，并不会重新安装。 -->
-              <Button Classes="pill"
-                      Content="重试安装"
-                      Command="{Binding InstallCommand}" />
-              <Button Classes="ghost"
-                      Content="换游戏目录…"
-                      Command="{Binding NavigateToCommand}"
-                      CommandParameter="settings" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
-      </StackPanel>
-    </ScrollViewer>
+        <!-- 参数栏收起时，框内右下角给一个展开入口（不常驻列）。 -->
+        <Button Grid.Row="1"
+                Content="下载参数"
+                Command="{Binding ToggleParamsCommand}"
+                Classes="ghost"
+                Height="28"
+                Margin="0,4,12,12"
+                HorizontalAlignment="Right"
+                IsVisible="{Binding !IsParamsExpanded}" />
+      </Grid>
     </controls:GlassPanel>
+
+    <!-- Row3：结果条。失败汇总 + 重试入口；无失败时 0 高。 -->
+    <Border Grid.Row="3"
+            Height="44"
+            Classes="feedback"
+            Padding="16,0"
+            IsVisible="{Binding HasFailures}">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+        <TextBlock Grid.Column="0"
+                   Text="{Binding FailedBadgeText}"
+                   Classes="caption"
+                   Foreground="{DynamicResource Status.Danger}"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Grid.Column="1"
+                   Text="{Binding RetryNote}"
+                   Classes="caption"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
+
+        <Button Grid.Column="2"
+                Content="全部重试"
+                Command="{Binding RetryFailedCommand}"
+                Classes="accent"
+                Height="28" />
+
+        <Button Grid.Column="3"
+                Content="✕"
+                Classes="icon"
+                Width="28"
+                Height="28"
+                Command="{Binding ClearFailuresCommand}" />
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

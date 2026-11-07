@@ -166,6 +166,10 @@ public partial class App : Application
                     && shellDownload.CurrentPage is DownloadViewModel downloadViewModel)
                 {
                     downloadViewModel.ApplyDownloadDemo(ScreenshotMode.DownloadDemoPaused);
+
+                    // 同一个开关顺带摆出任务行：两种粒度都要能截图验收，
+                    // 只摆逐文件那一套的话，新的任务框永远只能截到空态。
+                    downloadViewModel.ApplyLauncherTaskDemo();
                     await Task.Delay(300);
                 }
 

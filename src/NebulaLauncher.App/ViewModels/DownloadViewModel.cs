@@ -40,6 +40,12 @@ public partial class DownloadViewModel : PageViewModelBase
     /// <summary>下载队列。null 表示组合根没注册（预览/单元宿主），面板退化成空态而不报错。</summary>
     private readonly DownloadQueue? _queue;
 
+    /// <summary>
+    /// 高层任务中心（票 #93）。与 <see cref="_queue"/> 是上下两层：
+    /// 队列是逐文件执行者，任务中心是「装版本 / 导整合包 / 备份 / 装 Java 各到哪了」的汇总。
+    /// </summary>
+    private readonly DownloadTaskCenter? _taskCenter;
+
     /// <summary>服务端（server.jar）下载。null 表示组合根没注册，服务端区块显示「服务未就绪」。</summary>
     private readonly IServerDownloadService? _serverDownloads;
 
@@ -80,7 +86,8 @@ public partial class DownloadViewModel : PageViewModelBase
         IServerDownloadService? serverDownloadService = null,
         IPlatformService? platformService = null,
         IModrinthService? modrinthService = null,
-        IDownloadSourceProbe? downloadSourceProbe = null)
+        IDownloadSourceProbe? downloadSourceProbe = null,
+        DownloadTaskCenter? downloadTaskCenter = null)
     {
         _versions = versionService;
         _install = installService;
@@ -93,6 +100,7 @@ public partial class DownloadViewModel : PageViewModelBase
         _platform = platformService;
         _modrinth = modrinthService;
         _sourceProbe = downloadSourceProbe;
+        _taskCenter = downloadTaskCenter;
 
         ServiceWarning = DescribeMissingServices();
         UpdateInstallPlan();
@@ -133,6 +141,14 @@ public partial class DownloadViewModel : PageViewModelBase
         else
         {
             UpdateTaskPanelState();
+        }
+
+        if (_taskCenter is not null)
+        {
+            _taskCenter.TasksChanged += OnLauncherTasksChanged;
+
+            // 同理由：任务可能在页面打开前就注册了（例如从版本页发起的安装）。
+            SyncLauncherTasks();
         }
     }
 
@@ -515,6 +531,88 @@ public partial class DownloadViewModel : PageViewModelBase
     [ObservableProperty]
     private bool _isScanningAllVersions;
 
+    // ---------------- 统一任务行（票 #93） ----------------
+
+    /// <summary>
+    /// 高层任务列表：一行一个「用户可理解的操作」。
+    ///
+    /// 与 <see cref="Tasks"/> 的区别是粒度。那个是逐文件（一次安装 3000 行，只用来排查
+    /// 「哪几个文件没下来」）；这个是「装版本 / 导整合包 / 备份 / 装 Java」各一行，
+    /// 正是样板下载页主列表要的东西。
+    /// </summary>
+    public ObservableCollection<LauncherTaskInfo> LauncherTasks { get; } = new();
+
+    [ObservableProperty]
+    private bool _hasLauncherTasks;
+
+    /// <summary>概览条左端的活跃任务数。</summary>
+    [ObservableProperty]
+    private string _activeTasksText = "0";
+
+    /// <summary>概览条的总速度；没有活跃任务时为「—」。</summary>
+    [ObservableProperty]
+    private string _totalSpeedText = "—";
+
+    /// <summary>概览条的剩余时间：取所有活跃任务里最长的那个（并行时最后完成决定整体）。</summary>
+    [ObservableProperty]
+    private string _remainingText = "—";
+
+    /// <summary>全部暂停 / 全部继续的按钮文案。</summary>
+    public string PauseAllText => IsPaused ? "全部继续" : "全部暂停";
+
+    /// <summary>参数栏是否展开。默认收起：票面要求它不是常驻列（1024 档常驻 300 宽是纯损失）。</summary>
+    [ObservableProperty]
+    private bool _isParamsExpanded;
+
+    /// <summary>参数栏的并发数文案（只读展示，改设置去设置页）。</summary>
+    public string ConcurrencyText => _settings is null
+        ? "并发 —"
+        : $"并发 {_settings.Current.DownloadThreads}";
+
+    /// <summary>参数栏的限速文案。<c>0</c> 在设置里表示不限速，别显示成「0 KB/s」。</summary>
+    public string SpeedLimitText
+    {
+        get
+        {
+            var limit = _settings?.Current.DownloadSpeedLimitKb ?? 0;
+            return limit <= 0 ? "限速 不限" : $"限速 {limit} KB/s";
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleParams() => IsParamsExpanded = !IsParamsExpanded;
+
+    /// <summary>空态的下一步动作：去版本页装游戏。</summary>
+    [RelayCommand]
+    private void GoToVersions() => _navigation?.Navigate(NavigationKeys.Versions);
+
+    /// <summary>清掉结果条上的失败汇总（不重试，只是把这条提示收起来）。</summary>
+    /// <summary>
+    /// 取消一条任务。
+    ///
+    /// 取消是危险动作，票面要求二次确认走 DialogOverlay——这里先直接下发，
+    /// 二次确认等 DialogOverlay 统一接入时补（见票面「遗留」）。
+    /// </summary>
+    [RelayCommand]
+    private void CancelTask(LauncherTaskInfo? task)
+    {
+        if (task is null || !task.IsActive)
+        {
+            return;
+        }
+
+        _taskCenter?.RequestCancel(task.Id);
+    }
+
+    [RelayCommand]
+    private void ClearFailures()
+    {
+        RetryNote = null;
+        HasFailures = false;
+        FailedTaskCount = 0;
+        FailedBadgeText = "0 个失败";
+    }
+
     // ---------------- 任务面板 ----------------
 
     /// <summary>逐文件任务行（已按 Group 分组、已截断）。</summary>
@@ -870,7 +968,11 @@ public partial class DownloadViewModel : PageViewModelBase
 
     private void UpdateSubtitle()
     {
-        var text = Versions.Count == 0 ? "等待版本清单" : $"{Versions.Count} 个可用版本";
+        // 下载页现在是任务队列：「多少个版本可用」属于版本页，这里的副标题只说任务。
+        var active = LauncherTasks.Count(task => task.IsActive);
+        var text = active > 0
+            ? $"{active} 个任务进行中"
+            : LauncherTasks.Count == 0 ? "暂无任务" : $"{LauncherTasks.Count} 个任务";
         if (text == _subtitle)
         {
             return;
@@ -1778,6 +1880,62 @@ public partial class DownloadViewModel : PageViewModelBase
     /// 不写磁盘、不发请求，正常启动路径不会走到。
     /// </summary>
     /// <param name="paused">是否把演示批次停在「已暂停」，用于截状态行与「等待」行。</param>
+    /// <summary>
+    /// 截图专用的任务行演示。
+    ///
+    /// 真实启动时任务列表只有在用户真的装东西时才有内容，截图模式没有点击能力，
+    /// 于是任务框永远只能截到空态——七种状态的样子就没人验收得了。
+    /// 只在 <see cref="ScreenshotMode.IsActive"/> 下生效。
+    /// </summary>
+    public void ApplyLauncherTaskDemo()
+    {
+        if (!ScreenshotMode.IsActive || _taskCenter is null)
+        {
+            return;
+        }
+
+        // 覆盖样板上的七行：三条进行中、一条完成、一条暂停、一条失败、一条完成。
+        var samples = new (string Title, LauncherTaskKind Kind, LauncherTaskState State, long Total, long Done, long Speed, string? Error, string Detail)[]
+        {
+            ("荒野生存 · 1.21.1 · 模组包", LauncherTaskKind.Modpack, LauncherTaskState.Running, 52_100_000, 32_400_000, 1_200_000, null, "下载模组 · 32.4/52.1 MB · 12 项"),
+            ("Better MC · 整合包", LauncherTaskKind.Modpack, LauncherTaskState.Running, 40_000_000, 15_200_000, 800_000, null, "校验文件 · 15.2/40.0 MB"),
+            ("Fabric 0.16.9 · 加载器", LauncherTaskKind.Install, LauncherTaskState.Running, 3_000_000, 2_730_000, 120_000, null, "下载加载器 · 2.7/3.0 MB"),
+            ("存档备份 · 远古遗迹", LauncherTaskKind.Backup, LauncherTaskState.Completed, 8_000_000, 8_000_000, 0, null, "备份完成"),
+            ("光影包 BSL v8.4", LauncherTaskKind.Resource, LauncherTaskState.Paused, 2_000_000, 900_000, 0, null, "已暂停"),
+            ("资源索引 · 1.21.1 清单", LauncherTaskKind.Resource, LauncherTaskState.Failed, 0, 0, 0, "网络超时（GitHub API 30s 无响应）", "清单获取失败"),
+            ("Java 21 运行时 · Temurin", LauncherTaskKind.Java, LauncherTaskState.Completed, 180_000_000, 180_000_000, 0, null, "安装完成"),
+        };
+
+        foreach (var sample in samples)
+        {
+            var handle = _taskCenter.Register(sample.Title, sample.Kind);
+            handle.Begin(sample.Detail);
+
+            switch (sample.State)
+            {
+                case LauncherTaskState.Completed:
+                    handle.Report(sample.Done, sample.Total);
+                    handle.Complete(sample.Detail);
+                    break;
+
+                case LauncherTaskState.Failed:
+                    handle.Fail(sample.Error!);
+                    break;
+
+                case LauncherTaskState.Paused:
+                    handle.Report(sample.Done, sample.Total);
+                    handle.Pause();
+                    break;
+
+                default:
+                    handle.Report(sample.Done, sample.Total, sample.Speed, sample.Detail);
+                    break;
+            }
+        }
+
+        SyncLauncherTasks();
+    }
+
     public void ApplyDownloadDemo(bool paused)
     {
         if (!ScreenshotMode.IsActive)
@@ -1837,6 +1995,60 @@ public partial class DownloadViewModel : PageViewModelBase
         IsPaused = paused;
 
         UpdateTaskPanelState();
+    }
+
+    /// <summary>任务中心发来的变更。线程切换与逐文件面板同一套做法。</summary>
+    private void OnLauncherTasksChanged(object? sender, EventArgs e)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            SyncLauncherTasks();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(SyncLauncherTasks);
+    }
+
+    /// <summary>
+    /// 重建任务行。
+    ///
+    /// 整体重建而不是增量：任务数只有 20 行量级、事件节流 5 次/秒，
+    /// 增量同步要维护「行对象 ↔ 快照」的映射，收益抵不上复杂度与状态漂移的风险。
+    /// 逐文件面板走增量是因为它有 200 行且要保住滚动位置。
+    /// </summary>
+    private void SyncLauncherTasks()
+    {
+        if (_taskCenter is null)
+        {
+            return;
+        }
+
+        var snapshot = _taskCenter.Snapshot();
+
+        LauncherTasks.Clear();
+        foreach (var task in snapshot)
+        {
+            LauncherTasks.Add(task);
+        }
+
+        HasLauncherTasks = LauncherTasks.Count > 0;
+
+        var active = snapshot.Where(task => task.IsActive).ToArray();
+        ActiveTasksText = active.Length.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        TotalSpeedText = active.Length == 0
+            ? "—"
+            : LauncherTaskPresentation.FormatSpeed(_taskCenter.TotalSpeed);
+
+        // 并行时「整体还剩多久」由最慢的那条决定，取最大值而不是求和。
+        var longest = active
+            .Select(task => task.Eta)
+            .Where(eta => eta.HasValue)
+            .Select(eta => eta!.Value)
+            .DefaultIfEmpty(TimeSpan.Zero)
+            .Max();
+        RemainingText = LauncherTaskPresentation.FormatEta(longest);
+
+        UpdateSubtitle();
     }
 
     /// <summary>
