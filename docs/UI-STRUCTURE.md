@@ -125,6 +125,19 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 
 以上变体随 #106 一次性落地（2026-11-07）：12 页根节点已全部是 `Grid`，每页主滚动都在 `controls:GlassPanel`（`Padding="0"`，内层 `Margin="20,16,20,20"`）里；`HomeView.axaml` 与 `ServersView.axaml` 的根 `ScrollViewer` 已删。
 
+**落地后的实际行结构（2026-11-07 第二轮，逐页核对 XAML）**——下游页面票以「实际」列为起点，不要再按 §4 从零重排：
+
+| 页面 | 根 Grid `RowDefinitions` | 与 §4 的差异 |
+|---|---|---|
+| 首页 #86 | `Auto,*` | Row0 只留可隐藏通知条（正常态 0 高）；Hero + 实例库 + 启动进度 + 快捷入口全在 Row1 框内。紧凑档 Row1 曾只剩 61px，已随 Hero 迁入框内解决 |
+| 版本页 #87 | `Auto,Auto,*,Auto` | 与 §4 一致；Row0 40 / Row1 48 / Row3 44，详情列 340 在 Row2 内 |
+| 账户页 #94 | `Auto,Auto,*` | **离线账户卡在 Row2 框内**，未像 §4 那样单独占 Row3（该卡是列表的一部分，独立成行会让 Row2 再少 100+） |
+| 服务器页 #95 | `Auto,Auto,*` | **缺 Row3**：导入结果条当前没有对应 UI，按实际功能取三行 |
+| 内容·模组 #90 | `Auto,Auto,*,Auto` | 与 §4 一致；Row1 是目标选择条，Row3 是批量条 |
+| 世界与整合包 #89 | `Auto,Auto,*,Auto` | 与 §4 一致；Row1 放刷新/导出/导入 + 进度条 |
+| 下载页 #93 | `Auto,*` | 左参数栏 300 + 右任务框；§5 说下载页单栏，重构成 #93 的范围 |
+| 设置页 #96–#98 | 左栏 196 导航 + 右栏玻璃框 | 分区导航在左栏而不在 Row0，重构成 #96–#98 的范围 |
+
 ## 4. 12 页行分配
 
 | 票 | 页面 | Row0 | Row1 | Row2 | Row3 |
@@ -266,6 +279,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | D5 | 退出下载确认浮层用不透明 `Surface.Sunken` 当遮罩（`src/NebulaLauncher.App/Views/MainWindow.axaml:243`），不是 `Surface.Scrim` 黑 40% | 违反 §6 规则 7；遮罩会整片盖住下层而不是压暗 | 未修 |
 | D6 | 设置页票面（#96 / #97 / #98）写「Section 卡用 `GlassPanel`」，实际按 §6 规则 6 应为 **L3 实心卡** | Row2 已经是玻璃主卡，Section 再套玻璃就触犯禁止清单 17；样板里 Section 用白底实心（`.sec` / `.aboutcard` / `.entrycard`） | 已裁决：按契约执行，`GlassPanel` 只用在 Row2 |
 | D7 | 皮肤页紧凑档预览区高 320 → **200**（宽 260、预览列 300 不变） | 紧凑 Row2 只有 369，320 + 名称 + 冷却 + 操作行物理放不下；按 §4.1 第 3 条「缩高度不缩宽度」处理 | 已裁决，写进 §4.1 |
+| D8 | **三个视图在界面上不可达**：`WorldsViewModel` / `LibraryViewModel` / `SkinsViewModel` 从未在 `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs` 的 `RegisterPage` 注册（只注册了 Home / Versions / Download / Settings / Content / Accounts / Servers / Controls 八个键） | `Navigate("worlds")` 经 `NavigationRoutes.Resolve` 落到 `versions`；`--page worlds`、`--page library`、`--page skins` 截出来的是版本页或模组页。**这三个 `.axaml` 的任何改动都没有像素证据**，只能靠构建 + XML 校验 | 未修，待 #89（世界）/ #91（Library）/ #92（皮肤）接入时随功能一并注册 |
 
 D2/D3/D4 的实测值来自本轮核对（2026-11-06）：`HomeView.axaml:31` 与 `ServersView.axaml:35` 的根节点仍是 `ScrollViewer`；`Classes="card"` 在 12 个页面计 110 处（Accounts 5 / Download 12 / Help 2 / Home 8 / Library 3 / Logs 3 / Mods 2 / Servers 2 / Settings 29 / Skins 11 / Versions 28 / Worlds 5），全仓 Views 计 131 处（含演示页与外壳）。
 
@@ -275,7 +289,7 @@ D2/D3/D4 的实测值来自本轮核对（2026-11-06）：`HomeView.axaml:31` �
 
 | 票 | 页面 | 样板文件 | 状态 |
 |---|---|---|---|
-| #86 | 首页 | `home-glass.html` | 定版（样板 topbar 见 D1） |
+| #86 | 首页 | `home-glass.html` | 定版（样板 topbar 见 D1）；该文件在工作树里已被别的改动删除，需要时用 `git show HEAD:.oil-ui/nebula-2/explore/home-glass.html` 取回 |
 | #87 | 版本页 | `versions-glass.html` | 定版（样板 topbar 见 D1） |
 | #88 / #89 | 实例详情：概览 / 世界 / 整合包 | `instance-detail-glass.html` | 本轮补齐 |
 | #90 | 内容·模组 | `mods-glass.html` | 本轮补齐 |
