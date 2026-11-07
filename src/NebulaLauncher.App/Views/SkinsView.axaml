@@ -549,9 +549,10 @@
       <controls:GlassPanel Grid.Column="1" Padding="0">
         <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8">
 
-          <!-- 3D 预览：可拖动旋转；加载中共用一条细进度条 -->
+          <!-- 3D 预览：可拖动旋转；加载中共用一条细进度条。高度弹性，1024 下不挤掉操作行。 -->
           <Border Grid.Row="0"
-                  Height="300"
+                  MinHeight="200"
+                  MaxHeight="300"
                   CornerRadius="{DynamicResource Radius.Md}"
                   ClipToBounds="True"
                   Background="{DynamicResource Surface.Sunken}">

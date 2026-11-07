@@ -357,7 +357,7 @@
                   HorizontalAlignment="Center" />
         </StackPanel>
 
-        <!-- 参数栏收起时，框内右下角给一个展开入口（不常驻列）。 -->
+        <!-- 参数栏收起时，框内右下角给一个展开入口。空态时不显示，避免孤悬。 -->
         <Button Grid.Row="1"
                 Content="下载参数"
                 Command="{Binding ToggleParamsCommand}"
@@ -365,7 +365,7 @@
                 Height="28"
                 Margin="0,4,12,12"
                 HorizontalAlignment="Right"
-                IsVisible="{Binding !IsParamsExpanded}" />
+                IsVisible="{Binding HasLauncherTasks}" />
       </Grid>
     </controls:GlassPanel>
 
