@@ -133,7 +133,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | 首页 #86 | `Auto,*` | Row0 只留可隐藏通知条（正常态 0 高）；Hero + 实例库 + 启动进度 + 快捷入口全在 Row1 框内。紧凑档 Row1 曾只剩 61px，已随 Hero 迁入框内解决 |
 | 版本页 #87 | `Auto,Auto,*,Auto` | 与 §4 一致；Row0 40 / Row1 48 / Row3 44，详情列 340 在 Row2 内 |
 | 账户页 #94 | `Auto,*,Auto` | 三行：Row0 是 StackPanel（账户卡 120 + 可隐藏的提示条与设备码卡），列表在 Row1 框内，离线账户是 Row2 的 96 固定卡。**RowSpacing 固定 12，四行写法会让收起态多留 12px 空洞**，故提示条与设备码卡并入 Row0 |
-| 服务器页 #95 | `Auto,Auto,*` | **缺 Row3**：导入结果条当前没有对应 UI，按实际功能取三行 |
+| 服务器页 #95 | `Auto,Auto,*,Auto` | 与 §4 一致（#95 重制时补齐 Row3）. Row0 工具条（搜索 320 + 刷新 / 导入 / 添加）；Row1 = 提示条 + 新建表单，全隐藏时塌到 0；Row2 列表行 72；Row3 44 是导入结果条（绑 `InfoText`，可关） |
 | 内容·模组 #90 | `Auto,Auto,*,Auto` | 与 §4 一致；Row1 是目标选择条，Row3 是批量条 |
 | 世界与整合包 #89 | `Auto,Auto,*,Auto` | 与 §4 一致；Row1 放刷新/导出/导入 + 进度条 |
 | 下载页 #93 | `Auto,*` | 左参数栏 300 + 右任务框；§5 说下载页单栏，重构成 #93 的范围 |
@@ -275,7 +275,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 |---|---|---|---|
 | D1 | 不引入样板 62 高 topbar，保留 46 高 TitleBar | 账户/搜索/状态各有归属，加 topbar 会压缩全部页面画布 | 已决策 |
 | D2 | 首页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/HomeView.axaml:31`） | #86 虽已关票，但整页滚动未解决 | **已修（#106）**：根改 `Grid RowDefinitions="Auto,*" RowSpacing="12"`，Hero 卡留在 Row0 固定，其余进 Row1 玻璃框 |
-| D3 | 服务器页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/ServersView.axaml:35`） | 待 #95 重做 | **已修（#106）**：根改 `Grid RowDefinitions="Auto,Auto,*" RowSpacing="12"`，工具行/提示条/新建表单固定，列表进 Row2 玻璃框 |
+| D3 | 服务器页根曾是整页 `ScrollViewer` | 已由 #106 拆除滚动、#95 重做页面 | **已修（#106 + #95）**：根 `Grid RowDefinitions="Auto,Auto,*,Auto"`，Row0 工具条玻璃框 / Row1 提示条与表单（塌 0）/ Row2 列表行 72 / Row3 导入结果条 44 |
 | D4 | 12 页共 110 处 `Border.card` 仍是实心（`Surface.CardSolid`） | 待 #105 换 `GlassPanel` | **范围已缩小（#106）**：12 页的 Row2 内容框已全部是 `GlassPanel`；剩下的 `Border.card` 是列表行、详情列、参数卡这类 L3 内容，按 §6 规则 6 不该玻璃化。剩余是否还有该玻璃化的 L2 承载层，待 #105 复核后回填 |
 | D5 | 退出下载确认浮层用不透明 `Surface.Sunken` 当遮罩（`src/NebulaLauncher.App/Views/MainWindow.axaml:243`），不是 `Surface.Scrim` 黑 40% | 违反 §6 规则 7；遮罩会整片盖住下层而不是压暗 | 未修 |
 | D6 | 设置页票面（#96 / #97 / #98）写「Section 卡用 `GlassPanel`」，实际按 §6 规则 6 应为 **L3 实心卡** | Row2 已经是玻璃主卡，Section 再套玻璃就触犯禁止清单 17；样板里 Section 用白底实心（`.sec` / `.aboutcard` / `.entrycard`） | 已裁决：按契约执行，`GlassPanel` 只用在 Row2 |
@@ -284,7 +284,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | D9 | **`LibraryViewModel` 仍是不可达视图**（`SkinsViewModel` 已修） | `Navigate("library")` 经 `NavigationRoutes.Resolve` 落到内容页，`--page library` 截出来的是模组页。**`skins` 已于 #92 从 `LegacyToPrimary` 移除并注册到 `RegisterContentPages`**，`--page skins` 现在落到真正的皮肤页 | 部分修复：皮肤页可达；资源库仍待接入 |
 | D10 | **内容页 Row1 右端多一个 30×30「更多」图标按钮**（检查更新 / 冲突检测 / 刷新 / 全部启用 / 回收站） | `mods-glass.html` 的 Row1 只有搜索、筛选、目标、从文件安装四项；这五个是既有功能，改版时不能丢，但也不该在工具条上排开五个按钮。收进一个不占视觉重心的 `MenuFlyout` 入口 | 已实施（#90） |
 
-D2/D3/D4 的实测值来自本轮核对（2026-11-06）：`HomeView.axaml:31` 与 `ServersView.axaml:35` 的根节点仍是 `ScrollViewer`；`Classes="card"` 在 12 个页面计 110 处（Accounts 5 / Download 12 / Help 2 / Home 8 / Library 3 / Logs 3 / Mods 2 / Servers 2 / Settings 29 / Skins 11 / Versions 28 / Worlds 5），全仓 Views 计 131 处（含演示页与外壳）。
+D4 的实测值来自 #106 轮核对（2026-11-06）：`Classes="card"` 在 12 个页面计 110 处（Accounts 5 / Download 12 / Help 2 / Home 8 / Library 3 / Logs 3 / Mods 2 / Servers 2 / Settings 29 / Skins 11 / Versions 28 / Worlds 5），全仓 Views 计 131 处（含演示页与外壳）。D2 / D3 的根 `ScrollViewer` 已随 #106 拆除，本轮（#95）复核 `ServersView.axaml` 根节点是 `Grid`。
 
 ## 12. 样板索引
 

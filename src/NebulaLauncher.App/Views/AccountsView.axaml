@@ -51,19 +51,6 @@
       <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
     </Style>
 
-    <!--
-      玻璃上的次级按钮：样板里「切换账户」「添加离线账户」都是玻璃内的一枚浅色块，
-      不是裸文字。用 Glass.Tint + Glass.Edge 拼出来，主题切换自动跟随。
-    -->
-    <Style Selector="Button.tglass">
-      <Setter Property="Background" Value="{DynamicResource Glass.Tint}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
-      <Setter Property="Padding" Value="14,0" />
-      <Setter Property="Height" Value="32" />
-    </Style>
-
     <!-- 行内图标按钮：不抢账户名，hover 才提亮 -->
     <Style Selector="Button.rowicon">
       <Setter Property="Width" Value="28" />

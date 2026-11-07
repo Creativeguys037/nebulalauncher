@@ -703,6 +703,26 @@
     <Setter Property="Padding" Value="8,0" />
   </Style>
 
+  <!-- ================= 玻璃上的次级按钮 ================= -->
+  <!--
+    样板里玻璃卡上的次级动作（「切换账户」「添加离线账户」「从 servers.dat 导入」）都是
+    玻璃内的一枚浅色块，不是裸文字 ghost。用 Glass.Tint 打底、Glass.Edge 描 1px 边拼出来，
+    主题切换自动跟随，不需要页面自己判深浅。
+    放在控件层而不是各页面：账户页与服务器页都要用，页面级各写一份必然漂移。
+  -->
+  <Style Selector="Button.tglass">
+    <Setter Property="Background" Value="{DynamicResource Glass.Tint}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Height" Value="32" />
+  </Style>
+
+  <Style Selector="Button.tglass:pointerover">
+    <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
+  </Style>
+
   <!-- ================= 一级导航（票 #85） ================= -->
   <!--
     左侧玻璃竖栏里的导航项，形态取自已定版样张 home-glass.html 的 .navb：

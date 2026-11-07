@@ -81,6 +81,53 @@ public sealed partial class ServersViewModel : PageViewModelBase
 
     public ObservableCollection<ServerCardViewModel> Servers { get; } = [];
 
+    /// <summary>搜索词。匹配名字与地址，空串表示不过滤。</summary>
+    [ObservableProperty]
+    private string _keyword = string.Empty;
+
+    /// <summary>
+    /// 有收藏但一条都没匹配上。与 <see cref="IsEmpty"/> 分开：两者的空态文案不同，
+    /// 「没有服务器」要引导添加，「没搜到」只能提示换个词。
+    /// </summary>
+    [ObservableProperty]
+    private bool _isFilterEmpty;
+
+    partial void OnKeywordChanged(string value) => ApplyFilter();
+
+    /// <summary>
+    /// 改 <c>IsFilteredOut</c> 而不是过滤 <see cref="Servers"/> 本身：
+    /// 列表是同一个集合，过滤不重建对象，行的选中态、玩家面板开合、正在进行的 ping 都不会丢。
+    /// </summary>
+    private void ApplyFilter()
+    {
+        var keyword = Keyword.Trim();
+        var visible = 0;
+
+        foreach (var card in Servers)
+        {
+            var matched = keyword.Length == 0
+                || card.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                || card.Address.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+
+            card.IsFilteredOut = !matched;
+
+            if (matched)
+            {
+                visible++;
+            }
+        }
+
+        IsFilterEmpty = Servers.Count > 0 && visible == 0;
+    }
+
+    /// <summary>关掉结果条。导入提示留在 Row3 上不会自己消失，必须能关掉。</summary>
+    [RelayCommand]
+    private void DismissInfo() => InfoText = null;
+
+    /// <summary>清空搜索。空态里的「清空搜索」比让用户自己删字更快。</summary>
+    [RelayCommand]
+    private void ClearKeyword() => Keyword = string.Empty;
+
     /// <summary>
     /// 当前生效的游戏目录：实例隔离时是实例目录，否则是全局 <c>.minecraft</c>。
     /// <c>servers.dat</c> 就躺在这一层，所以导入入口只能从这里取（§6.10）。
@@ -768,6 +815,8 @@ public sealed partial class ServersViewModel : PageViewModelBase
 
         var online = Servers.Count(card => card.IsOnline);
         SetSubtitle($"{online}/{Servers.Count} 在线");
+
+        ApplyFilter();
     }
 
     /// <summary>
@@ -1040,6 +1089,10 @@ public sealed partial class ServerCardViewModel : ObservableObject
     /// <summary>名单面板是否展开。点「玩家」时打开，之后保持展开直到用户收起。</summary>
     [ObservableProperty]
     private bool _isPlayersOpen;
+
+    /// <summary>搜索没匹配上。行留在集合里、只隐藏，见 <see cref="ServersViewModel.ApplyFilter"/>。</summary>
+    [ObservableProperty]
+    private bool _isFilteredOut;
 
     [ObservableProperty]
     private bool _isQueryingPlayers;
