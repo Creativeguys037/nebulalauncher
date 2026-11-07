@@ -55,6 +55,7 @@ public sealed class ModpackService : IModpackService
     private readonly IInstallService? _install;
     private readonly IModrinthService? _modrinth;
     private readonly ICurseForgeService? _curseForge;
+    private readonly DownloadTaskCenter? _taskCenter;
 
     /// <summary>
     /// 构造服务。<paramref name="modrinth"/> 用于导出时按 SHA1 反查在线项目、以及导入时
@@ -71,7 +72,8 @@ public sealed class ModpackService : IModpackService
         IAppLog? log = null,
         IModrinthService? modrinth = null,
         IInstallService? install = null,
-        ICurseForgeService? curseForge = null)
+        ICurseForgeService? curseForge = null,
+        DownloadTaskCenter? taskCenter = null)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _queue = downloadQueue ?? throw new ArgumentNullException(nameof(downloadQueue));
@@ -80,6 +82,7 @@ public sealed class ModpackService : IModpackService
         _install = install;
         _modrinth = modrinth;
         _curseForge = curseForge;
+        _taskCenter = taskCenter;
     }
 
     /// <inheritdoc />
@@ -184,6 +187,39 @@ public sealed class ModpackService : IModpackService
     /// 旧签名只能把它们压成一句 <c>ex.Message</c>。
     /// </summary>
     public async Task<ModpackImportResult> ImportWithResultAsync(
+        string archivePath,
+        string instanceName,
+        IProgress<DownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        // 包一层而不是在核心方法里散点插桩：导入有七八条早退路径
+        //（格式不认识 / 带启动器 / 装游戏失败 / 解压失败 / 部分文件没下来），
+        // 每条都手写 Fail 迟早漏一条，漏掉的那条在下载页上就是「永远进行中」。
+        using var launcherTask = _taskCenter?.Register(
+            $"导入整合包 {instanceName}",
+            LauncherTaskKind.Modpack,
+            targetPath: Path.GetDirectoryName(archivePath));
+        launcherTask?.Begin("解压整合包…");
+
+        var result = await ImportCoreAsync(
+            archivePath,
+            instanceName,
+            LauncherTaskProgressBridge.Wrap(progress, launcherTask),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Success)
+        {
+            launcherTask?.Complete("导入完成");
+        }
+        else
+        {
+            launcherTask?.Fail(result.Error ?? "导入失败");
+        }
+
+        return result;
+    }
+
+    private async Task<ModpackImportResult> ImportCoreAsync(
         string archivePath,
         string instanceName,
         IProgress<DownloadProgress>? progress = null,

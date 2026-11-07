@@ -18,7 +18,9 @@ public static class JavaServiceCollectionExtensions
             sp.GetService<IAppLog>(),
             sp.GetService<ISettingsService>(),
             // 下载工厂用于拉 Mojang 的 java-runtime 清单；缺失时 DownloadRuntimeAsync 退回 Adoptium。
-            sp.GetService<DownloadHttpClientFactory>()));
+            sp.GetService<DownloadHttpClientFactory>(),
+            // 运行时下载要出现在下载页的任务队列里；没注册就只是少一行任务，不影响安装。
+            sp.GetService<DownloadTaskCenter>()));
 
         return services;
     }

@@ -231,9 +231,10 @@ public sealed partial class InstallService : IInstallService, IDisposable
             // 任务行回答「这次安装整体到哪一步」——两者粒度不同，不是冗余。
             launcherTask = _taskCenter?.Register(
                 $"安装 {minecraftVersion} · {DescribeLoader(request.Loader)}",
-                LauncherTaskKind.Install);
+                LauncherTaskKind.Install,
+                targetPath: _paths.MinecraftDirectory);
             launcherTask?.Begin("准备游戏文件…");
-            progress = BridgeProgress(progress, launcherTask);
+            progress = LauncherTaskProgressBridge.Wrap(progress, launcherTask);
 
             var installedName = request.Loader switch
             {
@@ -306,61 +307,6 @@ public sealed partial class InstallService : IInstallService, IDisposable
         LoaderKind.NeoForge => "NeoForge",
         _ => loader.ToString(),
     };
-
-    /// <summary>
-    /// 把安装的聚合进度同时喂给调用方与任务中心。
-    ///
-    /// 不在四个安装分支里各自包一层：原版 / Fabric 类 / Forge / NeoForge 都在进度回调上
-    /// 接了阶段映射，让它们各自再包一次意味着四处都要记得加，
-    /// 漏一处就有一个加载器在下载页上永远停在 0%。
-    /// </summary>
-    private static IProgress<DownloadProgress>? BridgeProgress(
-        IProgress<DownloadProgress>? inner,
-        ILauncherTaskHandle? task)
-    {
-        if (task is null)
-        {
-            return inner;
-        }
-
-        return new TaskProgressBridge(inner, task);
-    }
-
-    /// <summary>
-    /// 进度桥：原样转发给调用方，同时折算成任务行的字节与副行。
-    ///
-    /// 「暂停时把速度清零」由 <see cref="ILauncherTaskHandle.Pause"/> 负责，
-    /// 这里只需按 <see cref="DownloadProgress.IsPaused"/> 切换状态——
-    /// 暂停中界面还显示「1.2 MB/s」是上一版被反馈过的问题。
-    /// </summary>
-    private sealed class TaskProgressBridge(IProgress<DownloadProgress>? inner, ILauncherTaskHandle task)
-        : IProgress<DownloadProgress>
-    {
-        public void Report(DownloadProgress value)
-        {
-            inner?.Report(value);
-
-            if (value.IsPaused)
-            {
-                task.Pause();
-            }
-            else
-            {
-                task.Resume();
-            }
-
-            var stage = string.IsNullOrWhiteSpace(value.Stage) ? "下载文件" : value.Stage;
-            task.Report(
-                value.DownloadedBytes,
-                value.TotalBytes,
-                value.SpeedBytesPerSecond,
-                LauncherTaskPresentation.DescribeDetail(
-                    stage,
-                    value.DownloadedBytes,
-                    value.TotalBytes,
-                    value.TotalFiles));
-        }
-    }
 
     /// <summary>
     /// 尝试开一个外部批次（安装器的逐文件上报）。

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using NebulaLauncher.Core.Abstractions;
+using NebulaLauncher.Core.Downloads;
 using NebulaLauncher.Core.Models;
 using NebulaLauncher.Core.Serialization;
 
@@ -24,11 +25,13 @@ public sealed class BackupService : IBackupService
 
     private readonly ILauncherPaths _paths;
     private readonly IAppLog? _log;
+    private readonly DownloadTaskCenter? _taskCenter;
 
-    public BackupService(ILauncherPaths paths, IAppLog? log = null)
+    public BackupService(ILauncherPaths paths, IAppLog? log = null, DownloadTaskCenter? taskCenter = null)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _log = log;
+        _taskCenter = taskCenter;
     }
 
     public Task<IReadOnlyList<WorldInfo>> ListWorldsAsync(
@@ -144,6 +147,15 @@ public sealed class BackupService : IBackupService
         var totalBytes = files.Sum(SafeLength);
         long written = 0;
 
+        // 备份走的是 0–1 的比例进度，没有下载速度可言，所以用比例桥而不是字节桥。
+        // 自动备份也进队列：用户到了下载页看不到「为什么磁盘在响」会以为卡住了。
+        using var launcherTask = _taskCenter?.Register(
+            isAutomatic ? $"自动备份 {worldName}" : $"备份 {worldName}",
+            LauncherTaskKind.Backup,
+            targetPath: _paths.BackupsDirectory);
+        launcherTask?.Begin("压缩世界文件…");
+        progress = LauncherTaskRatioBridge.Wrap(progress, launcherTask);
+
         string archivePath;
         try
         {
@@ -216,6 +228,7 @@ public sealed class BackupService : IBackupService
         }
 
         progress?.Report(1);
+        launcherTask?.Complete("备份完成");
         _log?.Info($"已备份世界 {worldName} → {archivePath}");
         return entry;
     }

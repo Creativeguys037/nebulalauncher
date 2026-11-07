@@ -57,6 +57,7 @@ public sealed class JavaService : IJavaService, IDisposable
     private readonly DownloadHttpClientFactory? _httpFactory;
     private readonly IAppLog? _log;
     private readonly ISettingsService? _settings;
+    private readonly DownloadTaskCenter? _taskCenter;
     private readonly JavaCache _javaCache;
     private readonly JavaPathList _excludedList;
     private readonly JavaPathList _manualList;
@@ -71,7 +72,8 @@ public sealed class JavaService : IJavaService, IDisposable
         DownloadQueue downloadQueue,
         IAppLog? log = null,
         ISettingsService? settings = null,
-        DownloadHttpClientFactory? httpFactory = null)
+        DownloadHttpClientFactory? httpFactory = null,
+        DownloadTaskCenter? taskCenter = null)
     {
         _platform = platform ?? throw new ArgumentNullException(nameof(platform));
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
@@ -79,6 +81,7 @@ public sealed class JavaService : IJavaService, IDisposable
         _log = log;
         _settings = settings;
         _httpFactory = httpFactory;
+        _taskCenter = taskCenter;
         _javaCache = new JavaCache(_paths.CacheDirectory, log);
 
         // 排除 / 手动列表都是用户数据：文件坏了按空列表重建，绝不让它阻断 Java 探测。
@@ -667,6 +670,48 @@ public sealed class JavaService : IJavaService, IDisposable
     {
         ArgumentNullException.ThrowIfNull(package);
 
+        // 只在 Core 外面包一层：DownloadRuntimeAsync（按大版本号下载）也是转调这里，
+        // 两条入口共用一个任务行，不会出现「按版本号装」那条路径在下载页上没有痕迹。
+        using var launcherTask = _taskCenter?.Register(
+            $"Java {package.MajorVersion} 运行时",
+            LauncherTaskKind.Java,
+            targetPath: Path.Combine(
+                _paths.RootDirectory,
+                "runtimes",
+                $"java-{package.MajorVersion}-{NormalizeArchitecture(package.Architecture)}"));
+        launcherTask?.Begin("下载运行时…");
+
+        string? path;
+        try
+        {
+            path = await InstallRuntimeCoreAsync(
+                package,
+                LauncherTaskProgressBridge.Wrap(progress, launcherTask),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            launcherTask?.Fail("已取消");
+            throw;
+        }
+
+        if (path is null)
+        {
+            launcherTask?.Fail("运行时下载失败");
+        }
+        else
+        {
+            launcherTask?.Complete("已就绪");
+        }
+
+        return path;
+    }
+
+    private async Task<string?> InstallRuntimeCoreAsync(
+        JavaRuntimePackage package,
+        IProgress<DownloadProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         var architecture = NormalizeArchitecture(package.Architecture);
         var targetDirectory = Path.Combine(_paths.RootDirectory, "runtimes", $"java-{package.MajorVersion}-{architecture}");
 

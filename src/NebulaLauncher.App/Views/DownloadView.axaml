@@ -208,6 +208,22 @@
                       <Button Classes="icon"
                               Width="24"
                               Height="24"
+                              IsVisible="{Binding HasTargetPath}"
+                              ToolTip.Tip="打开所在目录"
+                              Command="{Binding $parent[ItemsControl].((vm:DownloadViewModel)DataContext).OpenTaskTargetCommand}"
+                              CommandParameter="{Binding}">
+                        <Path Data="{StaticResource Icon.Folder}"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.8"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="Uniform"
+                              Width="12"
+                              Height="12" />
+                      </Button>
+                      <Button Classes="icon"
+                              Width="24"
+                              Height="24"
                               IsVisible="{Binding IsActive}"
                               ToolTip.Tip="取消任务"
                               Command="{Binding $parent[ItemsControl].((vm:DownloadViewModel)DataContext).CancelTaskCommand}"

@@ -40,6 +40,17 @@ public sealed class LauncherTaskInfo
 
     public int Sequence { get; init; }
 
+    /// <summary>
+    /// 这条任务最终落到磁盘上的位置（游戏目录 / 实例目录 / 备份 zip / 运行时目录）。
+    ///
+    /// 用来给行内「打开目录」按钮定位。可为空——不是每条任务都有落点
+    /// （例如一次性的资源查询），空的时候按钮不出现，而不是点下去什么都不发生。
+    /// </summary>
+    public string? TargetPath { get; init; }
+
+    /// <summary>行内「打开目录」是否可用。</summary>
+    public bool HasTargetPath => !string.IsNullOrWhiteSpace(TargetPath);
+
     public double Ratio => TotalBytes > 0 ? Math.Clamp((double)DownloadedBytes / TotalBytes, 0, 1) : 0;
 
     /// <summary>剩余时间。速度未知或已下完时为 null。</summary>
@@ -56,6 +67,31 @@ public sealed class LauncherTaskInfo
     /// 的三路筛选会把它整个丢掉，界面看到的是「注册成功但列表是空的」。
     /// </summary>
     public bool IsActive => State is LauncherTaskState.Queued or LauncherTaskState.Running or LauncherTaskState.Paused;
+
+    /// <summary>百分比文案，与样板的三列数字对齐（<c>62%</c> / <c>—</c>）。</summary>
+    public string PercentText => State switch
+    {
+        LauncherTaskState.Completed => "100%",
+        LauncherTaskState.Queued => "—",
+        _ when TotalBytes <= 0 => "—",
+        _ => $"{(int)Math.Round(Ratio * 100)}%",
+    };
+
+    /// <summary>速度文案。已完成 / 失败 / 暂停一律「—」，不显示最后一帧的残值。</summary>
+    public string SpeedText => State == LauncherTaskState.Running
+        ? LauncherTaskPresentation.FormatSpeed(SpeedBytesPerSecond)
+        : "—";
+
+    /// <summary>剩余时间文案。</summary>
+    public string EtaText => State == LauncherTaskState.Running
+        ? LauncherTaskPresentation.FormatEta(Eta)
+        : "—";
+
+    /// <summary>状态徽标文案。</summary>
+    public string StateText => LauncherTaskPresentation.DescribeState(State);
+
+    /// <summary>本条任务的进度比例（0..1），进度条用。</summary>
+    public double ProgressRatio => State == LauncherTaskState.Completed ? 1 : Ratio;
 
     public bool IsFinished => State is LauncherTaskState.Completed or LauncherTaskState.Failed
         or LauncherTaskState.Canceled;
@@ -162,7 +198,7 @@ public sealed class DownloadTaskCenter
     /// 忘记收尾不会卡住队列（这里没有互斥），只是那条任务会一直显示为进行中，
     /// 直到进程退出——所以用 <c>using</c> 或 try/finally 包住。
     /// </summary>
-    public ILauncherTaskHandle Register(string title, LauncherTaskKind kind, string detail = "")
+    public ILauncherTaskHandle Register(string title, LauncherTaskKind kind, string detail = "", string? targetPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
 
@@ -174,6 +210,7 @@ public sealed class DownloadTaskCenter
             Detail = detail,
             Kind = kind,
             Sequence = _nextId,
+            TargetPath = targetPath,
         };
 
         _tasks[id] = task;

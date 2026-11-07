@@ -604,6 +604,21 @@ public partial class DownloadViewModel : PageViewModelBase
         _taskCenter?.RequestCancel(task.Id);
     }
 
+    /// <summary>
+    /// 打开任务落点。只有带 TargetPath 的任务才出现这个按钮——
+    /// 空落点直接不显示，而不是点下去什么都不发生。
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenTaskTargetAsync(LauncherTaskInfo? task)
+    {
+        if (task is null || !task.HasTargetPath || _platform is null)
+        {
+            return;
+        }
+
+        await _platform.OpenFolderAsync(task.TargetPath!).ConfigureAwait(false);
+    }
+
     [RelayCommand]
     private void ClearFailures()
     {
@@ -1895,20 +1910,23 @@ public partial class DownloadViewModel : PageViewModelBase
         }
 
         // 覆盖样板上的七行：三条进行中、一条完成、一条暂停、一条失败、一条完成。
-        var samples = new (string Title, LauncherTaskKind Kind, LauncherTaskState State, long Total, long Done, long Speed, string? Error, string Detail)[]
+        // 每条都带目标目录：不带的话「打开所在目录」按钮在截图里永远不出现（HasTargetPath 为 false），
+        // 行内动作就没法验收了。
+        var demoDir = Path.Combine(Path.GetTempPath(), "nebula-demo");
+        var samples = new (string Title, LauncherTaskKind Kind, LauncherTaskState State, long Total, long Done, long Speed, string? Error, string Detail, string Target)[]
         {
-            ("荒野生存 · 1.21.1 · 模组包", LauncherTaskKind.Modpack, LauncherTaskState.Running, 52_100_000, 32_400_000, 1_200_000, null, "下载模组 · 32.4/52.1 MB · 12 项"),
-            ("Better MC · 整合包", LauncherTaskKind.Modpack, LauncherTaskState.Running, 40_000_000, 15_200_000, 800_000, null, "校验文件 · 15.2/40.0 MB"),
-            ("Fabric 0.16.9 · 加载器", LauncherTaskKind.Install, LauncherTaskState.Running, 3_000_000, 2_730_000, 120_000, null, "下载加载器 · 2.7/3.0 MB"),
-            ("存档备份 · 远古遗迹", LauncherTaskKind.Backup, LauncherTaskState.Completed, 8_000_000, 8_000_000, 0, null, "备份完成"),
-            ("光影包 BSL v8.4", LauncherTaskKind.Resource, LauncherTaskState.Paused, 2_000_000, 900_000, 0, null, "已暂停"),
-            ("资源索引 · 1.21.1 清单", LauncherTaskKind.Resource, LauncherTaskState.Failed, 0, 0, 0, "网络超时（GitHub API 30s 无响应）", "清单获取失败"),
-            ("Java 21 运行时 · Temurin", LauncherTaskKind.Java, LauncherTaskState.Completed, 180_000_000, 180_000_000, 0, null, "安装完成"),
+            ("荒野生存 · 1.21.1 · 模组包", LauncherTaskKind.Modpack, LauncherTaskState.Running, 52_100_000, 32_400_000, 1_200_000, null, "下载模组 · 32.4/52.1 MB · 12 项", Path.Combine(demoDir, "instances", "荒野生存")),
+            ("Better MC · 整合包", LauncherTaskKind.Modpack, LauncherTaskState.Running, 40_000_000, 15_200_000, 800_000, null, "校验文件 · 15.2/40.0 MB", Path.Combine(demoDir, "instances", "Better MC")),
+            ("Fabric 0.16.9 · 加载器", LauncherTaskKind.Install, LauncherTaskState.Running, 3_000_000, 2_730_000, 120_000, null, "下载加载器 · 2.7/3.0 MB", Path.Combine(demoDir, "versions", "fabric-loader-0.16.9")),
+            ("存档备份 · 远古遗迹", LauncherTaskKind.Backup, LauncherTaskState.Completed, 8_000_000, 8_000_000, 0, null, "备份完成", Path.Combine(demoDir, "backups")),
+            ("光影包 BSL v8.4", LauncherTaskKind.Resource, LauncherTaskState.Paused, 2_000_000, 900_000, 0, null, "已暂停", Path.Combine(demoDir, "shaderpacks")),
+            ("资源索引 · 1.21.1 清单", LauncherTaskKind.Resource, LauncherTaskState.Failed, 0, 0, 0, "网络超时（GitHub API 30s 无响应）", "清单获取失败", Path.Combine(demoDir, "assets", "indexes")),
+            ("Java 21 运行时 · Temurin", LauncherTaskKind.Java, LauncherTaskState.Completed, 180_000_000, 180_000_000, 0, null, "安装完成", Path.Combine(demoDir, "runtimes", "java-21-x64")),
         };
 
         foreach (var sample in samples)
         {
-            var handle = _taskCenter.Register(sample.Title, sample.Kind);
+            var handle = _taskCenter.Register(sample.Title, sample.Kind, targetPath: sample.Target);
             handle.Begin(sample.Detail);
 
             switch (sample.State)
