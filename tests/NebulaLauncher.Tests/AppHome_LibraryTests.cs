@@ -79,7 +79,9 @@ public class AppHome_LibraryTests
         var primaryCount = Regex.Matches(text, "Classes=\"primary\"").Count;
 
         Assert.Equal(3, primaryCount);
-        Assert.Contains("Classes=\"glass hero\"", text);
+        // 票 #106 把 Hero 挪进了 Row2 的 GlassPanel：`glass` 只在 L2 用一次，
+        // L3 内容再叠一层玻璃就是玻璃套玻璃（UI-STRUCTURE §6 规则 6），所以这里是 card hero。
+        Assert.Contains("Classes=\"card hero\"", text);
         Assert.Contains("Classes=\"secondary\"", text);
 
         // 搜索行与实例行的按钮都不许是 primary。
