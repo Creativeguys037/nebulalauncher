@@ -68,8 +68,7 @@ public static class NavigationRoutes
     private static readonly Dictionary<string, string> LegacyToPrimary = new(StringComparer.Ordinal)
     {
         [NavigationKeys.Mods] = NavigationKeys.Content,
-        [NavigationKeys.Library] = NavigationKeys.Content,
-        [NavigationKeys.Worlds] = NavigationKeys.Versions,
+        // Library / Worlds 已独立注册为页面（#100），不再归一化到父页。
         [NavigationKeys.Logs] = NavigationKeys.Settings,
         [NavigationKeys.Help] = NavigationKeys.Settings,
     };

@@ -43,13 +43,12 @@ public class AppShell_NavigationContractTests
     public void LegacyKeys_ResolveToTheirMergedEntry()
     {
         Assert.Equal(NavigationKeys.Content, NavigationRoutes.Resolve(NavigationKeys.Mods));
-        Assert.Equal(NavigationKeys.Content, NavigationRoutes.Resolve(NavigationKeys.Library));
 
-        // 皮肤不在这张表里（#92）：它有独立页面（来源 Tab + 网格 + 固定 300 预览列），
-        // 归一化到内容页会让 Navigate("skins") 落到模组页 —— 那正是 UI-STRUCTURE §11 D9 记的缺陷。
+        // Library / Worlds 已独立注册为页面（#100），不再归一化到父页。
+        Assert.Equal(NavigationKeys.Library, NavigationRoutes.Resolve(NavigationKeys.Library));
         Assert.Equal(NavigationKeys.Skins, NavigationRoutes.Resolve(NavigationKeys.Skins));
+        Assert.Equal(NavigationKeys.Worlds, NavigationRoutes.Resolve(NavigationKeys.Worlds));
 
-        Assert.Equal(NavigationKeys.Versions, NavigationRoutes.Resolve(NavigationKeys.Worlds));
         Assert.Equal(NavigationKeys.Settings, NavigationRoutes.Resolve(NavigationKeys.Logs));
         Assert.Equal(NavigationKeys.Settings, NavigationRoutes.Resolve(NavigationKeys.Help));
     }
@@ -59,8 +58,7 @@ public class AppShell_NavigationContractTests
     {
         var legacy = new[]
         {
-            NavigationKeys.Mods, NavigationKeys.Library,
-            NavigationKeys.Worlds, NavigationKeys.Logs, NavigationKeys.Help,
+            NavigationKeys.Mods, NavigationKeys.Logs, NavigationKeys.Help,
         };
 
         Assert.All(legacy, key =>
@@ -68,6 +66,11 @@ public class AppShell_NavigationContractTests
             Assert.True(NavigationRoutes.IsLegacy(key), $"{key} 没有登记为旧键");
             Assert.Contains(NavigationRoutes.Resolve(key), ExpectedPrimary);
         });
+
+        // Library / Worlds / Skins 已独立注册，不再是旧键。
+        Assert.All(
+            new[] { NavigationKeys.Library, NavigationKeys.Worlds, NavigationKeys.Skins },
+            key => Assert.False(NavigationRoutes.IsLegacy(key), $"{key} 不应是旧键"));
 
         // 一级键本身不再被当成旧键，否则 Navigate 会多绕一跳。
         Assert.All(ExpectedPrimary, key => Assert.False(NavigationRoutes.IsLegacy(key)));
