@@ -89,37 +89,45 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="*,Auto">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
 
-    <Grid Grid.Row="0" ColumnDefinitions="196,*">
+    <!-- ==================== Row0：分区页签（唯一一层导航） ==================== -->
+    <!-- 8 个分区同一行横排，一个都不许折到第二行：折行会让 Row0 从 40 长到 78，
+         下面表单框跟着缩，一屏少两行。紧凑档靠样式里的 Padding 收窄，不靠换行。 -->
+    <TabControl Grid.Row="0"
+                Classes="strip"
+                Height="40"
+                ItemsSource="{Binding Sections}"
+                SelectedIndex="{Binding SelectedSectionIndex}">
+      <TabControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:SettingsSection">
+          <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+        </DataTemplate>
+      </TabControl.ItemTemplate>
+    </TabControl>
 
-      <!-- ==================== 分区导航 ==================== -->
-      <Border Classes="card" Padding="8" VerticalAlignment="Top">
-        <ItemsControl ItemsSource="{Binding Sections}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:SettingsSection">
-              <Button Classes="section"
-                      Classes.active="{Binding IsActive}"
-                      Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SelectSectionCommand}"
-                      CommandParameter="{Binding Key}">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Path Data="{Binding IconData}"
-                        StrokeThickness="1.6"
-                        StrokeLineCap="Round"
-                        StrokeJoin="Round"
-                        Stretch="Uniform"
-                        Width="16" Height="16"
-                        VerticalAlignment="Center" />
-                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
-                </StackPanel>
-              </Button>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </Border>
+    <!-- ==================== Row1：分区内工具行 ==================== -->
+    <Grid Grid.Row="1" Height="48" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+      <TextBox Width="320"
+               Height="32"
+               VerticalAlignment="Center"
+               FontSize="{DynamicResource FontSize.Body}"
+               Watermark="搜索设置项（内存 · 目录 · 更新）"
+               Text="{Binding SearchKeyword, Mode=TwoWay}" />
+      <TextBlock Grid.Column="1"
+                 Text="改动即时留在草稿，切分区不弹确认，保存后才写入设置。"
+                 Classes="muted"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+      <Button Grid.Column="2"
+              Classes="tglass"
+              Content="重置本区"
+              VerticalAlignment="Center"
+              Command="{Binding ReloadCommand}" />
+    </Grid>
 
-      <!-- ==================== 分区内容 ==================== -->
-      <controls:GlassPanel Grid.Column="1" Padding="0" Margin="16,0,0,0">
+    <!-- ==================== Row2：表单框（唯一滚动区） ==================== -->
+    <controls:GlassPanel Grid.Row="2" Padding="0">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="12" Margin="20,16,20,20">
 
@@ -151,7 +159,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="18">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="界面语言" Classes="label" />
                     <TextBlock Text="更多语言开发中" Classes="muted" />
@@ -165,10 +173,10 @@
 
                 <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
-                    <TextBlock Text="启动后自动关闭启动器" Classes="label" />
-                    <TextBlock Text="游戏进程启动成功后退出主窗口" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Text="启动后关闭启动器" Classes="label" />
+                    <TextBlock Text="游戏启动成功后退出主窗口" Classes="muted" TextTrimming="CharacterEllipsis" />
                   </StackPanel>
                   <ToggleSwitch Grid.Column="1"
                                 IsChecked="{Binding CloseLauncherAfterLaunch}"
@@ -177,10 +185,10 @@
                 </Grid>
 
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="关闭到托盘" Classes="label" />
-                    <TextBlock Text="点击关闭按钮时最小化到通知区域" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Text="关闭时最小化到通知区域" Classes="muted" TextTrimming="CharacterEllipsis" />
                   </StackPanel>
                   <ToggleSwitch Grid.Column="1"
                                 IsChecked="{Binding CloseToTray}"
@@ -386,7 +394,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="缓存探测结果" Classes="label" />
                     <TextBlock Text="跳过对未变化 Java 的重复探测" Classes="muted" TextWrapping="Wrap" />
@@ -411,7 +419,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text=".minecraft 位置" Classes="label" />
                     <TextBlock Text="留空表示跟随平台默认" Classes="muted" TextWrapping="Wrap" />
@@ -496,7 +504,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="18">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="自动分配内存" Classes="label" />
                     <TextBlock Text="按可用内存与模组数量计算 -Xmx" Classes="muted" TextWrapping="Wrap" />
@@ -509,7 +517,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="最大内存" Classes="label" />
                     <TextBlock Text="大型整合包建议 6144 MB 以上" Classes="muted" TextWrapping="Wrap" />
@@ -528,7 +536,7 @@
                   </Grid>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="内存占用" Classes="label" />
                     <TextBlock Text="可分配 / 其它占用 / 本实例" Classes="muted" TextWrapping="Wrap" />
@@ -606,7 +614,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="最小内存" Classes="label" />
                     <TextBlock Text="启动初期占用，通常不用改" Classes="muted" TextWrapping="Wrap" />
@@ -626,7 +634,7 @@
 
                 <Border Height="1" Background="{DynamicResource Stroke.Subtle}" />
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="窗口尺寸" Classes="label" />
                     <TextBlock Text="游戏窗口的初始宽高" Classes="muted" TextWrapping="Wrap" />
@@ -643,7 +651,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="全屏启动" Classes="label" />
                     <TextBlock Text="忽略上面的窗口尺寸" Classes="muted" TextWrapping="Wrap" />
@@ -654,7 +662,7 @@
                                 HorizontalAlignment="Left" />
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="窗口最大化" Classes="label" />
                     <TextBlock Text="窗口出现后自动最大化" Classes="muted" TextWrapping="Wrap" />
@@ -726,7 +734,7 @@
                   </ItemsControl>
                 </StackPanel>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="自动设中文语言" Classes="label" />
                     <TextBlock Text="改写游戏 options.txt 的 lang" Classes="muted" TextWrapping="Wrap" />
@@ -739,7 +747,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="启动前注册高性能 GPU" Classes="label" />
                     <TextBlock Text="把 javaw.exe 交给独立显卡" Classes="muted" TextWrapping="Wrap" />
@@ -752,7 +760,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="崩溃报告归档" Classes="label" />
                     <TextBlock Text="打包报告与日志便于求助" Classes="muted" TextWrapping="Wrap" />
@@ -765,7 +773,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="退出后自动备份世界" Classes="label" />
                     <TextBlock Text="崩溃退出也会备份" Classes="muted" TextWrapping="Wrap" />
@@ -778,7 +786,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*" IsEnabled="{Binding AutoBackupWorldsOnExit}">
+                <Grid ColumnDefinitions="160,*" IsEnabled="{Binding AutoBackupWorldsOnExit}">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="每个世界保留份数" Classes="label" />
                     <TextBlock Text="超出后删除最旧的一份" Classes="muted" TextWrapping="Wrap" />
@@ -826,7 +834,7 @@
                     </ComboBox.ItemTemplate>
                   </ComboBox>
 
-                  <Grid ColumnDefinitions="190,*" IsVisible="{Binding IsPresetSelected}">
+                  <Grid ColumnDefinitions="160,*" IsVisible="{Binding IsPresetSelected}">
                     <StackPanel Spacing="2" VerticalAlignment="Center">
                       <TextBlock Text="预设名称" Classes="label" />
                       <TextBlock Text="只用于下拉里区分" Classes="muted" TextWrapping="Wrap" />
@@ -951,7 +959,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="14">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="Modrinth 镜像兜底" Classes="label" />
                     <TextBlock Text="官方连不上时才换第三方镜像" Classes="muted" TextWrapping="Wrap" />
@@ -1220,7 +1228,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="14">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="背景图片" Classes="label" />
                     <TextBlock Text="选一张本地图片做启动器背景，会盖在星云上" Classes="muted" TextWrapping="Wrap" />
@@ -1241,7 +1249,7 @@
                   </StackPanel>
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*" IsVisible="{Binding HasBackgroundImage}">
+                <Grid ColumnDefinitions="160,*" IsVisible="{Binding HasBackgroundImage}">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="遮罩强度" Classes="label" />
                     <TextBlock Text="越大文字越清楚、背景图越淡" Classes="muted" TextWrapping="Wrap" />
@@ -1258,7 +1266,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="18">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="界面动效" Classes="label" />
                     <TextBlock Text="关闭后转场与悬停动画立即完成" Classes="muted" TextWrapping="Wrap" />
@@ -1269,7 +1277,7 @@
                                 HorizontalAlignment="Left" />
                 </Grid>
 
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="背景特效" Classes="label" />
                     <TextBlock Text="星云光斑缓慢漂移，关闭可省电" Classes="muted" TextWrapping="Wrap" />
@@ -1322,7 +1330,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="18">
-                <Grid ColumnDefinitions="190,*">
+                <Grid ColumnDefinitions="160,*">
                   <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="记住窗口大小" Classes="label" />
                     <TextBlock Text="关闭时记下当前尺寸与最大化状态，下次启动还原；关闭后启动与退出都不读写窗口尺寸" Classes="muted" TextWrapping="Wrap" />
@@ -1575,27 +1583,32 @@
 
         </StackPanel>
       </ScrollViewer>
-      </controls:GlassPanel>
-    </Grid>
+    </controls:GlassPanel>
 
-    <!-- ==================== 底部保存条 ==================== -->
-    <Border Grid.Row="1"
+    <!-- ==================== Row3：保存条 ==================== -->
+    <!-- 44 高一行到底：左边状态与校验/错误文案，右边保存。
+         校验失败时保存按钮保持可点（点一次把焦点带到第一个错字段），不禁用。 -->
+    <Border Grid.Row="3"
             Classes="card"
-            Padding="16,12"
-            Margin="0,10,0,12">
+            Height="44"
+            Padding="16,0">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-        <StackPanel Spacing="3" VerticalAlignment="Center">
-          <TextBlock Text="{Binding SaveStatus}" Classes="secondary" />
+        <StackPanel Spacing="1" VerticalAlignment="Center" Orientation="Horizontal">
+          <TextBlock Text="{Binding SaveStatus}" Classes="secondary" VerticalAlignment="Center" />
           <TextBlock Text="{Binding ValidationMessage}"
+                     Margin="12,0,0,0"
                      IsVisible="{Binding ValidationMessage, Converter={x:Static conv:Converters.HasValue}}"
                      Foreground="{DynamicResource Status.Warning}"
-                     Classes="muted"
-                     TextWrapping="Wrap" />
+                     Classes="caption"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
           <TextBlock Text="{Binding ErrorMessage}"
+                     Margin="12,0,0,0"
                      IsVisible="{Binding ErrorMessage, Converter={x:Static conv:Converters.HasValue}}"
                      Foreground="{DynamicResource Status.Danger}"
-                     Classes="muted"
-                     TextWrapping="Wrap" />
+                     Classes="caption"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
         </StackPanel>
         <Button Grid.Column="1"
                 Classes="save"

@@ -82,14 +82,14 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         _bundle = bundle;
         _storage = storage;
 
-        Sections.Add(new SettingsSection("general", "常规", SettingsIcons.General));
-        Sections.Add(new SettingsSection("java", "Java", SettingsIcons.Java));
-        Sections.Add(new SettingsSection("game", "游戏", SettingsIcons.Game));
-        Sections.Add(new SettingsSection("download", "下载", SettingsIcons.Download));
-        Sections.Add(new SettingsSection("content", "在线资源", SettingsIcons.Content));
-        Sections.Add(new SettingsSection("appearance", "外观", SettingsIcons.Appearance));
-        Sections.Add(new SettingsSection("storage", "存储", SettingsIcons.Storage));
-        Sections.Add(new SettingsSection("about", "关于", SettingsIcons.About));
+        Sections.Add(new SettingsSection("general", "常规", SettingsIcons.General, "语言 语言包 关闭 托盘 退出 启动后 检查更新"));
+        Sections.Add(new SettingsSection("java", "Java", SettingsIcons.Java, "java jdk 运行时 内存 分配 路径 探测 版本"));
+        Sections.Add(new SettingsSection("game", "游戏", SettingsIcons.Game, "启动参数 jvm 窗口 全屏 尺寸 隔离 目录 版本"));
+        Sections.Add(new SettingsSection("download", "下载", SettingsIcons.Download, "下载源 线程 并发 限速 镜像 重试 代理"));
+        Sections.Add(new SettingsSection("content", "在线资源", SettingsIcons.Content, "模组 整合包 资源 皮肤 源 站 在线"));
+        Sections.Add(new SettingsSection("appearance", "外观", SettingsIcons.Appearance, "主题 深色 浅色 背景 动效 字体 缩放"));
+        Sections.Add(new SettingsSection("storage", "存储", SettingsIcons.Storage, "存储 占用 磁盘 清理 回收站 缓存 空间"));
+        Sections.Add(new SettingsSection("about", "关于", SettingsIcons.About, "关于 版本 更新 日志 帮助 许可 反馈 官网"));
         Sections[0].IsActive = true;
 
         DetectedJavas.CollectionChanged += (_, _) =>
@@ -175,6 +175,36 @@ public sealed partial class SettingsViewModel : PageViewModelBase
 
     public bool IsAboutSection => SelectedSectionKey == "about";
 
+    /// <summary>
+    /// 分区页签控件的选中下标。
+    /// TabControl 只认下标，正文里的分区键是字符串；这层换算放在 ViewModel 里，
+    /// 页面就不用写一个把 key 翻成 index 的转换器（转换器拿不到集合，只能硬编码顺序）。
+    /// </summary>
+    public int SelectedSectionIndex
+    {
+        get
+        {
+            for (var i = 0; i < Sections.Count; i++)
+            {
+                if (string.Equals(Sections[i].Key, SelectedSectionKey, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+
+            return 0;
+        }
+        set
+        {
+            if (value < 0 || value >= Sections.Count)
+            {
+                return;
+            }
+
+            SelectedSectionKey = Sections[value].Key;
+        }
+    }
+
     partial void OnSelectedSectionKeyChanged(string value)
     {
         foreach (var section in Sections)
@@ -190,6 +220,10 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         OnPropertyChanged(nameof(IsAppearanceSection));
         OnPropertyChanged(nameof(IsStorageSection));
         OnPropertyChanged(nameof(IsAboutSection));
+
+        // 深链（--section download / 设置页被外部导航指定分区）走的是 SelectedSectionKey，
+        // 页签控件只认下标；不补这条通知，页签会停在旧位置而内容是新的。
+        OnPropertyChanged(nameof(SelectedSectionIndex));
 
         // 存储分区首次进入时自动扫一次：占用数字是这个分区的全部内容，空表等于页面没打开。
         // 之后的刷新由「刷新」按钮和清理后的重扫负责，避免来回切分区就重扫几百个目录。
@@ -207,6 +241,48 @@ public sealed partial class SettingsViewModel : PageViewModelBase
         {
             SelectedSectionKey = key;
         }
+    }
+
+    // ---------------- 分区内工具行 ----------------
+
+    /// <summary>
+    /// 搜索设置项。这个页面没有可搜索的行模型（表单是 XAML 写死的），
+    /// 所以搜索的语义是「跳到含这个设置项的分区」，不是过滤行——输入「内存」就落到 Java 分区。
+    /// 不做假过滤：真过滤要按字段拆行，那是 #104 排版复核之后的事。
+    /// </summary>
+    [ObservableProperty]
+    private string _searchKeyword = string.Empty;
+
+    partial void OnSearchKeywordChanged(string value)
+    {
+        var needle = value?.Trim();
+        if (string.IsNullOrEmpty(needle))
+        {
+            return;
+        }
+
+        foreach (var section in Sections)
+        {
+            if (section.Title.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                || section.Keywords.Contains(needle, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedSectionKey = section.Key;
+                return;
+            }
+        }
+
+        // 没命中就停在原分区：把用户甩到别处比什么都不发生更糊涂。
+    }
+
+    [RelayCommand]
+    private void ClearSearch() => SearchKeyword = string.Empty;
+
+    /// <summary>丢弃当前草稿，重新从磁盘读一次设置。</summary>
+    [RelayCommand]
+    private async Task ReloadAsync()
+    {
+        await LoadSettingsAsync();
+        SaveStatus = "已恢复为保存过的设置";
     }
 
     // ---------------- 常规 ----------------
@@ -2851,11 +2927,12 @@ public sealed partial class SettingsViewModel : PageViewModelBase
 /// <summary>设置页左侧分区导航项。</summary>
 public sealed partial class SettingsSection : ObservableObject
 {
-    public SettingsSection(string key, string title, string iconData)
+    public SettingsSection(string key, string title, string iconData, string keywords = "")
     {
         Key = key;
         Title = title;
         IconData = iconData;
+        Keywords = keywords;
     }
 
     public string Key { get; }
@@ -2864,6 +2941,13 @@ public sealed partial class SettingsSection : ObservableObject
 
     /// <summary>24×24 视口的描边图标路径。</summary>
     public string IconData { get; }
+
+    /// <summary>
+    /// 搜索设置项时用来命中的词，空格分隔。
+    /// 写的是这一区里用户会输入的东西（「内存」「目录」「托盘」），不是字段名的复述——
+    /// 这个页面没有可搜索的行模型，关键词只能手写；漏写的代价是搜不到，不是搜错。
+    /// </summary>
+    public string Keywords { get; }
 
     [ObservableProperty]
     private bool _isActive;
