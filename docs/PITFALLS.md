@@ -232,10 +232,10 @@ powershell -File build.ps1 -Clean
 
 ## 4. UI 与渲染
 
-### 4.1 横向 `StackPanel` 放进 `*` 列兄弟元素消失；`*` 行不裁剪子元素，内容压住底栏（含 4.5）
+### 4.1 横向 `StackPanel` 放进 `*` 列兄弟元素消失；`*` 行不裁剪子元素，内容压住底栏（含 4.5、4.16）
 - **症状**：两类「编译过、运行错」的绑定/布局问题——① 标题正常、副标题在某个宽度区间里完全看不到，改窗口大小又出现；② `ListBox` 设 `SelectionMode=Multiple` 后把选中项绑到视图模型，绑定不生效也不报错，截图里点击行没有任何视觉变化；③ 列表最后一行被底部的「上一页/下一页」压住一半，调大窗口又好了，加 `ClipToBounds` 之前连滚动条都不出现。
 - **成因**：横向 `StackPanel` 的可用宽度不传递给子元素——它按「要多少给多少」测量，放进 `*` 列后列宽分配与内容互相压制，最终把后面的元素压成 0 宽（宽屏下不缺空间，肉眼测不出来）；`SelectedItems` 则不是可绑定的依赖属性，写上去编译通过、运行期什么也不发生。③ `Grid` 的 `*` 行只限制**自己**的高度，子元素超出部分默认照画不误——页面上常驻工具行（账号、分类、搜索、上传、页码）一多，`*` 行被挤到小于内容所需高度，超出的行就叠到相邻的 Auto 行下面，不报错也不出滚动条。
-- **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`，改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）；多选改用 `ItemsControl` + 每行一个复选框，选中状态做成行视图模型上的可绑定属性。同一类「漏写 `x:DataType` 也是编译过、运行错」见 `CONVENTIONS.md` §4。截图流程见 `CONVENTIONS.md` §8.4。`*` 行里的列表容器还要显式 `ClipToBounds="True"`，且常驻工具行能压就压（`src/NebulaLauncher.App/Views/CloudClosetView.axaml` 把账号行、分类+搜索、上传+动作压成三段，行卡片从 3 行文字压到 2 行），改完同时出 1240 与 1024 两档截图。
+- **规避**：列宽改 `Auto,*`，文本加 `TextTrimming`，改动布局必须做 1024 宽截图（1240 宽下这个坑不会出现）；多选改用 `ItemsControl` + 每行一个复选框，选中状态做成行视图模型上的可绑定属性。同一类「漏写 `x:DataType` 也是编译过、运行错」见 `CONVENTIONS.md` §4。截图流程见 `CONVENTIONS.md` §8.4。`*` 行里的列表容器还要显式 `ClipToBounds="True"`，且常驻工具行能压就压（`src/NebulaLauncher.App/Views/CloudClosetView.axaml` 把账号行、分类+搜索、上传+动作压成三段，行卡片从 3 行文字压到 2 行），改完同时出 1240 与 1024 两档截图。 **另一类同形坑**：`ContentPresenter` 的 `HorizontalContentAlignment`/`VerticalContentAlignment` 默认 `Left`/`Top`，填满高度的内容宿主拿不到有限高度，超出部分被裁且滚不动（`PageHost`、`UserControl` 样式、`TabControl` 的内容宿主都已显式 `Stretch`）；判据是「滚一下内容动不动」，滚得动只是视口小（正常），滚不动才是没拿到约束。
 
 ### 4.2 样式 setter 打不过构造函数里的本地值
 - **症状**：给控件写了主题样式，运行后部分控件完全不变；把样式搬到更具体的选择器上仍然无效。

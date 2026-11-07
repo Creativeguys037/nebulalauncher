@@ -113,7 +113,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | 下载页 #93 | Row1 可折叠为 0 | 参数栏默认收起，主体是任务 |
 | 设置·关于 #98 | Row1 = 40（二级视图头部） | 一级视图隐藏该行；分区 Tab 始终在 Row0 不动 |
 | 版本页 #87 / 皮肤页 #92 | Row2 内分两列（`*` + 固定列） | 列表 + 详情/预览并列，详情不覆盖列表 |
-| 实例详情 #89 | 不是页面，是详情列 | 详情列内自成 `Auto,Auto,*`，跟随版本页 Row2 的高度 |
+| 实例详情 #89 | 不是页面，是详情列（`src/NebulaLauncher.App/Views/InstanceDetailPane.axaml`） | 详情列内部是 `Auto,*,Auto`：身份头 72 / 分区（页签条 + 内容框）/ 实例列表 132。**这一列自身不滚动**——滚动只发生在分区内容框里，否则「我在看哪个实例」会被顶出视口 |
 | 首页 #86 | Row0 = `Auto`（Hero 大卡固定不滚），滚动只在 Row2 | 「继续游戏」是页面唯一主行动，滚走它等于丢掉首屏的意义 |
 | 内容页 #90 / #91 | Row2 内两栏，**两栏各带一个玻璃框**（左目录框 `Padding="8,6"`） | 左栏是筛选器不是内容，没有框会与右栏列表糊成一片 |
 | 皮肤页 #92 | Row2 只给**一个**玻璃框，页签/列表/分页都在框内 | 皮肤页是网格 + 悬浮预览卡，分页属于列表的一部分，不该独立成栏 |
@@ -145,7 +145,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | #86 | 首页 | 欢迎行 | — | 继续游戏大卡 + 实例库（框内滚动） | — |
 | #87 | 版本页 | 视图 Tab | 搜索 + 筛选 | 列表 `*` + 详情 340 | 结果条 |
 | #88 | 实例详情·概览 | 身份头 | — | 概览卡 + Java 卡 | — |
-| #89 | 实例详情·世界与整合包 | 分区 Tab | 搜索 | 世界 / 整合包列表 | 结果条 |
+| #89 | 实例详情·世界与整合包 | — | — | 见 §3.1：迁入详情列的三分区（概览 / 世界 / 整合包），不是独立页面 | — |
 | #90 | 内容·模组 | 内容 Tab | 搜索 + 筛选 + 目标选择器 | 模组列表 | 批量条 / 结果条 |
 | #91 | 内容·资源/光影/数据包 | 内容 Tab | 搜索 + 筛选 | 资源列表 | 批量条 / 结果条 |
 | #92 | 内容·皮肤 | 来源 Tab | 搜索 + 体型 + 导入 | 网格 `*` + 预览 300 | 结果条 |
@@ -279,7 +279,8 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | D5 | 退出下载确认浮层用不透明 `Surface.Sunken` 当遮罩（`src/NebulaLauncher.App/Views/MainWindow.axaml:243`），不是 `Surface.Scrim` 黑 40% | 违反 §6 规则 7；遮罩会整片盖住下层而不是压暗 | 未修 |
 | D6 | 设置页票面（#96 / #97 / #98）写「Section 卡用 `GlassPanel`」，实际按 §6 规则 6 应为 **L3 实心卡** | Row2 已经是玻璃主卡，Section 再套玻璃就触犯禁止清单 17；样板里 Section 用白底实心（`.sec` / `.aboutcard` / `.entrycard`） | 已裁决：按契约执行，`GlassPanel` 只用在 Row2 |
 | D7 | 皮肤页紧凑档预览区高 320 → **200**（宽 260、预览列 300 不变） | 紧凑 Row2 只有 369，320 + 名称 + 冷却 + 操作行物理放不下；按 §4.1 第 3 条「缩高度不缩宽度」处理 | 已裁决，写进 §4.1 |
-| D8 | **三个视图在界面上不可达**：`WorldsViewModel` / `LibraryViewModel` / `SkinsViewModel` 从未在 `src/NebulaLauncher.App/ViewModels/MainWindowViewModel.cs` 的 `RegisterPage` 注册（只注册了 Home / Versions / Download / Settings / Content / Accounts / Servers / Controls 八个键） | `Navigate("worlds")` 经 `NavigationRoutes.Resolve` 落到 `versions`；`--page worlds`、`--page library`、`--page skins` 截出来的是版本页或模组页。**这三个 `.axaml` 的任何改动都没有像素证据**，只能靠构建 + XML 校验 | 未修，待 #89（世界）/ #91（Library）/ #92（皮肤）接入时随功能一并注册 |
+| D8 | **世界独立页已由详情面板取代（#89），但文件仍在树里** | `src/NebulaLauncher.App/Views/WorldsView.axaml`（682 行）、`WorldsView.axaml.cs`（154 行）、`src/NebulaLauncher.App/ViewModels/WorldsViewModel.cs`（1582 行）现在没有任何导航键可达，`MainWindowViewModel.cs:534/623` 的两处 `WorldsViewModel` 分支也是死路径——世界与整合包已迁入 `InstanceDetailPane` 的分区（`InstanceWorldsSectionViewModel` / `InstanceModpacksSectionViewModel`） | 待清理（单独一次提交，不与功能改动混在一起） |
+| D9 | **`LibraryViewModel` / `SkinsViewModel` 仍是不可达视图** | `Navigate("library")` 与 `Navigate("skins")` 都经 `NavigationRoutes.Resolve` 落到内容页；`--page library`、`--page skins` 截出来的是模组页。这两个视图的任何改动都没有像素证据，只能靠构建 + XML 校验 | 未修，待 #91 / #92 接入时随功能一并注册 |
 
 D2/D3/D4 的实测值来自本轮核对（2026-11-06）：`HomeView.axaml:31` 与 `ServersView.axaml:35` 的根节点仍是 `ScrollViewer`；`Classes="card"` 在 12 个页面计 110 处（Accounts 5 / Download 12 / Help 2 / Home 8 / Library 3 / Logs 3 / Mods 2 / Servers 2 / Settings 29 / Skins 11 / Versions 28 / Worlds 5），全仓 Views 计 131 处（含演示页与外壳）。
 
