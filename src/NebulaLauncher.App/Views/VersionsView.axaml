@@ -80,10 +80,10 @@
     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="0,0,0,14">
 
       <!-- ==================== 左栏 ==================== -->
-      <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+      <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
 
         <!-- 工具条第一行：页签（已安装 / 可下载 / 整合包）+ 搜索。高 36，间距 12。 -->
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Height="36">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Height="40">
 
           <!--
             页签只切视图、不承载内容（strip 变体）：三份列表同时留在下面第 4 行里、
@@ -113,7 +113,7 @@
         <!-- 工具条第二行：筛选 chip。只在「已安装」视图有意义（远程清单里没有加载器概念）。 -->
         <!-- 三列 Auto：chip 组按自然宽度、计数占剩余、右侧动作贴边。
              第一列若写 * 会把 StackPanel 撑满整行，chip 在其中的可用宽度被算成 0，出现文字重叠。 -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Height="36">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Height="48">
           <StackPanel Orientation="Horizontal"
                       Spacing="8"
                       HorizontalAlignment="Left"
@@ -180,7 +180,7 @@
         </Grid>
 
         <!-- 状态条：与视图无关的页面级提示（服务缺失、错误、进度、缺 Java）。 -->
-        <StackPanel Grid.Row="2" Spacing="8">
+        <StackPanel Grid.Row="3" Spacing="8">
           <Border Classes="card"
                   Padding="14,10"
                   Background="{DynamicResource Status.Warning.Soft}"
@@ -256,7 +256,7 @@
           三份列表同时挂在可视树里，只靠 IsVisible 切换：这正是「切走再切回原样恢复」的实现。
           任何一份被 IsVisible 隐藏时都保留自己的 ScrollViewer 与虚拟化状态。
         -->
-        <controls:GlassPanel Grid.Row="3" Padding="0">
+        <controls:GlassPanel Grid.Row="2" Padding="0">
         <Grid>
 
           <!-- 已安装视图 -->
