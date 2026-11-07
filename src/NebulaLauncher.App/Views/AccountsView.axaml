@@ -323,8 +323,18 @@
           </ItemsControl>
         </ScrollViewer>
 
+        <!-- 加载态：契约 §8 骨架 4 行，行高=真实行高（acctrow 72 + 行间距 4） -->
+        <StackPanel IsVisible="{Binding IsLoading}"
+                    Margin="8"
+                    Spacing="4">
+          <Border Classes="listrow" Height="72" Background="{DynamicResource Surface.Hover}" />
+          <Border Classes="listrow" Height="72" Background="{DynamicResource Surface.Hover}" />
+          <Border Classes="listrow" Height="72" Background="{DynamicResource Surface.Hover}" />
+          <Border Classes="listrow" Height="72" Background="{DynamicResource Surface.Hover}" />
+        </StackPanel>
+
         <!-- 空态：给下一步动作，不留白屏 -->
-        <StackPanel IsVisible="{Binding !HasAccounts}"
+        <StackPanel IsVisible="{Binding ShowAccountsEmpty}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Spacing="10">

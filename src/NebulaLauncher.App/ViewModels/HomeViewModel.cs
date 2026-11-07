@@ -642,6 +642,10 @@ public partial class HomeViewModel : PageViewModelBase
     [RelayCommand]
     private async Task RefreshAsync() => await LoadAsync();
 
+    /// <summary>关闭页面级错误条（契约 §8：错误条自带关闭动作）。</summary>
+    [RelayCommand]
+    private void DismissError() => ErrorText = null;
+
     private async Task LoadAsync()
     {
         if (IsLoading)

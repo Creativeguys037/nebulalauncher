@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
+             xmlns:conv="using:NebulaLauncher.Converters"
              xmlns:services="using:NebulaLauncher.Services"
              x:Class="NebulaLauncher.Views.LogsView"
              x:DataType="vm:LogsViewModel">
@@ -100,8 +101,9 @@
       <Border Grid.Row="0" Classes="card" Padding="14,12">
         <StackPanel Spacing="8">
 
-          <!-- 搜索 + 行数统计 -->
-          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+          <!-- 搜索 + 行数统计 + 错误条（契约 §8：工具条右侧，高 32 / 圆角 8 / 宽 ≤ 一半）。
+               错误时计数让位（次要信息），行高与列结构不变。 -->
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
             <TextBox Text="{Binding SearchText}"
                      Watermark="搜索日志：403 / Java / 崩溃…" />
             <TextBlock Grid.Column="1"
@@ -114,7 +116,48 @@
             <TextBlock Grid.Column="2"
                        Text="{Binding CountText}"
                        Classes="muted"
-                       VerticalAlignment="Center" />
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding HasError, Converter={x:Static BoolConverters.Not}}" />
+            <Border Grid.Column="3"
+                    Height="32"
+                    MaxWidth="240"
+                    CornerRadius="{DynamicResource Radius.Sm}"
+                    Background="{DynamicResource Surface.Sunken}"
+                    BorderBrush="{DynamicResource Status.Danger}"
+                    BorderThickness="1"
+                    Padding="10,0"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                <Border Grid.Column="0" Classes="badge danger" VerticalAlignment="Center">
+                  <TextBlock Text="错误" />
+                </Border>
+                <TextBlock Grid.Column="1"
+                           Classes="caption"
+                           Text="{Binding ErrorText}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding ErrorText}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <Button Classes="ghost"
+                          Height="24"
+                          Padding="8,0"
+                          Content="重试"
+                          Command="{Binding RefreshCommand}" />
+                  <Button Classes="icon"
+                          Width="22" Height="22"
+                          ToolTip.Tip="关闭"
+                          Command="{Binding DismissErrorCommand}">
+                    <Path Data="{StaticResource Icon.Close}"
+                          Stroke="{DynamicResource Text.Tertiary}"
+                          StrokeThickness="1.8"
+                          StrokeLineCap="Round"
+                          Stretch="Uniform"
+                          Width="11" Height="11" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </Border>
           </Grid>
 
           <!-- 级别过滤（多选 chip）+ 自动跟随 -->

@@ -306,7 +306,11 @@
                            Foreground="{DynamicResource Status.Danger}"
                            TextWrapping="Wrap" />
 
-                <ScrollViewer MaxHeight="272" VerticalScrollBarVisibility="Auto">
+                <!-- 加载态：契约 §8 骨架 4 行，行高=真实行高（JavaOption 三行文本 + 行内边距）。
+                     骨架不进 ScrollViewer：框内不产生第二条滚动条。 -->
+                <Panel>
+                  <ScrollViewer MaxHeight="272" VerticalScrollBarVisibility="Auto"
+                                IsVisible="{Binding IsJavaLoading, Converter={x:Static BoolConverters.Not}}">
                   <ListBox ItemsSource="{Binding DetectedJavas}"
                            SelectedItem="{Binding SelectedJava}"
                            SelectionMode="Single">
@@ -341,7 +345,16 @@
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                </ScrollViewer>
+                  </ScrollViewer>
+                  <StackPanel Spacing="0"
+                              MaxHeight="272"
+                              IsVisible="{Binding IsJavaLoading}">
+                    <Border Classes="listrow" Height="68" Background="{DynamicResource Surface.Hover}" />
+                    <Border Classes="listrow" Height="68" Background="{DynamicResource Surface.Hover}" />
+                    <Border Classes="listrow" Height="68" Background="{DynamicResource Surface.Hover}" />
+                    <Border Classes="listrow" Height="68" Background="{DynamicResource Surface.Hover}" />
+                  </StackPanel>
+                </Panel>
 
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
                   <Button Classes="pill danger"

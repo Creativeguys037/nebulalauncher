@@ -172,6 +172,14 @@ public sealed partial class LogsViewModel : PageViewModelBase
 
     public bool HasRetentionNotice => !string.IsNullOrEmpty(RetentionNotice);
 
+    /// <summary>读盘失败的页面级错误（契约 §8 错误条）。与空态互斥：错误不冒充空态。</summary>
+    [ObservableProperty]
+    private string? _errorText;
+
+    public bool HasError => !string.IsNullOrWhiteSpace(ErrorText);
+
+    partial void OnErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasError));
+
     /// <summary>工具条上的「打开日志目录」：优先打开选中文件所在目录。</summary>
     public string CurrentDirectory =>
         SelectedFile is not null
@@ -270,6 +278,10 @@ public sealed partial class LogsViewModel : PageViewModelBase
         UpdateSubtitle();
         await ReloadAsync();
     }
+
+    /// <summary>关闭错误条（契约 §8：错误条自带关闭动作）。</summary>
+    [RelayCommand]
+    private void DismissError() => ErrorText = null;
 
     [RelayCommand]
     private void SelectFile(LogFileItemViewModel? file)
@@ -539,9 +551,12 @@ public sealed partial class LogsViewModel : PageViewModelBase
 
         if (_reader is null)
         {
-            _status = LogReadStatus.FileMissing;
+            // 服务不可用也是错误态（契约 §8 错误条），不再冒充空态。
+            _status = LogReadStatus.Success;
+            _readError = null;
             ApplyFilter();
-            SetEmpty("日志读取服务不可用", "核心服务尚未接入，暂时无法读取日志内容。");
+            SetEmpty(null, null);
+            ErrorText = "日志读取服务不可用，核心服务尚未接入，暂时无法读取日志内容。";
             StatusText = "日志读取服务不可用";
             UpdateFollowState();
             return;
@@ -608,6 +623,7 @@ public sealed partial class LogsViewModel : PageViewModelBase
         if (EntriesText.Length > 0)
         {
             SetEmpty(null, null);
+            ErrorText = null;
             StatusText = _truncated
                 ? $"只显示最后 {_entries.Count} 行（文件较大）"
                 : $"已读取 {_visible.Count} 行";
@@ -668,17 +684,22 @@ public sealed partial class LogsViewModel : PageViewModelBase
 
     private void UpdateEmptyMessage()
     {
+        // 读盘失败走错误条（契约 §8 三态分开）：错误不冒充空态，空态只留给「读到了但没有行」。
         switch (_status)
         {
             case LogReadStatus.FileMissing:
-                SetEmpty("日志文件不存在", "它可能已经被清理，或者实例目录被移动过。点「刷新」重新枚举。");
+                SetEmpty(null, null);
+                ErrorText = "日志文件不存在，它可能已被清理或实例目录被移动过。点「重试」重新枚举。";
                 return;
             case LogReadStatus.ReadFailed:
-                SetEmpty(
-                    "读取日志失败",
-                    string.IsNullOrWhiteSpace(_readError) ? "文件可能被其它进程独占。" : _readError);
+                SetEmpty(null, null);
+                ErrorText = string.IsNullOrWhiteSpace(_readError)
+                    ? "读取日志失败，文件可能被其它进程独占。点「重试」再读一次。"
+                    : $"读取日志失败：{_readError}";
                 return;
         }
+
+        ErrorText = null;
 
         if (_entries.Count == 0)
         {

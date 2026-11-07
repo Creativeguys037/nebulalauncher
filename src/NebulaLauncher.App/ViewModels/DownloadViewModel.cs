@@ -229,6 +229,29 @@ public partial class DownloadViewModel : PageViewModelBase
     [ObservableProperty]
     private string? _errorText;
 
+    /// <summary>页面级错误条可见性（契约 §8）。</summary>
+    public bool HasError => !string.IsNullOrWhiteSpace(ErrorText);
+
+    /// <summary>任务框空态：与加载骨架互斥，加载中不闪空态。</summary>
+    public bool ShowTasksEmpty => !HasLauncherTasks && !IsLoading;
+
+    /// <summary>参数栏行：展开时显示；只出错误条时也借用这一行（错误条在 Row1 右侧，不新增行）。</summary>
+    public bool ShowParamsRow => IsParamsExpanded || HasError;
+
+    partial void OnErrorTextChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(ShowParamsRow));
+    }
+
+    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(ShowTasksEmpty));
+
+    partial void OnIsParamsExpandedChanged(bool value) => OnPropertyChanged(nameof(ShowParamsRow));
+
+    /// <summary>关闭页面级错误条（契约 §8：错误条自带关闭动作）。</summary>
+    [RelayCommand]
+    private void DismissError() => ErrorText = null;
+
     [ObservableProperty]
     private bool _isOffline;
 
@@ -544,6 +567,8 @@ public partial class DownloadViewModel : PageViewModelBase
 
     [ObservableProperty]
     private bool _hasLauncherTasks;
+
+    partial void OnHasLauncherTasksChanged(bool value) => OnPropertyChanged(nameof(ShowTasksEmpty));
 
     /// <summary>概览条左端的活跃任务数。</summary>
     [ObservableProperty]

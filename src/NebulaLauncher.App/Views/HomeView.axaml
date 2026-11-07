@@ -213,15 +213,45 @@
         </Grid>
       </Border>
 
-      <Border Classes="card"
-              Padding="14,10"
-              Background="{DynamicResource Status.Danger.Soft}"
+      <!-- 页面级错误条（契约 §8：高 32 / 圆角 8 / 宽 ≤ 一半，右对齐；重试=刷新首页） -->
+      <Border Height="32"
+              MaxWidth="380"
+              HorizontalAlignment="Right"
+              CornerRadius="{DynamicResource Radius.Sm}"
+              Background="{DynamicResource Surface.Sunken}"
               BorderBrush="{DynamicResource Status.Danger}"
+              BorderThickness="1"
+              Padding="10,0"
               IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
-        <TextBlock Text="{Binding ErrorText}"
-                   TextWrapping="Wrap"
-                   FontSize="{DynamicResource FontSize.Small}"
-                   Foreground="{DynamicResource Status.Danger}" />
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+          <Border Grid.Column="0" Classes="badge danger" VerticalAlignment="Center">
+            <TextBlock Text="错误" />
+          </Border>
+          <TextBlock Grid.Column="1"
+                     Classes="caption"
+                     Text="{Binding ErrorText}"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding ErrorText}" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button Classes="ghost"
+                    Height="24"
+                    Padding="10,0"
+                    Content="重试"
+                    Command="{Binding RefreshCommand}" />
+            <Button Classes="icon"
+                    Width="22" Height="22"
+                    ToolTip.Tip="关闭"
+                    Command="{Binding DismissErrorCommand}">
+              <Path Data="{StaticResource Icon.Close}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    Stretch="Uniform"
+                    Width="11" Height="11" />
+            </Button>
+          </StackPanel>
+        </Grid>
       </Border>
     </StackPanel>
 
@@ -523,6 +553,58 @@
                        Classes="muted"
                        TextAlignment="Center" />
           </StackPanel>
+
+          <!-- 加载态：契约 §8 骨架——4 列卡片，每张拆 4 条行，行高=真实卡内容行高（52/22/18/18）。
+               声明在两个空态之后：加载优先于空态（上层遮盖），加载中不闪空态。 -->
+          <ItemsControl IsVisible="{Binding IsLoading}" Margin="0,0,-13,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <primitives:UniformGrid Columns="4" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Items>
+              <Border Classes="card" Margin="0,0,13,0">
+                <StackPanel Spacing="8">
+                  <Border Height="52" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  <StackPanel Spacing="3">
+                    <Border Height="22" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+              <Border Classes="card" Margin="0,0,13,0">
+                <StackPanel Spacing="8">
+                  <Border Height="52" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  <StackPanel Spacing="3">
+                    <Border Height="22" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+              <Border Classes="card" Margin="0,0,13,0">
+                <StackPanel Spacing="8">
+                  <Border Height="52" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  <StackPanel Spacing="3">
+                    <Border Height="22" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+              <Border Classes="card" Margin="0,0,13,0">
+                <StackPanel Spacing="8">
+                  <Border Height="52" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  <StackPanel Spacing="3">
+                    <Border Height="22" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                    <Border Height="18" CornerRadius="{DynamicResource Radius.Sm}" Background="{DynamicResource Surface.Hover}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </ItemsControl.Items>
+          </ItemsControl>
         </Grid>
 
         <!-- 崩溃/失败等异常状态：默认隐藏，出现时压在卡片网格下面，不参与首屏构图。 -->

@@ -50,21 +50,78 @@
         </ListBox.ItemTemplate>
       </ListBox>
 
+      <!-- 空态：说明 + 一个动作（契约 §6 规则 9） -->
       <Border Grid.Row="3"
               Classes="card"
               IsVisible="{Binding HasNoMatch}"
               VerticalAlignment="Top">
         <StackPanel Spacing="6">
           <TextBlock Text="没有匹配的帮助条目" FontWeight="Medium" />
-          <TextBlock Text="换个关键词，或点上面的「全部」看完整清单。"
+          <TextBlock Text="换个关键词，或清空筛选看完整清单。"
                      Classes="muted"
                      TextWrapping="Wrap" />
+          <Button Classes="pill"
+                  Content="清空筛选"
+                  HorizontalAlignment="Left"
+                  Command="{Binding ResetFilterCommand}" />
         </StackPanel>
       </Border>
+
+      <!-- 加载态：契约 §8 骨架 4 行，行高=条目行高（两行文案 + 内间距）。声明在空态之后：加载优先于空态。 -->
+      <StackPanel Grid.Row="3"
+                  Spacing="4"
+                  IsVisible="{Binding IsLoading}">
+        <Border Classes="listrow" Height="42" Background="{DynamicResource Surface.Hover}" />
+        <Border Classes="listrow" Height="42" Background="{DynamicResource Surface.Hover}" />
+        <Border Classes="listrow" Height="42" Background="{DynamicResource Surface.Hover}" />
+        <Border Classes="listrow" Height="42" Background="{DynamicResource Surface.Hover}" />
+      </StackPanel>
     </Grid>
 
-    <!-- 右栏：正文 -->
-    <Border Grid.Column="1" Classes="card">
+    <!-- 右栏：正文 + 页面级错误条（契约 §8：右侧，高 32 / 圆角 8 / 宽 ≤ 一半） -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
+      <Border Height="32"
+              MaxWidth="380"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Center"
+              CornerRadius="{DynamicResource Radius.Sm}"
+              Background="{DynamicResource Surface.Sunken}"
+              BorderBrush="{DynamicResource Status.Danger}"
+              BorderThickness="1"
+              Padding="10,0"
+              IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+          <Border Grid.Column="0" Classes="badge danger" VerticalAlignment="Center">
+            <TextBlock Text="错误" />
+          </Border>
+          <TextBlock Grid.Column="1"
+                     Classes="caption"
+                     Text="{Binding ErrorText}"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding ErrorText}" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button Classes="ghost"
+                    Height="24"
+                    Padding="10,0"
+                    Content="重试"
+                    Command="{Binding ReloadCommand}" />
+            <Button Classes="icon"
+                    Width="22" Height="22"
+                    ToolTip.Tip="关闭"
+                    Command="{Binding DismissErrorCommand}">
+              <Path Data="{StaticResource Icon.Close}"
+                    Stroke="{DynamicResource Text.Tertiary}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    Stretch="Uniform"
+                    Width="11" Height="11" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+    <Border Grid.Row="1" Classes="card">
       <Grid RowDefinitions="*,Auto" RowSpacing="12">
         <!-- 空态：未选中条目时显示（契约：图标 + 一句说明 + 一个动作） -->
         <StackPanel Spacing="12"
@@ -110,17 +167,22 @@
           </StackPanel>
         </ScrollViewer>
 
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
           <TextBlock Text="{Binding StatusText}"
                      Classes="muted"
                      VerticalAlignment="Center"
                      TextWrapping="Wrap" />
           <Button Grid.Column="1"
                   Classes="pill"
+                  Content="重新加载"
+                  Command="{Binding ReloadCommand}" />
+          <Button Grid.Column="2"
+                  Classes="pill"
                   Content="打开日志目录"
                   Command="{Binding OpenLogFolderCommand}" />
         </Grid>
       </Grid>
     </Border>
+    </Grid>
   </Grid>
 </UserControl>

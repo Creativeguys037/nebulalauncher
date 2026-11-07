@@ -363,6 +363,11 @@
                      TextWrapping="Wrap"
                      TextAlignment="Center"
                      LineHeight="20" />
+          <!-- 空态动作（契约 §6 规则 9）：拿不到列表就地重试，没命中就重新搜索。 -->
+          <Button Classes="accent"
+                  HorizontalAlignment="Center"
+                  Content="刷新"
+                  Command="{Binding SearchCommand}" />
         </StackPanel>
       </Border>
 

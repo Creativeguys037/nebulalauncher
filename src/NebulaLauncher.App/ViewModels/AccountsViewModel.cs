@@ -230,7 +230,12 @@ public sealed partial class AccountsViewModel : PageViewModelBase
 
     public bool HasAccounts => Accounts.Count > 0;
 
+    /// <summary>列表空态（契约 §8）：与加载骨架互斥，加载中不闪空态。</summary>
+    public bool ShowAccountsEmpty => !HasAccounts && !IsLoading;
+
     public bool HasPendingRemoval => PendingRemoval is not null;
+
+    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(ShowAccountsEmpty));
 
     partial void OnErrorTextChanged(string? value) => OnPropertyChanged(nameof(HasError));
 
@@ -775,6 +780,7 @@ public sealed partial class AccountsViewModel : PageViewModelBase
             ApplyExpiryState(active);
 
             OnPropertyChanged(nameof(HasAccounts));
+            OnPropertyChanged(nameof(ShowAccountsEmpty));
             UpdateSubtitle(active);
         }
         catch (Exception ex)

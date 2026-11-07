@@ -193,25 +193,7 @@
         <!-- 工具条第二行：筛选 chip。只在「已安装」视图有意义（远程清单里没有加载器概念）。 -->
         <!-- 三列 Auto：chip 组按自然宽度、计数占剩余、右侧动作贴边。
              第一列若写 * 会把 StackPanel 撑满整行，chip 在其中的可用宽度被算成 0，出现文字重叠。 -->
-        <!-- 错误条：Row1 右侧，高 32/圆角 8（契约 §8） -->
-    <Border Grid.Row="1"
-            IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}"
-            Height="32"
-            CornerRadius="{DynamicResource Radius.Sm}"
-            Background="{DynamicResource Status.Danger.Soft}"
-            BorderBrush="{DynamicResource Status.Danger}"
-            BorderThickness="1"
-            Padding="12,0"
-            VerticalAlignment="Top"
-            MaxWidth="400"
-            HorizontalAlignment="Right">
-      <TextBlock Text="{Binding ErrorText}"
-                 FontSize="{DynamicResource FontSize.Caption}"
-                 Foreground="{DynamicResource Status.Danger}"
-                 VerticalAlignment="Center"
-                 TextTrimming="CharacterEllipsis" />
-    </Border>
-<Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Height="48">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Height="48">
           <StackPanel Orientation="Horizontal"
                       Spacing="8"
                       HorizontalAlignment="Left"
@@ -255,9 +237,52 @@
                      IsVisible="{Binding IsInstalledView}"
                      TextTrimming="CharacterEllipsis" />
 
+          <!-- 页面级错误条（契约 §8：Row1 右侧，高 32 / 圆角 8 / 宽 ≤ Row1 一半）。
+               页面级加载失败（读取已安装版本/实例失败）在这里就地重试，不再堆到结果条。 -->
+          <Border Grid.Column="2"
+                  Height="32"
+                  MaxWidth="380"
+                  CornerRadius="{DynamicResource Radius.Sm}"
+                  Background="{DynamicResource Surface.Sunken}"
+                  BorderBrush="{DynamicResource Status.Danger}"
+                  BorderThickness="1"
+                  Padding="10,0"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+              <Border Grid.Column="0" Classes="badge danger" VerticalAlignment="Center">
+                <TextBlock Text="错误" />
+              </Border>
+              <TextBlock Grid.Column="1"
+                         Classes="caption"
+                         Text="{Binding ErrorText}"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"
+                         ToolTip.Tip="{Binding ErrorText}" />
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button Classes="ghost"
+                        Height="24"
+                        Padding="10,0"
+                        Content="重试"
+                        Command="{Binding RefreshCommand}" />
+                <Button Classes="icon"
+                        Width="22" Height="22"
+                        ToolTip.Tip="关闭"
+                        Command="{Binding DismissErrorCommand}">
+                  <Path Data="{StaticResource Icon.Close}"
+                        Stroke="{DynamicResource Text.Tertiary}"
+                        StrokeThickness="1.8"
+                        StrokeLineCap="Round"
+                        Stretch="Uniform"
+                        Width="11" Height="11" />
+                </Button>
+              </StackPanel>
+            </Grid>
+          </Border>
+
           <!-- 「可下载」「整合包」两视图各有一个工具动作，放在同一个贴右的位置上。
                两者的可见性互斥，所以共用第 2 列即可，不必占两列。 -->
-          <Panel Grid.Column="2" VerticalAlignment="Center">
+          <Panel Grid.Column="3" VerticalAlignment="Center">
             <!-- 样板 Row1 右侧的主行动：新建实例（版本已有实例时走克隆，见 CreateInstanceAsync）。 -->
             <Button Classes="accent"
                     Height="36"
@@ -317,17 +342,6 @@
                        TextWrapping="Wrap"
                        FontSize="{DynamicResource FontSize.Small}"
                        Foreground="{DynamicResource Status.Warning}" />
-          </Border>
-
-          <Border Classes="card"
-                  Padding="14,10"
-                  Background="{DynamicResource Status.Danger.Soft}"
-                  BorderBrush="{DynamicResource Status.Danger}"
-                  IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
-            <TextBlock Text="{Binding ErrorText}"
-                       TextWrapping="Wrap"
-                       FontSize="{DynamicResource FontSize.Small}"
-                       Foreground="{DynamicResource Status.Danger}" />
           </Border>
 
           <Border Classes="card"

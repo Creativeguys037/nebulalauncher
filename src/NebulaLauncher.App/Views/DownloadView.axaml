@@ -125,13 +125,14 @@
 
     <!-- Row1：参数栏。默认收起为 0 高（票面结构树：折叠态 Row2 多 48）。
          展开时一行：下载源 + 并发 + 限速。三个值都是只读展示，改设置去设置页——
-         下载页里的可编辑参数是这次重制前的旧形态，常驻 300 宽在 1024 档下是纯损失。 -->
+         下载页里的可编辑参数是这次重制前的旧形态，常驻 300 宽在 1024 档下是纯损失。
+         只出错误条时也借用这一行（契约 §8：错误条在 Row1 右侧，不新增行、行高不变）。 -->
     <Border Grid.Row="1"
-            IsVisible="{Binding IsParamsExpanded}"
+            IsVisible="{Binding ShowParamsRow}"
             Height="48"
             Classes="sunken"
             Padding="16,0">
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center" ColumnSpacing="16">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" VerticalAlignment="Center" ColumnSpacing="16">
         <TextBlock Grid.Column="0"
                    Text="{Binding SourceStatusText}"
                    Classes="caption"
@@ -149,13 +150,58 @@
                    Text="{Binding SpeedLimitText}"
                    Classes="caption"
                    Foreground="{DynamicResource Text.Secondary}"
-                   VerticalAlignment="Center" />
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
 
-        <Button Grid.Column="3"
+        <!-- 页面级错误条（契约 §8：Row1 右侧，高 32 / 圆角 8 / 宽 ≤ Row1 一半） -->
+        <Border Grid.Column="3"
+                Height="32"
+                MaxWidth="380"
+                CornerRadius="{DynamicResource Radius.Sm}"
+                Background="{DynamicResource Surface.Sunken}"
+                BorderBrush="{DynamicResource Status.Danger}"
+                BorderThickness="1"
+                Padding="10,0"
+                VerticalAlignment="Center"
+                IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+            <Border Grid.Column="0" Classes="badge danger" VerticalAlignment="Center">
+              <TextBlock Text="错误" />
+            </Border>
+            <TextBlock Grid.Column="1"
+                       Classes="caption"
+                       Text="{Binding ErrorText}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding ErrorText}" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <Button Classes="ghost"
+                      Height="24"
+                      Padding="10,0"
+                      Content="重试"
+                      Command="{Binding RefreshRemoteCommand}"
+                      CommandParameter="{x:True}" />
+              <Button Classes="icon"
+                      Width="22" Height="22"
+                      ToolTip.Tip="关闭"
+                      Command="{Binding DismissErrorCommand}">
+                <Path Data="{StaticResource Icon.Close}"
+                      Stroke="{DynamicResource Text.Tertiary}"
+                      StrokeThickness="1.8"
+                      StrokeLineCap="Round"
+                      Stretch="Uniform"
+                      Width="11" Height="11" />
+              </Button>
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Button Grid.Column="4"
                 Content="收起参数"
                 Command="{Binding ToggleParamsCommand}"
                 Classes="ghost"
-                Height="28" />
+                Height="28"
+                IsVisible="{Binding IsParamsExpanded}" />
       </Grid>
     </Border>
 
@@ -163,12 +209,16 @@
     <controls:GlassPanel Grid.Row="2" Padding="0">
       <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- 加载态：细条压在框顶，不占行高（契约 §8） -->
-        <ProgressBar Grid.Row="0"
-                     IsVisible="{Binding IsLoading}"
-                     IsIndeterminate="True"
-                     Height="2"
-                     Margin="1,1,1,0" />
+        <!-- 加载态：契约 §8 骨架 4 行，行高=真实行高（taskrow 64 + 行间距 4）。 -->
+        <StackPanel Grid.Row="0"
+                    Spacing="0"
+                    Margin="8"
+                    IsVisible="{Binding IsLoading}">
+          <Border Classes="taskrow" Height="64" Background="{DynamicResource Surface.Hover}" />
+          <Border Classes="taskrow" Height="64" Background="{DynamicResource Surface.Hover}" />
+          <Border Classes="taskrow" Height="64" Background="{DynamicResource Surface.Hover}" />
+          <Border Classes="taskrow" Height="64" Background="{DynamicResource Surface.Hover}" />
+        </StackPanel>
 
         <ScrollViewer Grid.Row="1"
                       HorizontalScrollBarVisibility="Disabled"
@@ -276,7 +326,7 @@
                     VerticalAlignment="Center"
                     HorizontalAlignment="Center"
                     Spacing="12"
-                    IsVisible="{Binding !HasLauncherTasks}">
+                    IsVisible="{Binding ShowTasksEmpty}">
           <Border Width="56"
                   Height="56"
                   CornerRadius="{DynamicResource Radius.Pill}"

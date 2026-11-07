@@ -24,14 +24,9 @@ public partial class HelpViewModel : PageViewModelBase
         _platform = platformService;
         _paths = launcherPaths;
 
-        foreach (var topic in HelpCatalog.Topics)
-        {
-            Topics.Add(topic);
-        }
+        LoadTopics();
 
         Categories = ["全部", .. HelpCatalog.Categories];
-
-        ApplyFilter();
     }
 
     public override string Title => "帮助";
@@ -60,6 +55,14 @@ public partial class HelpViewModel : PageViewModelBase
 
     [ObservableProperty]
     private string _statusText = "内容随启动器一起分发，离线可用。";
+
+    /// <summary>目录加载中（契约 §8 加载态：骨架 4 行）。</summary>
+    [ObservableProperty]
+    private bool _isLoading;
+
+    /// <summary>目录加载失败的页面级错误（契约 §8 错误条）。</summary>
+    [ObservableProperty]
+    private string? _errorText;
 
     public bool HasNoMatch => FilteredTopics.Count == 0;
 
@@ -105,6 +108,53 @@ public partial class HelpViewModel : PageViewModelBase
         {
             StatusText = $"打开日志目录失败：{ex.Message}";
         }
+    }
+
+    /// <summary>清空搜索词并回到「全部」分类（空态的动作按钮）。</summary>
+    [RelayCommand]
+    private void ResetFilter()
+    {
+        SearchText = string.Empty;
+        SelectedCategory = "全部";
+    }
+
+    /// <summary>关闭错误条（契约 §8：错误条自带关闭动作）。</summary>
+    [RelayCommand]
+    private void DismissError() => ErrorText = null;
+
+    /// <summary>重新加载帮助目录（契约 §8 加载态）。目录离线内置、正常瞬间完成；
+    /// 异步与错误兜底让加载态/错误态有真实触发路径，目录异常时用户能就地重试。</summary>
+    [RelayCommand]
+    private async Task ReloadAsync()
+    {
+        IsLoading = true;
+        try
+        {
+            await Task.Yield();
+            LoadTopics();
+            ErrorText = null;
+        }
+        catch (Exception ex)
+        {
+            ErrorText = $"帮助目录加载失败：{ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>把内置目录灌进列表并按当前条件过滤。构造与「重新加载」共用这一段。</summary>
+    private void LoadTopics()
+    {
+        Topics.Clear();
+
+        foreach (var topic in HelpCatalog.Topics)
+        {
+            Topics.Add(topic);
+        }
+
+        ApplyFilter();
     }
 
     /// <summary>先按关键词过滤，再按分类收窄；两者都为空时就是全部条目。</summary>
