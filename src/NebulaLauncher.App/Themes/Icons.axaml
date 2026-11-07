@@ -47,4 +47,19 @@
   <!-- 搜索：放大镜（票 #107 主页搜索框） -->
   <StreamGeometry x:Key="Icon.Search">M4 10.5a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0ZM15.2 15.2 21 21</StreamGeometry>
 
+  <!-- 世界：球体 + 经线（票 #89 世界分区空态） -->
+  <StreamGeometry x:Key="Icon.World">M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0ZM3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18</StreamGeometry>
+
+  <!-- 关闭：可关闭结果条 / 提示（不与 Icon.WindowClose 复用：那是窗口按钮语义） -->
+  <StreamGeometry x:Key="Icon.Close">M6 6l12 12M18 6 6 18</StreamGeometry>
+
+  <!-- 备份：向下箭头 + 托盘（票 #89 世界行） -->
+  <StreamGeometry x:Key="Icon.Backup">M12 3v10m0 0 3.5-3.5M12 13l-3.5-3.5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3</StreamGeometry>
+
+  <!-- 还原：逆时针回环箭头 -->
+  <StreamGeometry x:Key="Icon.Restore">M4 12a8 8 0 1 0 2.4-5.7M4 5v5h5</StreamGeometry>
+
+  <!-- 打开目录：文件夹轮廓 -->
+  <StreamGeometry x:Key="Icon.Folder">M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z</StreamGeometry>
+
 </ResourceDictionary>

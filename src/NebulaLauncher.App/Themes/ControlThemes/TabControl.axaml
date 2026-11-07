@@ -76,9 +76,16 @@
             <ItemsPresenter Name="PART_ItemsPresenter"
                             ItemsPanel="{TemplateBinding ItemsPanel}" />
           </Border>
+          <!--
+            内容区必须 Stretch：ContentPresenter 默认 Left/Top，页签内容会按自己的
+            DesiredSize 布局，于是「填满剩余高度、内部滚动」的页面（如实例详情的
+            分区内容框）拿不到有限高度，超出部分被外层裁掉且滚不动（票 #89）。
+          -->
           <ContentPresenter x:Name="PART_SelectedContentHost"
                             Grid.Row="1"
                             Margin="0,16,0,0"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch"
                             Content="{TemplateBinding SelectedContent}"
                             ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
         </Grid>

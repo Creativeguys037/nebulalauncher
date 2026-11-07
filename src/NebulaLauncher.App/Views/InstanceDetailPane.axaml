@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NebulaLauncher.ViewModels"
              xmlns:conv="using:NebulaLauncher.Converters"
+             xmlns:controls="using:NebulaLauncher.Controls"
              x:Class="NebulaLauncher.Views.InstanceDetailPane"
              x:DataType="vm:VersionsViewModel">
 
@@ -22,27 +23,48 @@
       <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+
+    <!-- 世界 / 整合包行的主名。行高 48 由容器给，这里只管字重与截断。 -->
+    <Style Selector="TextBlock.section-row-title">
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.BodyLg}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.section-row-meta">
+      <Setter Property="FontSize" Value="{DynamicResource FontSize.Caption}" />
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
   </UserControl.Styles>
 
   <!--
-    实例详情 · 概览（票 #88）。
+    实例详情（票 #88 概览 + 票 #89 世界与整合包）。
 
-    ## 这个面板只负责「看」
-    它回答一个问题：**我现在选中的是哪个实例、它是什么状态**。
-    改内存与改 Java 是「编辑动作」，归二级页面（实例设置浮层）与设置页——
-    把编辑控件放在这里会让右栏变成一张表单，在 1024×660 下必定需要滚动，
-    而一旦滚动，「实例身份」就被顶出视口，用户连自己在改哪个实例都不知道。
+    ## 三个同级分区，不是三张卡叠起来
+    身份头固定在最上（72），分区页签固定在它下面（40），只有分区内容框滚动。
+    这样「我现在看的是哪个实例」永远在视口里——它被滚走之后，用户在世界的
+    备份列表里就不知道自己在操作哪一份存档。
 
-    所以这里的全部内容是只读的：
-      1. 身份：图标 / 实例名 / 「版本 · 加载器」/ 运行状态；
-      2. 信息：上次游玩、游戏目录（可复制）；
-      3. 入口：设置（二级页面，内存与 Java 在那边）、打开目录、停止、更多。
-    面板高度因此固定在一屏内，不需要滚动。
+    ## 为什么用 TabControl 而不是自制页签
+    §6 规则 2：同级视图必须用 TabControl。自制 `Button.pill` 页签会同时丢掉
+    键盘方向键切换、Tab 焦点环与读屏的 tablist 语义，而这三样正是 #99 要验收的。
+
+    ## 世界与整合包为什么要分区
+    它们是两种不同粒度的东西：世界是「这个实例里的存档」，备份与还原都围绕单个存档；
+    整合包是「整个实例的打包与还原」。混在一个列表里会让「备份」这个词指两件事。
+
+    ## 目标实例由选中行决定，不读全局上下文
+    版本页选中一行只是浏览，不会改写 settings.json 的 LastInstanceId。
+    所以两个分区各自持有目标目录（见 InstanceWorldsSectionViewModel.SetTargetAsync），
+    不会把「别的实例的存档」显示在当前实例名下。
   -->
-  <StackPanel Spacing="10">
+  <Grid RowDefinitions="Auto,*" RowSpacing="12">
 
-    <!-- ==================== 空态：没有选中实例 ==================== -->
-    <StackPanel Spacing="6" IsVisible="{Binding !Detail.HasInstance}">
+    <!-- ==================== Row0 身份头 / 空态 ==================== -->
+    <StackPanel Grid.Row="0" Spacing="6" IsVisible="{Binding !Detail.HasInstance}">
       <TextBlock Text="实例信息" Classes="detail-heading" />
       <TextBlock Text="在下面的实例列表里选一个，这里会显示它的版本、状态与目录。"
                  Classes="muted"
@@ -50,182 +72,572 @@
                  TextWrapping="Wrap" />
     </StackPanel>
 
-    <!-- ==================== 有实例：概览 ==================== -->
-    <StackPanel Spacing="10" IsVisible="{Binding Detail.HasInstance}">
+    <Grid Grid.Row="0"
+          Height="72"
+          ColumnDefinitions="Auto,*"
+          ColumnSpacing="10"
+          IsVisible="{Binding Detail.HasInstance}">
+      <Border Width="40" Height="40"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Background="{DynamicResource Accent.Soft}"
+              VerticalAlignment="Center">
+        <Path Data="{Binding Detail.Row.IconGeometry}"
+              Stroke="{DynamicResource Accent.Primary}"
+              StrokeThickness="1.5"
+              StrokeLineCap="Round"
+              StrokeJoin="Round"
+              Stretch="Uniform"
+              Width="20" Height="20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center" />
+      </Border>
 
-      <!-- 1. 头部：图标 + 名称 + 版本与加载器 + 状态徽标 -->
-      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-        <Border Width="40" Height="40"
-                CornerRadius="{DynamicResource Radius.Md}"
-                Background="{DynamicResource Accent.Soft}"
-                VerticalAlignment="Center">
-          <Path Data="{Binding Detail.Row.IconGeometry}"
-                Stroke="{DynamicResource Accent.Primary}"
-                StrokeThickness="1.5"
-                StrokeLineCap="Round"
-                StrokeJoin="Round"
-                Stretch="Uniform"
-                Width="20" Height="20"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center" />
-        </Border>
+      <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Detail.Row.Name}"
+                   FontSize="{DynamicResource FontSize.Subtitle}"
+                   FontWeight="SemiBold"
+                   TextTrimming="CharacterEllipsis" />
 
-        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-          <TextBlock Text="{Binding Detail.Row.Name}"
-                     FontSize="{DynamicResource FontSize.Subtitle}"
-                     FontWeight="SemiBold"
-                     TextTrimming="CharacterEllipsis" />
-
-          <!--
-            版本与加载器合成一行、与状态徽标同行：分三行会把头部撑到 70+ 高，
-            而这块是纯身份信息，高度应当让给下面的信息与列表。
-          -->
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="{Binding Detail.Row.VersionAndLoaderText}"
-                       FontSize="{DynamicResource FontSize.Caption}"
-                       Foreground="{DynamicResource Text.Secondary}"
-                       TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center"
-                       MaxWidth="176" />
-            <Border Classes="badge info"
-                    Padding="6,1"
-                    VerticalAlignment="Center"
-                    IsVisible="{Binding Detail.Row.IsRunningNow}">
-              <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
-            </Border>
-          </StackPanel>
-        </StackPanel>
-      </Grid>
-
-      <!-- 2. 信息：上次游玩 + 目录（可复制） -->
-      <StackPanel Spacing="2">
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-          <TextBlock Text="上次游玩" Classes="detail-meta" />
-          <TextBlock Grid.Column="1"
-                     Text="{Binding Detail.Row.LastPlayedText}"
-                     Classes="detail-meta"
-                     HorizontalAlignment="Right"
-                     TextTrimming="CharacterEllipsis" />
-        </Grid>
-
-        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
-          <TextBlock Text="目录" Classes="detail-meta" />
-          <!--
-            单行省略 + ToolTip 全文 + 复制按钮：用户要的是「能复制走」，
-            在这里逐字读完全路径既不现实，折行还会把右栏撑高。
-          -->
-          <TextBlock Grid.Column="1"
-                     Text="{Binding Detail.Row.GameDirectory}"
-                     Classes="detail-meta"
-                     HorizontalAlignment="Right"
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="{Binding Detail.Row.VersionAndLoaderText}"
+                     FontSize="{DynamicResource FontSize.Caption}"
+                     Foreground="{DynamicResource Text.Secondary}"
                      TextTrimming="CharacterEllipsis"
-                     ToolTip.Tip="{Binding Detail.Row.GameDirectory}" />
-          <Button Grid.Column="2"
-                  Classes="ghost icon"
-                  Width="20" Height="20" MinHeight="20"
-                  Padding="0"
+                     VerticalAlignment="Center"
+                     MaxWidth="176" />
+          <Border Classes="badge info"
+                  Padding="6,1"
                   VerticalAlignment="Center"
-                  ToolTip.Tip="复制游戏目录路径"
-                  Command="{Binding CopyInstancePathCommand}">
-            <!-- 图标走 Icons.axaml 的 path data（CONVENTIONS §7.9），不用 Unicode 符号：
-                 后者在不同字体下可能显示成豆腐块。 -->
-            <Path Data="{StaticResource Icon.Copy}"
-                  Stroke="{DynamicResource Text.Secondary}"
-                  StrokeThickness="1.6"
-                  StrokeLineCap="Round"
-                  StrokeJoin="Round"
-                  Stretch="Uniform"
-                  Width="12" Height="12"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Center" />
-          </Button>
-        </Grid>
-
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-          <TextBlock Text="内存" Classes="detail-meta" />
-          <!-- 只读展示；改它去「设置」。跟随全局时文案里带出生效值。 -->
-          <TextBlock Grid.Column="1"
-                     Text="{Binding Detail.Row.MemoryText}"
-                     Classes="detail-meta"
-                     HorizontalAlignment="Right"
-                     TextTrimming="CharacterEllipsis" />
-        </Grid>
-
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-          <TextBlock Text="Java" Classes="detail-meta" />
-          <TextBlock Grid.Column="1"
-                     Text="{Binding Detail.Row.JavaText}"
-                     Classes="detail-meta"
-                     HorizontalAlignment="Right"
-                     TextTrimming="CharacterEllipsis"
-                     ToolTip.Tip="{Binding Detail.Row.JavaText}" />
-        </Grid>
+                  IsVisible="{Binding Detail.Row.IsRunningNow}">
+            <TextBlock Text="运行中" FontSize="{DynamicResource FontSize.Caption}" />
+          </Border>
+        </StackPanel>
       </StackPanel>
+    </Grid>
 
-      <Border Classes="divider" />
+    <!-- ==================== Row1 分区（页签 + 内容框） ==================== -->
+    <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="12" IsVisible="{Binding Detail.HasInstance}">
 
       <!--
-        实例动作：从列表卡片搬到这里（卡片只保留选得出来的最少信息）。
-        参数一律是 Detail.Row——用户此刻正在看的那个实例，
-        与他刚从列表里点选的是同一个。
+        页签条只切分区、不承担内容宿主：三个分区同时留在可视树里，
+        切走再切回时筛选与滚动位置不丢（与版本页三视图同一做法，见 TabControl.strip 的注释）。
       -->
-      <StackPanel Orientation="Horizontal" Spacing="6">
-        <Button Classes="pill"
-                Content="设置"
-                Padding="10,3" MinHeight="26"
-                FontSize="{DynamicResource FontSize.Small}"
-                ToolTip.Tip="实例设置：内存、Java、JVM 参数、窗口与服务器"
-                Command="{Binding OpenInstanceEditorCommand}"
-                CommandParameter="{Binding Detail.Row}" />
-        <Button Classes="pill"
-                Content="打开目录"
-                Padding="10,3" MinHeight="26"
-                FontSize="{DynamicResource FontSize.Small}"
-                Command="{Binding OpenInstanceFolderCommand}"
-                CommandParameter="{Binding Detail.Row}" />
-        <Button Classes="pill danger"
-                Content="停止"
-                Padding="10,3" MinHeight="26"
-                FontSize="{DynamicResource FontSize.Small}"
-                IsVisible="{Binding Detail.Row.IsSessionRunning}"
-                Command="{Binding StopGameCommand}"
-                CommandParameter="{Binding Detail.Row}" />
+      <TabControl Grid.Row="0" Classes="strip" SelectedIndex="{Binding DetailSectionIndex}">
+        <TabItem Header="概览" />
+        <TabItem Header="世界" />
+        <TabItem Header="整合包" />
+      </TabControl>
 
-        <Button Classes="ghost icon"
-                Width="26" Height="26" MinHeight="26"
-                Padding="0"
-                ToolTip.Tip="更多：换加载器、克隆、重命名、图标、清理、备注、移入回收站">
-          <TextBlock Text="…" VerticalAlignment="Center" HorizontalAlignment="Center" />
-          <Button.Flyout>
-            <MenuFlyout Placement="BottomEdgeAlignedRight">
-              <MenuItem Header="换加载器…" Click="OnSwitchLoaderClick" />
-              <MenuItem Header="克隆"
-                        IsEnabled="{Binding IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
-                        Command="{Binding CloneInstanceCommand}"
+      <!--
+        分区内容叠在同一格里，用 IsVisible 切换。这样每个 GlassPanel 都拿到确定高度，
+        内部的 ScrollViewer 才真的能滚——塞进 TabItem 的内容里时它的高度由内容决定，
+        超出部分会被玻璃框裁掉且滚不动。
+      -->
+      <Grid Grid.Row="1">
+
+      <!-- ========== 概览 ========== -->
+      <controls:GlassPanel IsVisible="{Binding IsOverviewSection}" Padding="0">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16" Spacing="10">
+
+              <StackPanel Spacing="2">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="上次游玩" Classes="detail-meta" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding Detail.Row.LastPlayedText}"
+                             Classes="detail-meta"
+                             HorizontalAlignment="Right"
+                             TextTrimming="CharacterEllipsis" />
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="目录" Classes="detail-meta" />
+                  <!--
+                    单行省略 + ToolTip 全文 + 复制按钮：用户要的是「能复制走」，
+                    在这里逐字读完全路径既不现实，折行还会把详情列撑高。
+                  -->
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding Detail.Row.GameDirectory}"
+                             Classes="detail-meta"
+                             HorizontalAlignment="Right"
+                             TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding Detail.Row.GameDirectory}" />
+                  <Button Grid.Column="2"
+                          Classes="ghost icon"
+                          Width="20" Height="20" MinHeight="20"
+                          Padding="0"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="复制游戏目录路径"
+                          Command="{Binding CopyInstancePathCommand}">
+                    <Path Data="{StaticResource Icon.Copy}"
+                          Stroke="{DynamicResource Text.Secondary}"
+                          StrokeThickness="1.6"
+                          StrokeLineCap="Round"
+                          StrokeJoin="Round"
+                          Stretch="Uniform"
+                          Width="12" Height="12"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                  </Button>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="内存" Classes="detail-meta" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding Detail.Row.MemoryText}"
+                             Classes="detail-meta"
+                             HorizontalAlignment="Right"
+                             TextTrimming="CharacterEllipsis" />
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Java" Classes="detail-meta" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding Detail.Row.JavaText}"
+                             Classes="detail-meta"
+                             HorizontalAlignment="Right"
+                             TextTrimming="CharacterEllipsis"
+                             ToolTip.Tip="{Binding Detail.Row.JavaText}" />
+                </Grid>
+              </StackPanel>
+
+              <Border Classes="divider" />
+
+              <!--
+                实例动作：从列表卡片搬到这里（卡片只保留选得出来的最少信息）。
+                参数一律是 Detail.Row——用户此刻正在看的那个实例，
+                与他刚从列表里点选的是同一个。
+              -->
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Classes="pill"
+                        Content="设置"
+                        Padding="10,3" MinHeight="26"
+                        FontSize="{DynamicResource FontSize.Small}"
+                        ToolTip.Tip="实例设置：内存、Java、JVM 参数、窗口与服务器"
+                        Command="{Binding OpenInstanceEditorCommand}"
                         CommandParameter="{Binding Detail.Row}" />
-              <MenuItem Header="重命名"
-                        Command="{Binding OpenRenameCommand}"
+                <Button Classes="pill"
+                        Content="打开目录"
+                        Padding="10,3" MinHeight="26"
+                        FontSize="{DynamicResource FontSize.Small}"
+                        Command="{Binding OpenInstanceFolderCommand}"
                         CommandParameter="{Binding Detail.Row}" />
-              <MenuItem Header="图标"
-                        Command="{Binding OpenIconPickerCommand}"
+                <Button Classes="pill danger"
+                        Content="停止"
+                        Padding="10,3" MinHeight="26"
+                        FontSize="{DynamicResource FontSize.Small}"
+                        IsVisible="{Binding Detail.Row.IsSessionRunning}"
+                        Command="{Binding StopGameCommand}"
                         CommandParameter="{Binding Detail.Row}" />
-              <MenuItem Header="清理"
-                        IsEnabled="{Binding Detail.Row.ActionsEnabled}"
-                        Command="{Binding OpenCleanupCommand}"
-                        CommandParameter="{Binding Detail.Row}" />
-              <MenuItem Header="备注"
-                        IsVisible="{Binding Detail.Row.HasNote}"
-                        Command="{Binding OpenNotesCommand}"
-                        CommandParameter="{Binding Detail.Row}" />
-              <Separator />
-              <MenuItem Header="移入回收站…"
-                        IsEnabled="{Binding Detail.Row.ActionsEnabled}"
-                        Command="{Binding RequestDeleteInstanceCommand}"
-                        CommandParameter="{Binding Detail.Row}" />
-            </MenuFlyout>
-          </Button.Flyout>
-        </Button>
-      </StackPanel>
-    </StackPanel>
-  </StackPanel>
+
+                <Button Classes="ghost icon"
+                        Width="26" Height="26" MinHeight="26"
+                        Padding="0"
+                        ToolTip.Tip="更多：换加载器、克隆、重命名、图标、清理、备注、移入回收站">
+                  <TextBlock Text="…" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                  <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                      <MenuItem Header="换加载器…" Click="OnSwitchLoaderClick" />
+                      <MenuItem Header="克隆"
+                                IsEnabled="{Binding IsInstanceBusy, Converter={x:Static conv:Converters.InverseBool}}"
+                                Command="{Binding CloneInstanceCommand}"
+                                CommandParameter="{Binding Detail.Row}" />
+                      <MenuItem Header="重命名"
+                                Command="{Binding OpenRenameCommand}"
+                                CommandParameter="{Binding Detail.Row}" />
+                      <MenuItem Header="图标"
+                                Command="{Binding OpenIconPickerCommand}"
+                                CommandParameter="{Binding Detail.Row}" />
+                      <MenuItem Header="清理"
+                                IsEnabled="{Binding Detail.Row.ActionsEnabled}"
+                                Command="{Binding OpenCleanupCommand}"
+                                CommandParameter="{Binding Detail.Row}" />
+                      <MenuItem Header="备注"
+                                IsVisible="{Binding Detail.Row.HasNote}"
+                                Command="{Binding OpenNotesCommand}"
+                                CommandParameter="{Binding Detail.Row}" />
+                      <Separator />
+                      <MenuItem Header="移入回收站…"
+                                IsEnabled="{Binding Detail.Row.ActionsEnabled}"
+                                Command="{Binding RequestDeleteInstanceCommand}"
+                                CommandParameter="{Binding Detail.Row}" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+      </controls:GlassPanel>
+
+      <!-- ========== 世界 ========== -->
+      <controls:GlassPanel IsVisible="{Binding IsWorldsSection}" Padding="0">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="12"
+                        Spacing="8"
+                        DataContext="{Binding WorldsSection}">
+
+              <!-- 服务未接入（单测 / 设计器预览） -->
+              <StackPanel Spacing="6" IsVisible="{Binding !HasService}">
+                <TextBlock Text="备份服务未接入" Classes="section-row-title" />
+                <TextBlock Text="世界与备份需要核心服务，当前运行环境没有提供。"
+                           Classes="section-row-meta"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+
+              <!-- 加载态 -->
+              <StackPanel Spacing="8" IsVisible="{Binding IsLoading}">
+                <Border Height="48" Classes="card" IsEnabled="False" />
+                <Border Height="48" Classes="card" IsEnabled="False" />
+                <Border Height="48" Classes="card" IsEnabled="False" />
+              </StackPanel>
+
+              <!-- 空态：必须给下一步动作（契约规则 9） -->
+              <StackPanel Spacing="8"
+                          Margin="0,24,0,0"
+                          HorizontalAlignment="Center"
+                          IsVisible="{Binding IsEmpty}">
+                <Path Data="{StaticResource Icon.World}"
+                      Stroke="{DynamicResource Text.Tertiary}"
+                      StrokeThickness="1.8"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Stretch="Uniform"
+                      Width="32" Height="32"
+                      HorizontalAlignment="Center" />
+                <TextBlock Text="这个实例还没有世界"
+                           Classes="section-row-title"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="进游戏新建一个世界，存档会出现在这里，可随时备份与还原。"
+                           Classes="section-row-meta"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="240"
+                           TextAlignment="Center" />
+                <Button Classes="ghost"
+                        Content="打开实例目录"
+                        HorizontalAlignment="Center"
+                        Command="{Binding $parent[ScrollViewer].((vm:VersionsViewModel)DataContext).OpenInstanceFolderCommand}"
+                        CommandParameter="{Binding $parent[ScrollViewer].((vm:VersionsViewModel)DataContext).Detail.Row}" />
+              </StackPanel>
+
+              <!-- 错误条 -->
+              <Border Classes="card"
+                      Padding="10,6"
+                      IsVisible="{Binding HasError}">
+                <TextBlock Text="{Binding ErrorText}"
+                           Classes="section-row-meta"
+                           Foreground="{DynamicResource Status.Danger}"
+                           TextWrapping="Wrap" />
+              </Border>
+
+              <!-- 结果条：可关闭，不用弹窗（契约规则 10） -->
+              <Border Classes="card"
+                      Padding="10,6"
+                      IsVisible="{Binding HasResult}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <TextBlock Text="{Binding ResultText}"
+                             Classes="section-row-meta"
+                             TextWrapping="Wrap" />
+                  <Button Grid.Column="1"
+                          Classes="ghost icon"
+                          Width="20" Height="20" MinHeight="20"
+                          Padding="0"
+                          ToolTip.Tip="关闭"
+                          Click="OnDismissResultClick">
+                    <Path Data="{StaticResource Icon.Close}"
+                          Stroke="{DynamicResource Text.Secondary}"
+                          StrokeThickness="1.6"
+                          StrokeLineCap="Round"
+                          StrokeJoin="Round"
+                          Stretch="Uniform"
+                          Width="10" Height="10"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                  </Button>
+                </Grid>
+              </Border>
+
+              <!-- 世界行 -->
+              <ItemsControl ItemsSource="{Binding Worlds}" IsVisible="{Binding HasWorlds}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WorldRowItem">
+                    <Border Classes="card"
+                            MinHeight="48"
+                            Padding="10,6"
+                            Margin="0,0,0,8">
+                      <StackPanel Spacing="6">
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                          <StackPanel Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" Classes="section-row-title" />
+                            <TextBlock Text="{Binding LastWriteTimeText}" Classes="section-row-meta" />
+                          </StackPanel>
+
+                          <StackPanel Grid.Column="1"
+                                      Orientation="Horizontal"
+                                      Spacing="4"
+                                      VerticalAlignment="Center"
+                                      IsVisible="{Binding ShowActions}">
+                            <!--
+                              徽标只在真有备份时出现：0 份时它占 60px，把 340 宽的详情列
+                              里的世界名挤成两个省略点（浅色首轮截图的真实问题）。
+                            -->
+                            <Border Classes="badge"
+                                    VerticalAlignment="Center"
+                                    IsVisible="{Binding HasBackups}">
+                              <TextBlock Text="{Binding BackupCountText}" />
+                            </Border>
+
+                            <!--
+                              行内动作收成图标钮：340 宽放不下三个文字胶囊 + 世界名。
+                              图标一律 Path + Stroke、描边色交给样式（CONVENTIONS §7.9）。
+                            -->
+                            <Button Classes="ghost icon"
+                                    Width="24" Height="24" MinHeight="24"
+                                    Padding="0"
+                                    ToolTip.Tip="备份这个存档"
+                                    Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).BackupWorldCommand}"
+                                    CommandParameter="{Binding}">
+                              <Path Data="{StaticResource Icon.Backup}"
+                                    Stroke="{DynamicResource Text.Secondary}"
+                                    StrokeThickness="1.6"
+                                    StrokeLineCap="Round"
+                                    StrokeJoin="Round"
+                                    Stretch="Uniform"
+                                    Width="13" Height="13"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Button>
+                            <Button Classes="ghost icon"
+                                    Width="24" Height="24" MinHeight="24"
+                                    Padding="0"
+                                    IsEnabled="{Binding HasBackups}"
+                                    ToolTip.Tip="从备份还原这个存档（会覆盖当前存档）"
+                                    Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).RequestRestoreCommand}"
+                                    CommandParameter="{Binding}">
+                              <Path Data="{StaticResource Icon.Restore}"
+                                    Stroke="{DynamicResource Text.Secondary}"
+                                    StrokeThickness="1.6"
+                                    StrokeLineCap="Round"
+                                    StrokeJoin="Round"
+                                    Stretch="Uniform"
+                                    Width="13" Height="13"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Button>
+                            <Button Classes="ghost icon"
+                                    Width="24" Height="24" MinHeight="24"
+                                    Padding="0"
+                                    ToolTip.Tip="在文件管理器里打开存档目录"
+                                    Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).OpenFolderCommand}"
+                                    CommandParameter="{Binding}">
+                              <Path Data="{StaticResource Icon.Folder}"
+                                    Stroke="{DynamicResource Text.Secondary}"
+                                    StrokeThickness="1.6"
+                                    StrokeLineCap="Round"
+                                    StrokeJoin="Round"
+                                    Stretch="Uniform"
+                                    Width="13" Height="13"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Button>
+                          </StackPanel>
+                        </Grid>
+
+                        <ProgressBar IsVisible="{Binding ShowProgress}"
+                                     Maximum="1"
+                                     Value="{Binding Progress}" />
+
+                        <TextBlock Text="{Binding StatusText}"
+                                   Classes="section-row-meta"
+                                   TextWrapping="Wrap"
+                                   MinHeight="16" />
+
+                        <!-- 还原候选：行内展开，时间倒序 -->
+                        <StackPanel Spacing="4" IsVisible="{Binding ShowRestorePicker}">
+                          <TextBlock Text="选择要还原到哪一份备份"
+                                     Classes="section-row-meta"
+                                     FontWeight="SemiBold" />
+
+                          <TextBlock Text="这个存档还没有备份。"
+                                     Classes="section-row-meta"
+                                     IsVisible="{Binding RestorePickerEmpty}" />
+
+                          <ItemsControl ItemsSource="{Binding Backups}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:BackupRowItem">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Height="40">
+                                  <StackPanel Spacing="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding CreatedText}" Classes="section-row-meta" />
+                                    <TextBlock Text="{Binding SizeText}" Classes="section-row-meta" />
+                                  </StackPanel>
+                                  <Button Grid.Column="1"
+                                          Classes="pill danger"
+                                          Content="还原这份"
+                                          VerticalAlignment="Center"
+                                          Command="{Binding $parent[ItemsControl].((vm:WorldRowItem)DataContext).PickRestoreCommand}"
+                                          CommandParameter="{Binding Source}" />
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+
+                          <Button Classes="ghost"
+                                  Content="取消"
+                                  HorizontalAlignment="Left"
+                                  Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).CancelRestoreCommand}"
+                                  CommandParameter="{Binding}" />
+                        </StackPanel>
+
+                        <!-- 二次确认：写明会覆盖什么 -->
+                        <StackPanel Spacing="4" IsVisible="{Binding ShowRestoreConfirm}">
+                          <TextBlock Text="确认还原？当前存档会被这份备份覆盖，此操作不可撤销。"
+                                     Classes="section-row-meta"
+                                     Foreground="{DynamicResource Status.Danger}"
+                                     TextWrapping="Wrap" />
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Classes="pill danger"
+                                    Content="确认还原"
+                                    Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).ConfirmRestoreCommand}"
+                                    CommandParameter="{Binding}" />
+                            <Button Classes="pill"
+                                    Content="取消"
+                                    Command="{Binding $parent[ItemsControl].((vm:InstanceWorldsSectionViewModel)DataContext).CancelRestoreCommand}"
+                                    CommandParameter="{Binding}" />
+                          </StackPanel>
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+      </controls:GlassPanel>
+
+      <!-- ========== 整合包 ========== -->
+      <controls:GlassPanel IsVisible="{Binding IsModpacksSection}" Padding="0">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="12"
+                        Spacing="10"
+                        DataContext="{Binding ModpacksSection}">
+
+              <StackPanel Spacing="6" IsVisible="{Binding !HasService}">
+                <TextBlock Text="整合包服务未接入" Classes="section-row-title" />
+                <TextBlock Text="导入与导出需要核心服务，当前运行环境没有提供。"
+                           Classes="section-row-meta"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+
+              <!-- 导出：先看范围，再选落点 -->
+              <StackPanel Spacing="6" IsVisible="{Binding HasService}">
+                <TextBlock Text="导出这个实例" Classes="section-row-title" />
+                <TextBlock Text="打包成 .mrpack，可分享或换机还原。先在文件对话框里选保存位置。"
+                           Classes="section-row-meta"
+                           TextWrapping="Wrap" />
+
+                <CheckBox Content="包含存档（saves）"
+                          IsChecked="{Binding ExportIncludeSaves}"
+                          IsVisible="{Binding !HasExportPreview}" />
+                <CheckBox Content="包含配置（config）"
+                          IsChecked="{Binding ExportIncludeConfig}"
+                          IsVisible="{Binding !HasExportPreview}" />
+
+                <Button Classes="pill"
+                        Content="导出…"
+                        HorizontalAlignment="Left"
+                        IsEnabled="{Binding CanExport}"
+                        IsVisible="{Binding !HasExportPreview}"
+                        Command="{Binding PreviewExportCommand}" />
+
+                <!-- 先看范围再选落点：导出不可撤销，范围确认放在前面 -->
+                <Border Classes="card" Padding="10,6" IsVisible="{Binding HasExportPreview}">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding ExportPreview.Name}" Classes="section-row-title" />
+                    <TextBlock Text="{Binding ExportPreview.ScopeText}" Classes="section-row-meta" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Button Classes="pill"
+                              Content="选保存位置并导出"
+                              Click="OnExportModpackClick" />
+                      <Button Classes="ghost"
+                              Content="取消"
+                              Command="{Binding CancelExportCommand}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <Border Classes="divider" />
+
+              <!-- 导入：装成新实例 -->
+              <StackPanel Spacing="6" IsVisible="{Binding HasService}">
+                <TextBlock Text="导入整合包" Classes="section-row-title" />
+                <TextBlock Text="导入会把整合包装成一个新实例，不会改动当前这个实例。"
+                           Classes="section-row-meta"
+                           TextWrapping="Wrap" />
+
+                <Button Classes="pill"
+                        Content="选择整合包文件…"
+                        HorizontalAlignment="Left"
+                        IsEnabled="{Binding !IsBusy}"
+                        Click="OnPickModpackClick" />
+
+                <Border Classes="card" Padding="10,6" IsVisible="{Binding HasImportPreview}">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding ImportPreview.Name}" Classes="section-row-title" />
+                    <TextBlock Text="{Binding ImportPreview.MinecraftVersion}" Classes="section-row-meta" />
+                    <TextBlock Text="{Binding ImportPreview.FileCount, StringFormat='{}{0} 个文件'}"
+                               Classes="section-row-meta" />
+
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                      <TextBlock Text="实例名" Classes="section-row-meta" VerticalAlignment="Center" />
+                      <TextBox Grid.Column="1" Text="{Binding ImportInstanceName}" />
+                    </Grid>
+
+                    <Button Classes="pill"
+                            Content="确认导入"
+                            HorizontalAlignment="Left"
+                            IsEnabled="{Binding CanImport}"
+                            Command="{Binding ImportCommand}" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <ProgressBar IsVisible="{Binding ShowProgress}"
+                           Maximum="1"
+                           Value="{Binding Progress}" />
+
+              <TextBlock Text="{Binding StatusText}"
+                         Classes="section-row-meta"
+                         TextWrapping="Wrap" />
+
+              <Border Classes="card" Padding="10,6" IsVisible="{Binding HasResult}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <TextBlock Text="{Binding ResultText}"
+                             Classes="section-row-meta"
+                             TextWrapping="Wrap" />
+                  <Button Grid.Column="1"
+                          Classes="ghost icon"
+                          Width="20" Height="20" MinHeight="20"
+                          Padding="0"
+                          ToolTip.Tip="关闭"
+                          Click="OnDismissResultClick">
+                    <Path Data="{StaticResource Icon.Close}"
+                          Stroke="{DynamicResource Text.Secondary}"
+                          StrokeThickness="1.6"
+                          StrokeLineCap="Round"
+                          StrokeJoin="Round"
+                          Stretch="Uniform"
+                          Width="10" Height="10"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                  </Button>
+                </Grid>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+      </controls:GlassPanel>
+      </Grid>
+    </Grid>
+  </Grid>
 </UserControl>

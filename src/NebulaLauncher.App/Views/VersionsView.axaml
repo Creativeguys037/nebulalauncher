@@ -743,25 +743,27 @@
         详情面板的骨架由票 #87 建立，内容由 #88（概览 / Java / 内存）与 #89（世界 / 整合包）填充。
         这里先把它做成「选中什么就显示什么」的稳定容器：切视图时内容跟着换，宽度不跟着变。
       -->
-      <Border Grid.Column="1" Classes="card detail-pane" Padding="20,18">
-        <ScrollViewer x:Name="DetailScroller" VerticalScrollBarVisibility="Auto">
-          <StackPanel Spacing="14">
-            <TextBlock Text="{Binding CurrentViewTitle}" Classes="label" />
+      <Border Grid.Column="1" Classes="card detail-pane" Padding="0">
+        <Grid RowDefinitions="Auto,*">
+          <!-- 视图标题：切页签时跟着换，是「当前在看哪一组」的唯一提示 -->
+          <TextBlock Text="{Binding CurrentViewTitle}"
+                     Classes="label"
+                     Margin="16,12,16,4"
+                     VerticalAlignment="Center" />
 
-            <!--
-              已安装：实例详情（票 #88）。
-              概览的头部 / 信息 / 内存与 Java 全部收进独立控件 InstanceDetailPane：
-              它自己就是一个 UserControl，右栏只负责给它位置。
-              下面「独立实例」那一段仍留在页面里——它是列表，不是详情。
-
-              直接放控件、不套 ContentControl：套一层会让 DataContext 在内容边界上
-              走一次继承，内层控件的 x:DataType 与实际上下文错位，
-              表现为「绑定静默为空」——头部整块不渲染，且编译器不报错。
-            -->
-            <views:InstanceDetailPane IsVisible="{Binding IsInstalledView}" />
-
-            <!-- 已安装：实例列表（固定高度框住，内部滚动）+ 新建实例 -->
-            <StackPanel Spacing="8" IsVisible="{Binding IsInstalledView}">
+          <!--
+            已安装视图：详情列不滚动（票 #89）。
+            身份头 + 三分区由 InstanceDetailPane 自己承载：它的分区内容框才是唯一的滚动区，
+            详情列本身固定不滚——否则滚动时「我在看哪个实例」会被顶出视口。
+            实例列表压在最后、固定 132 高：它是「换选中项」的入口，不能跟详情一起滚走。
+          -->
+          <Grid Grid.Row="1"
+                RowDefinitions="*,Auto"
+                RowSpacing="6"
+                Margin="12,0,12,10"
+                IsVisible="{Binding IsInstalledView}">
+            <views:InstanceDetailPane Grid.Row="0" />
+            <StackPanel Grid.Row="1" Spacing="8">
               <Border Classes="divider" />
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                   <TextBlock Text="实例" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -868,7 +870,13 @@
                         Command="{Binding CreateInstanceCommand}"
                         CommandParameter="{Binding SelectedRow}" />
             </StackPanel>
+          </Grid>
 
+          <!-- 可下载 / 整合包视图的详情：没有分区结构，仍是一条可滚动的说明列 -->
+          <ScrollViewer Grid.Row="1"
+                        Margin="16,0,16,12"
+                        IsVisible="{Binding !IsInstalledView}">
+            <StackPanel Spacing="14">
             <!-- 可下载：选中版本的详情 -->
             <StackPanel Spacing="10" IsVisible="{Binding IsAvailableView}">
               <TextBlock Text="{Binding Available.SelectedRow.Id, FallbackValue=未选择版本}"
@@ -939,8 +947,9 @@
                        Classes="muted"
                        TextWrapping="Wrap"
                        IsVisible="{Binding StatusText, Converter={x:Static conv:Converters.HasValue}}" />
-          </StackPanel>
-        </ScrollViewer>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
       </Border>
     </Grid>
 

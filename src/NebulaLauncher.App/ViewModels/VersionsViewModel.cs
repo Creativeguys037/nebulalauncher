@@ -102,7 +102,10 @@ public partial class VersionsViewModel : PageViewModelBase
         IModpackService? modpackService = null,
         ModpackCatalogClient? modpackCatalog = null,
         DownloadQueue? downloadQueue = null,
-        IModrinthService? modrinthService = null)
+        IModrinthService? modrinthService = null,
+        InstanceWorldsSectionViewModel? worldsSection = null,
+        InstanceModpacksSectionViewModel? modpacksSection = null,
+        IServiceProvider? serviceProvider = null)
     {
         _versions = versionService;
         _install = installService;
@@ -123,6 +126,33 @@ public partial class VersionsViewModel : PageViewModelBase
         _modpackCatalog = modpackCatalog;
         _downloadQueue = downloadQueue;
         _modrinth = modrinthService;
+
+        // 详情面板的「世界」「整合包」两个分区（票 #89）：复用世界页那套世界/备份/导入导出
+        // 逻辑，但目标实例由详情面板的选中行指定（见 WorldsViewModel.SetTargetAsync），
+        // 不读全局实例上下文——版本页选中一行并不等于把全局上下文切过去。
+        // 详情面板的两个分区（票 #89）。优先用注入的实例；没注入就自己从容器取服务构造——
+        // ActivatorUtilities 不会递归构造未注册的具体类型，光靠可选参数拿到的是 null，
+        // 表现为分区整块绑定失败（默认可见），而不是显示「服务未接入」。
+        WorldsSection = worldsSection ?? new InstanceWorldsSectionViewModel(
+            serviceProvider?.GetService(typeof(IBackupService)) as IBackupService,
+            serviceProvider?.GetService(typeof(IWorldIconService)) as IWorldIconService,
+            serviceProvider?.GetService(typeof(IPlatformService)) as IPlatformService);
+
+        ModpacksSection = modpacksSection ?? new InstanceModpacksSectionViewModel(
+            serviceProvider?.GetService(typeof(IModpackService)) as IModpackService,
+            serviceProvider?.GetService(typeof(IPlatformService)) as IPlatformService);
+
+        // 截图模式：--section detailworlds / detailmodpacks 直接展开对应分区（截图工具没有点击能力）。
+        // 不用 worlds / modpacks 这两个名字：那是版本页自身的视图切换键，会被 TryApplyScreenshotSection 先吃掉。
+        if (ScreenshotMode.IsActive)
+        {
+            DetailSectionIndex = (ScreenshotMode.SectionKey ?? string.Empty).ToLowerInvariant() switch
+            {
+                "detailworlds" => 1,
+                "detailmodpacks" => 2,
+                _ => 0,
+            };
+        }
 
         // 与首页共用同一套状态机实现，但各持一个实例：两页的「缺 Java」是两次独立的
         // 启动失败上下文，共享一份状态会让一边的失败清掉另一边正在下载的进度。
@@ -1612,6 +1642,39 @@ public partial class VersionsViewModel : PageViewModelBase
     public InstanceDetailState Detail { get; } = new();
 
     /// <summary>
+    /// 详情面板「世界」「整合包」两个分区的状态（票 #89）。
+    ///
+    /// 由 <see cref="SetWorldsTargetForSelection"/> 把目标实例推过去。为 <c>null</c> 时
+    /// 两个分区显示「服务未接入」——单测与设计器预览不注册这些服务，不能因此让整个版本页炸掉。
+    /// </summary>
+    public InstanceWorldsSectionViewModel? WorldsSection { get; }
+
+    /// <inheritdoc cref="WorldsSection"/>
+    public InstanceModpacksSectionViewModel? ModpacksSection { get; }
+
+    /// <summary>
+    /// 详情面板当前展开的分区：0 概览 / 1 世界 / 2 整合包。
+    ///
+    /// 只在截图模式下由 <c>--section worlds|modpacks</c> 预置——截图工具没有点击能力，
+    /// 不预置的话「世界」「整合包」两个分区永远截不到，等于无法验收（与 #87 的 <c>--section</c> 同一约定）。
+    /// </summary>
+    [ObservableProperty]
+    private int _detailSectionIndex;
+
+    public bool IsOverviewSection => DetailSectionIndex == 0;
+
+    public bool IsWorldsSection => DetailSectionIndex == 1;
+
+    public bool IsModpacksSection => DetailSectionIndex == 2;
+
+    partial void OnDetailSectionIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsOverviewSection));
+        OnPropertyChanged(nameof(IsWorldsSection));
+        OnPropertyChanged(nameof(IsModpacksSection));
+    }
+
+    /// <summary>
     /// 本机可分配内存（MB），作为内存输入的硬上限。
     ///
     /// 注意这里**不能**用 <see cref="MemoryAdvisor.SuggestMaxMemoryMb"/>：
@@ -1645,6 +1708,7 @@ public partial class VersionsViewModel : PageViewModelBase
         {
             Detail.Row = null;
             Detail.RefreshReadOnlyState();
+            SetWorldsTargetForSelection(null);
             return;
         }
 
@@ -1656,6 +1720,25 @@ public partial class VersionsViewModel : PageViewModelBase
 
         // 运行状态是只读判据的唯一来源，行上的两个布尔在刷新后可能刚变过。
         SyncDetailRunningState(row);
+
+        SetWorldsTargetForSelection(row);
+    }
+
+    /// <summary>
+    /// 把详情面板选中的实例推给世界分区，让它的存档目录跟着「正在看的实例」走。
+    ///
+    /// 不 await：这是选中变化的副作用，页面不该等磁盘扫描完才显示身份头。
+    /// 异常在 <see cref="WorldsViewModel.SetTargetAsync"/> 内部吞掉并落进该分区的错误态，
+    /// 不会变成未观察的任务异常。
+    /// </summary>
+    private void SetWorldsTargetForSelection(InstanceRow? row)
+    {
+        if (WorldsSection is { } worlds)
+        {
+            _ = worlds.SetTargetAsync(row?.GameDirectory, row?.Name);
+        }
+
+        ModpacksSection?.SetTarget(row?.GameDirectory, row?.Name);
     }
 
     /// <summary>
