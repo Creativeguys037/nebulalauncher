@@ -68,4 +68,10 @@
   <!-- 从文件安装：向上箭头 + 托盘（票 #90 工具条次级行动，与 Icon.Download 的下箭头区分开） -->
   <StreamGeometry x:Key="Icon.Upload">M12 16V4.5m0 0L8 8.5M12 4.5l4 4M4.5 19.5h15</StreamGeometry>
 
+  <!-- 设为当前：勾（票 #94 账户行，与「删除」并排时靠语义而不是颜色区分） -->
+  <StreamGeometry x:Key="Icon.Check">M4.5 12.5 9.5 17.5 19.5 6.5</StreamGeometry>
+
+  <!-- 删除：垃圾桶 + 桶盖（票 #94 账户行；不复用 Icon.Close，X 在列表里读起来像「关闭面板」） -->
+  <StreamGeometry x:Key="Icon.Trash">M4 7h16M9 7V4.8a.8.8 0 0 1 .8-.8h4.4a.8.8 0 0 1 .8.8V7M6.5 7l.9 12.2a.9.9 0 0 0 .9.8h7.4a.9.9 0 0 0 .9-.8L17.5 7M10 11v5.5M14 11v5.5</StreamGeometry>
+
 </ResourceDictionary>

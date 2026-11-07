@@ -8,8 +8,13 @@
              x:Class="NebulaLauncher.Views.AccountsView"
              x:DataType="vm:AccountsViewModel">
 
+  <!--
+    账户页（票 #94）：四行栅格。Row0 身份卡 / Row1 提示与设备码（可隐藏）/ Row2 账户列表 /
+    Row3 离线账户。根是 Grid，滚动只在 Row2 的玻璃框内。
+  -->
+
   <UserControl.Styles>
-    <!-- 圆形头像：渐变底 + 首字母，完全不依赖外部图片 -->
+    <!-- 头像首字母：渐变底之上、皮肤图片之下的兜底层 -->
     <Style Selector="TextBlock.avatarLetter">
       <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -17,369 +22,366 @@
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <Style Selector="Border.accountrow">
+    <!-- 账户行：72 高，圆角 12，左侧 3px 主色条表示当前 -->
+    <Style Selector="Border.acctrow">
+      <Setter Property="Height" Value="72" />
+      <Setter Property="Padding" Value="0,0,12,0" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Md}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
           <BrushTransition Property="Background" Duration="{x:Static services:Motion.Fast}" />
+          <BrushTransition Property="BorderBrush" Duration="{x:Static services:Motion.Fast}" />
         </Transitions>
       </Setter>
     </Style>
 
-    <Style Selector="Border.accountrow.active">
-      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
-      <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    <Style Selector="Border.acctrow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
     </Style>
 
-    <!-- 浮层表单的字段标题：比正文低一档，避免和输入内容抢注意力 -->
-    <Style Selector="TextBlock.fieldLabel">
-      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-      <Setter Property="FontSize" Value="{DynamicResource FontSize.Small}" />
+    <!--
+      当前账户靠左侧 3px 主色条 + 1px 主色边 + 略亮的底来区分，不铺整片主色软底：
+      深色下 Accent.Soft 是 12% 红，铺满 1100×72 就是一大块红，违反 §7.1「红色不当大面积背景」。
+    -->
+    <Style Selector="Border.acctrow.active">
+      <Setter Property="Background" Value="{DynamicResource Surface.NavHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+    </Style>
+
+    <!--
+      玻璃上的次级按钮：样板里「切换账户」「添加离线账户」都是玻璃内的一枚浅色块，
+      不是裸文字。用 Glass.Tint + Glass.Edge 拼出来，主题切换自动跟随。
+    -->
+    <Style Selector="Button.tglass">
+      <Setter Property="Background" Value="{DynamicResource Glass.Tint}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Glass.Edge}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="Height" Value="32" />
+    </Style>
+
+    <!-- 行内图标按钮：不抢账户名，hover 才提亮 -->
+    <Style Selector="Button.rowicon">
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource Radius.Sm}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
     </Style>
   </UserControl.Styles>
 
-  <!--
-    页面根用 Grid 而不是 ScrollViewer：第三方验证表单要浮在内容之上。
-    ScrollViewer 仍是唯一的内容容器，浮层只是叠在它上面的一层。
-  -->
-  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
 
-    <!-- 账户卡是页面唯一身份卡，压进滚动区会丢掉身份；Row0 = Auto（§3.1 账户页变体）。 -->
-    <StackPanel Grid.Row="0" Spacing="16">
-        <!-- ============ 当前账户大卡片 ============ -->
-        <Border Classes="card accentEdge" Padding="22">
-          <Grid ColumnDefinitions="Auto,*,Auto">
+    <!--
+      Row0 是一个 StackPanel：账户卡固定 120，提示条与设备码卡挂在它下面。
+      合并而不是各占一行，是因为 RowSpacing 固定 12，隐藏的行仍占间隔——
+      设备码收起时四行会给列表白留 12px 空洞，而 §3.1 要求收起态 Row2 = 437 / 297。
+    -->
+    <StackPanel Grid.Row="0" Spacing="12">
 
-            <Border Width="84" Height="84"
-                    CornerRadius="{DynamicResource Radius.Sm}"
-                    BorderBrush="{DynamicResource Stroke.Strong}"
-                    BorderThickness="1"
-                    ClipToBounds="True"
-                    ToolTip.Tip="右键刷新头像">
-              <Border.ContextMenu>
-                <ContextMenu>
-                  <MenuItem Header="刷新头像" Command="{Binding RefreshActiveAvatarCommand}" />
-                </ContextMenu>
-              </Border.ContextMenu>
-              <Panel>
-                <Border CornerRadius="{DynamicResource Radius.Sm}"
-                        Background="{DynamicResource Gradient.Accent}"
-                        IsVisible="{Binding !ActiveUseAurora}" />
-                <Border CornerRadius="{DynamicResource Radius.Sm}"
-                        Background="{DynamicResource Gradient.Aurora}"
-                        IsVisible="{Binding ActiveUseAurora}" />
-                <!-- 皮肤还没取到（或取失败）时，下层首字母就是兜底；皮肤头部区域不透明，取到即盖住 -->
-                <TextBlock Text="{Binding ActiveInitial}"
-                           Classes="avatarLetter"
-                           FontSize="{DynamicResource FontSize.Display}" />
-                <controls:SkinAvatar Source="{Binding ActiveAvatar}" />
-              </Panel>
-            </Border>
+    <!-- == Row0：当前账户身份卡（120 高，固定不滚）== -->
+    <controls:GlassPanel Height="120" Padding="0">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" Margin="20,0">
 
-            <StackPanel Grid.Column="1" Margin="18,0,16,0" Spacing="6" VerticalAlignment="Center">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="{Binding ActiveName}" Classes="h2" />
-                <Border Classes="badge" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding ActiveTypeLabel}" />
-                </Border>
-                <Border Classes="badge warning" IsVisible="{Binding ActiveExpired}" VerticalAlignment="Center">
-                  <TextBlock Text="令牌过期" />
-                </Border>
-              </StackPanel>
-
-              <TextBlock Text="{Binding ActiveDetail}"
-                         Classes="mono"
-                         Foreground="{DynamicResource Text.Tertiary}"
-                         TextTrimming="CharacterEllipsis" />
-
-              <TextBlock Text="{Binding ActiveExpiryText}"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         MaxWidth="560" />
-            </StackPanel>
-
-            <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Center">
-              <Button Classes="accent"
-                      Content="刷新令牌"
-                      IsVisible="{Binding CanRefreshToken}"
-                      Command="{Binding RefreshTokenCommand}" />
-              <Button Classes="ghost"
-                      Content="刷新列表"
-                      Command="{Binding RefreshCommand}" />
-            </StackPanel>
-          </Grid>
-        </Border>
-    </StackPanel>
-
-    <!-- 提示条与删除确认都是可隐藏的常驻条，固定不滚。 -->
-    <StackPanel Grid.Row="1" Spacing="8">
-        <!-- ============ 提示条 ============ -->
-        <Border IsVisible="{Binding IsDemoMode}"
-                Background="{DynamicResource Status.Warning.Soft}"
-                BorderBrush="{DynamicResource Status.Warning}"
-                BorderThickness="1"
+        <Border Grid.Column="0" Width="56" Height="56"
                 CornerRadius="{DynamicResource Radius.Md}"
-                Padding="14,10">
-          <TextBlock Text="示例数据 · Core 服务尚未接线，以下账户不会真正登录，设备码流程也不可用"
+                ClipToBounds="True"
+                VerticalAlignment="Center"
+                ToolTip.Tip="右键刷新头像">
+          <Border.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="刷新头像" Command="{Binding RefreshActiveAvatarCommand}" />
+            </ContextMenu>
+          </Border.ContextMenu>
+          <Panel>
+            <Border CornerRadius="{DynamicResource Radius.Md}"
+                    Background="{DynamicResource Gradient.Accent}"
+                    IsVisible="{Binding !ActiveUseAurora}" />
+            <Border CornerRadius="{DynamicResource Radius.Md}"
+                    Background="{DynamicResource Gradient.Aurora}"
+                    IsVisible="{Binding ActiveUseAurora}" />
+            <!-- 皮肤没取到时首字母兜底；皮肤头部不透明，取到即盖住 -->
+            <TextBlock Text="{Binding ActiveInitial}"
+                       Classes="avatarLetter"
+                       FontSize="{DynamicResource FontSize.Title}" />
+            <controls:SkinAvatar Source="{Binding ActiveAvatar}" />
+          </Panel>
+        </Border>
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="{Binding ActiveName}" Classes="h3" />
+            <Border Classes="badge" IsVisible="{Binding HasActiveAccount}" VerticalAlignment="Center">
+              <TextBlock Text="{Binding ActiveTypeLabel}" />
+            </Border>
+            <Border Classes="badge warning" IsVisible="{Binding ActiveExpired}" VerticalAlignment="Center">
+              <TextBlock Text="令牌过期" />
+            </Border>
+          </StackPanel>
+
+          <TextBlock Text="{Binding ActiveExpiryText}"
                      Classes="muted"
                      TextWrapping="Wrap"
-                     Foreground="{DynamicResource Status.Warning}" />
-        </Border>
+                     MaxWidth="560" />
 
-        <Border IsVisible="{Binding HasError}"
-                Background="{DynamicResource Status.Danger.Soft}"
-                BorderBrush="{DynamicResource Status.Danger}"
-                BorderThickness="1"
-                CornerRadius="{DynamicResource Radius.Md}"
-                Padding="14,10">
-          <TextBlock Text="{Binding ErrorText}"
-                     TextWrapping="Wrap"
-                     Foreground="{DynamicResource Status.Danger}" />
-        </Border>
+          <TextBlock Text="{Binding ActiveDetail}"
+                     Classes="mono"
+                     Foreground="{DynamicResource Text.Tertiary}"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
 
-        <Border IsVisible="{Binding HasInfo}"
-                Background="{DynamicResource Accent.Soft}"
-                BorderBrush="{DynamicResource Stroke.Default}"
-                BorderThickness="1"
-                CornerRadius="{DynamicResource Radius.Md}"
-                Padding="14,10">
-          <TextBlock Text="{Binding InfoText}" TextWrapping="Wrap" Classes="secondary" />
-        </Border>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="ghost"
+                  Content="刷新令牌"
+                  IsVisible="{Binding CanRefreshToken}"
+                  Command="{Binding RefreshTokenCommand}" />
+          <Button Classes="ghost"
+                  Content="刷新列表"
+                  Command="{Binding RefreshCommand}" />
+          <!-- 一屏一个主行动：未登录时才出实心主色；已登录用 ghost，令牌过期也是登录这个动作 -->
+          <Button Classes="accent"
+                  Content="使用微软账户登录"
+                  IsVisible="{Binding !HasActiveAccount}"
+                  Command="{Binding SignInMicrosoftCommand}" />
+          <Button Classes="tglass"
+                  Content="切换账户"
+                  IsVisible="{Binding HasActiveAccount}"
+                  Command="{Binding SignInMicrosoftCommand}" />
+        </StackPanel>
+      </Grid>
+    </controls:GlassPanel>
 
-        <!-- ============ 删除确认 ============ -->
-        <Border IsVisible="{Binding HasPendingRemoval}"
-                Background="{DynamicResource Status.Danger.Soft}"
-                BorderBrush="{DynamicResource Status.Danger}"
-                BorderThickness="1"
-                CornerRadius="{DynamicResource Radius.Md}"
-                Padding="14,10">
-          <Grid ColumnDefinitions="*,Auto">
-            <StackPanel Spacing="2" VerticalAlignment="Center">
-              <TextBlock Text="确定移除这个账户吗？" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Status.Danger}" />
-              <TextBlock Text="{Binding PendingRemoval.Username}" Classes="muted" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-              <Button Classes="danger" Content="移除" Command="{Binding ConfirmRemoveCommand}" />
-              <Button Classes="ghost" Content="取消" Command="{Binding CancelRemoveCommand}" />
-            </StackPanel>
-          </Grid>
-        </Border>
-    </StackPanel>
+    <!-- == 提示条与设备码登录（都隐藏时不占高）== -->
+    <StackPanel Spacing="8">
 
-    <!-- 账户列表与添加面板：玻璃框内唯一滚动（票 #106）。 -->
-    <controls:GlassPanel Grid.Row="2" Padding="0">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="16" Margin="20,16,20,20">
-        <!-- ============ 左：账户列表 / 右：添加账户 ============ -->
-        <Grid ColumnDefinitions="*,16,380">
+      <Border IsVisible="{Binding IsDemoMode}"
+              Background="{DynamicResource Status.Warning.Soft}"
+              BorderBrush="{DynamicResource Status.Warning}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <TextBlock Text="示例数据 · Core 服务尚未接线，以下账户不会真正登录，设备码流程也不可用"
+                   Classes="muted"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Status.Warning}" />
+      </Border>
 
-          <StackPanel Grid.Column="0" Spacing="10">
-            <TextBlock Text="所有账户" FontWeight="SemiBold" />
+      <Border IsVisible="{Binding HasError}"
+              Background="{DynamicResource Status.Danger.Soft}"
+              BorderBrush="{DynamicResource Status.Danger}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap"
+                   Foreground="{DynamicResource Status.Danger}" />
+      </Border>
 
-            <ItemsControl ItemsSource="{Binding Accounts}" IsVisible="{Binding HasAccounts}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:AccountRowViewModel">
-                  <Border Classes="card accountrow hoverable"
-                          Classes.active="{Binding IsActive}"
-                          Padding="12"
-                          Margin="0,0,0,8">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
+      <Border IsVisible="{Binding HasInfo}"
+              Background="{DynamicResource Accent.Soft}"
+              BorderBrush="{DynamicResource Stroke.Default}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <TextBlock Text="{Binding InfoText}" TextWrapping="Wrap" Classes="secondary" />
+      </Border>
 
-                      <Border Width="38" Height="38" CornerRadius="{DynamicResource Radius.Xs}" ClipToBounds="True"
-                              ToolTip.Tip="右键刷新头像">
-                        <Border.ContextMenu>
-                          <ContextMenu>
-                            <MenuItem Header="刷新头像" Command="{Binding RefreshAvatarCommand}" />
-                          </ContextMenu>
-                        </Border.ContextMenu>
-                        <Panel>
-                          <Border CornerRadius="{DynamicResource Radius.Xs}"
-                                  Background="{DynamicResource Gradient.Accent}"
-                                  IsVisible="{Binding !UseAurora}" />
-                          <Border CornerRadius="{DynamicResource Radius.Xs}"
-                                  Background="{DynamicResource Gradient.Aurora}"
-                                  IsVisible="{Binding UseAurora}" />
-                          <TextBlock Text="{Binding Initial}" Classes="avatarLetter" FontSize="{DynamicResource FontSize.BodyLg}" />
-                          <controls:SkinAvatar Source="{Binding Avatar}" />
-                        </Panel>
-                      </Border>
-
-                      <StackPanel Grid.Column="1" Margin="12,0,10,0" Spacing="3" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <TextBlock Text="{Binding Username}" FontWeight="Medium" />
-                          <Border Classes="badge">
-                            <TextBlock Text="{Binding TypeLabel}" />
-                          </Border>
-                          <Border Classes="badge success" IsVisible="{Binding IsActive}">
-                            <TextBlock Text="当前" />
-                          </Border>
-                          <Border Classes="badge warning" IsVisible="{Binding IsExpired}">
-                            <TextBlock Text="已过期" />
-                          </Border>
-                        </StackPanel>
-
-                        <TextBlock Text="{Binding LastLoginText}" Classes="muted" />
-
-                        <!-- host 单独占一行：和登录时间挤在同一行时，窄窗口下只剩几个字符可显示 -->
-                        <TextBlock Text="{Binding AuthHost}"
-                                   Classes="mono"
-                                   Foreground="{DynamicResource Text.Tertiary}"
-                                   TextTrimming="CharacterEllipsis"
-                                   IsVisible="{Binding IsAuthlib}" />
-                      </StackPanel>
-
-                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <Button Classes="ghost"
-                                Content="切换"
-                                IsVisible="{Binding !IsActive}"
-                                Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).SwitchAccountCommand}"
-                                CommandParameter="{Binding}" />
-                        <Button Classes="icon"
-                                ToolTip.Tip="移除账户"
-                                Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).RequestRemoveCommand}"
-                                CommandParameter="{Binding}">
-                          <Path Data="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v5M14 11v5"
-                                Stroke="{DynamicResource Status.Danger}"
-                                StrokeThickness="1.5"
-                                StrokeLineCap="Round"
-                                StrokeJoin="Round"
-                                Stretch="Uniform"
-                                Width="14" Height="14" />
-                        </Button>
-                      </StackPanel>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <Border Classes="card" IsVisible="{Binding !HasAccounts}" Padding="24" MinHeight="196" VerticalAlignment="Stretch">
-              <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440">
-                <TextBlock Text="还没有账户"
-                           Classes="h3"
-                           HorizontalAlignment="Center" />
-                <TextBlock Text="在右侧添加一个离线账户就能立刻启动游戏；需要正版皮肤与联机时再用微软账户登录。"
-                           Classes="muted"
-                           TextWrapping="Wrap"
-                           TextAlignment="Center"
-                           LineHeight="20" />
-              </StackPanel>
-            </Border>
+      <!-- 移除确认：危险动作就地确认，不弹窗 -->
+      <Border IsVisible="{Binding HasPendingRemoval}"
+              Background="{DynamicResource Status.Danger.Soft}"
+              BorderBrush="{DynamicResource Status.Danger}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource Radius.Md}"
+              Padding="14,10">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="确定移除这个账户吗？" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Status.Danger}" />
+            <TextBlock Text="{Binding PendingRemoval.Username}" Classes="muted" />
           </StackPanel>
-
-          <StackPanel Grid.Column="2" Spacing="12">
-
-            <!-- 离线账户 -->
-            <Border Classes="card" Padding="18">
-              <StackPanel Spacing="12">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="添加离线账户" FontWeight="SemiBold" />
-                  <TextBlock Text="仅本地使用，不连接 Mojang。适合单机与离线服务器。"
-                             Classes="muted"
-                             TextWrapping="Wrap" />
-                </StackPanel>
-
-                <TextBox Watermark="3–16 位，字母 / 数字 / 下划线"
-                         Text="{Binding OfflineName}" />
-
-                <TextBlock Text="{Binding OfflineNameError}"
-                           IsVisible="{Binding OfflineNameError, Converter={x:Static conv:Converters.HasValue}}"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource Status.Danger}"
-                           FontSize="{DynamicResource FontSize.Small}" />
-
-                <Button Classes="accent"
-                        Content="添加离线账户"
-                        HorizontalAlignment="Stretch"
-                        Command="{Binding AddOfflineCommand}" />
-              </StackPanel>
-            </Border>
-
-            <!-- 微软账户 -->
-            <Border Classes="card" Padding="18">
-              <StackPanel Spacing="12">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="微软账户" FontWeight="SemiBold" />
-                  <TextBlock Text="用设备码登录：先复制验证码到浏览器，再回到这里等待完成。"
-                             Classes="muted"
-                             TextWrapping="Wrap" />
-                </StackPanel>
-
-                <Button Classes="accent"
-                        Content="开始微软登录"
-                        HorizontalAlignment="Stretch"
-                        IsEnabled="{Binding !IsSigningIn}"
-                        Command="{Binding SignInMicrosoftCommand}" />
-
-                <Border Classes="sunken" IsVisible="{Binding IsSigningIn}" Padding="14">
-                  <StackPanel Spacing="10">
-                    <TextBlock Text="{Binding AuthStage}"
-                               Classes="muted"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center" />
-
-                    <Border IsVisible="{Binding HasDeviceCode}"
-                            Background="{DynamicResource Surface.Sunken}"
-                            BorderBrush="{DynamicResource Stroke.Default}"
-                            BorderThickness="1"
-                            CornerRadius="{DynamicResource Radius.Sm}"
-                            Padding="12">
-                      <TextBlock Text="{Binding DeviceCode}"
-                                 Classes="mono"
-                                 FontSize="{DynamicResource FontSize.Headline}"
-                                 FontWeight="Bold"
-                                 LetterSpacing="4"
-                                 HorizontalAlignment="Center" />
-                    </Border>
-
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
-                                IsVisible="{Binding HasDeviceCode}">
-                      <Button Classes="pill" Content="复制验证码" Command="{Binding CopyDeviceCodeCommand}" />
-                      <Button Classes="pill" Content="打开浏览器" Command="{Binding OpenVerificationUriCommand}" />
-                    </StackPanel>
-
-                    <TextBlock Text="{Binding VerificationUri}"
-                               Classes="muted"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               IsVisible="{Binding HasDeviceCode}" />
-
-                    <ProgressBar IsIndeterminate="True" Height="4" />
-
-                    <Button Classes="ghost"
-                            Content="取消登录"
-                            HorizontalAlignment="Center"
-                            Command="{Binding CancelSignInCommand}" />
-                  </StackPanel>
-                </Border>
-              </StackPanel>
-            </Border>
-
-            <!-- 第三方验证（authlib-injector） -->
-            <Border Classes="card" Padding="18">
-              <StackPanel Spacing="12">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="第三方验证（authlib-injector）"
-                             FontWeight="SemiBold"
-                             TextWrapping="Wrap" />
-                  <TextBlock Text="用皮肤站 / 统一通行证账号登录，启动时自动注入 authlib-injector。"
-                             Classes="muted"
-                             TextWrapping="Wrap" />
-                </StackPanel>
-
-                <Button Classes="accent"
-                        Content="添加第三方验证账户"
-                        HorizontalAlignment="Stretch"
-                        IsEnabled="{Binding !IsAuthlibBusy}"
-                        Command="{Binding OpenAuthlibFormCommand}" />
-              </StackPanel>
-            </Border>
-
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="danger" Content="移除" Command="{Binding ConfirmRemoveCommand}" />
+            <Button Classes="ghost" Content="取消" Command="{Binding CancelRemoveCommand}" />
           </StackPanel>
         </Grid>
+      </Border>
+
+      <!-- 设备码登录：只在登录流程进行中展开，已登录态整块隐藏 -->
+      <controls:GlassPanel IsVisible="{Binding IsSigningIn}" Padding="20">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+          <StackPanel Spacing="6">
+            <TextBlock Text="在浏览器里输入下面的代码完成登录" Classes="muted" />
+            <TextBlock Text="{Binding DeviceCode}"
+                       FontSize="{DynamicResource FontSize.Display}"
+                       FontWeight="SemiBold"
+                       FontFamily="Cascadia Code, Consolas, monospace" />
+            <TextBlock Text="{Binding VerificationUri}"
+                       Classes="mono"
+                       Foreground="{DynamicResource Text.Tertiary}"
+                       IsVisible="{Binding HasDeviceCode}" />
+            <TextBlock Text="{Binding AuthStage}" Classes="muted" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="pill"
+                    Content="复制验证码"
+                    IsVisible="{Binding HasDeviceCode}"
+                    Command="{Binding CopyDeviceCodeCommand}" />
+            <Button Classes="pill"
+                    Content="打开浏览器"
+                    IsVisible="{Binding HasDeviceCode}"
+                    Command="{Binding OpenVerificationUriCommand}" />
+            <Button Classes="ghost"
+                    Content="取消登录"
+                    Command="{Binding CancelSignInCommand}" />
+          </StackPanel>
+        </Grid>
+      </controls:GlassPanel>
+    </StackPanel>
+    </StackPanel>
+
+    <!-- == Row1：所有账户列表（框内唯一滚动）== -->
+    <controls:GlassPanel Grid.Row="1" Padding="0">
+      <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      IsVisible="{Binding HasAccounts}">
+          <ItemsControl ItemsSource="{Binding Accounts}" Margin="8">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AccountRowViewModel">
+                <Border Classes="acctrow" Classes.active="{Binding IsActive}">
+                  <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="12">
+
+                    <!-- 当前账户：左侧 3px 主色条，比整行变色更耐看 -->
+                    <Border Grid.Column="0"
+                            Width="3" Height="40"
+                            CornerRadius="{DynamicResource Radius.Pill}"
+                            Background="{DynamicResource Accent.Primary}"
+                            IsVisible="{Binding IsActive}"
+                            VerticalAlignment="Center" />
+
+                    <Border Grid.Column="1" Width="40" Height="40"
+                            CornerRadius="{DynamicResource Radius.Sm}"
+                            ClipToBounds="True"
+                            VerticalAlignment="Center">
+                      <Panel>
+                        <Border CornerRadius="{DynamicResource Radius.Sm}"
+                                Background="{DynamicResource Gradient.Accent}"
+                                IsVisible="{Binding !UseAurora}" />
+                        <Border CornerRadius="{DynamicResource Radius.Sm}"
+                                Background="{DynamicResource Gradient.Aurora}"
+                                IsVisible="{Binding UseAurora}" />
+                        <TextBlock Text="{Binding Initial}"
+                                   Classes="avatarLetter"
+                                   FontSize="{DynamicResource FontSize.Subtitle}" />
+                        <controls:SkinAvatar Source="{Binding Avatar}" />
+                      </Panel>
+                    </Border>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                      <TextBlock Text="{Binding Username}"
+                                 FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding TypeLabel}"
+                                 Classes="muted"
+                                 TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding LastLoginText}"
+                               Classes="mono"
+                               Foreground="{DynamicResource Text.Tertiary}"
+                               VerticalAlignment="Center" />
+
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6"
+                                VerticalAlignment="Center">
+                      <Border Classes="badge" IsVisible="{Binding IsActive}">
+                        <TextBlock Text="当前" />
+                      </Border>
+                      <Border Classes="badge warning" IsVisible="{Binding IsExpired}">
+                        <TextBlock Text="令牌过期" />
+                      </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2"
+                                VerticalAlignment="Center">
+                      <Button Classes="rowicon"
+                              IsVisible="{Binding !IsActive}"
+                              ToolTip.Tip="设为当前"
+                              Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).SwitchAccountCommand}"
+                              CommandParameter="{Binding}">
+                        <Path Data="{StaticResource Icon.Check}"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                              Stretch="Uniform" Width="14" Height="14" />
+                      </Button>
+                      <Button Classes="rowicon"
+                              ToolTip.Tip="移除"
+                              Command="{Binding $parent[ItemsControl].((vm:AccountsViewModel)DataContext).RequestRemoveCommand}"
+                              CommandParameter="{Binding}">
+                        <Path Data="{StaticResource Icon.Trash}"
+                              Stroke="{DynamicResource Text.Tertiary}"
+                              StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                              Stretch="Uniform" Width="14" Height="14" />
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- 空态：给下一步动作，不留白屏 -->
+        <StackPanel IsVisible="{Binding !HasAccounts}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="10">
+          <Border Width="56" Height="56"
+                  CornerRadius="{DynamicResource Radius.Pill}"
+                  Background="{DynamicResource Surface.Sunken}"
+                  HorizontalAlignment="Center">
+            <Path Data="{StaticResource Icon.Account}"
+                  Stroke="{DynamicResource Text.Tertiary}"
+                  StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                  Stretch="Uniform" Width="24" Height="24"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="还没有账户" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <TextBlock Text="用微软账户登录，或在下面添加一个离线账户"
+                     Classes="muted"
+                     HorizontalAlignment="Center" />
         </StackPanel>
-      </ScrollViewer>
+      </Grid>
+    </controls:GlassPanel>
+
+    <!-- == Row3：离线账户（96 高，固定不滚）== -->
+    <!-- == Row2：离线账户（固定 96）== -->
+    <controls:GlassPanel Grid.Row="2" Height="96" Padding="0">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="20,0">
+        <StackPanel VerticalAlignment="Center" Spacing="2">
+          <TextBlock Text="离线账户" Classes="h3" />
+          <TextBlock Text="仅保存在本机，无网络时也能启动游戏；不可用于正版服务器"
+                     Classes="muted" />
+          <TextBlock Text="{Binding OfflineNameError}"
+                     FontSize="{DynamicResource FontSize.Small}"
+                     Foreground="{DynamicResource Status.Danger}"
+                     IsVisible="{Binding OfflineNameError, Converter={x:Static conv:Converters.HasValue}}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBox Text="{Binding OfflineName}"
+                   Watermark="账户名"
+                   Width="180" />
+          <Button Classes="tglass"
+                  Content="添加离线账户"
+                  Command="{Binding AddOfflineCommand}" />
+        </StackPanel>
+      </Grid>
     </controls:GlassPanel>
 
     <!-- ============ 第三方验证表单（浮层） ============ -->
@@ -511,3 +513,5 @@
 
   </Grid>
 </UserControl>
+
+
