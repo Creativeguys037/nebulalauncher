@@ -228,6 +228,13 @@
     <!-- ==================== Row1：主列（Hero + 最近实例） + 右栏 280 ==================== -->
     <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="16">
 
+      <!-- 加载态：细条压在框顶，不占行高（契约 §8） -->
+      <ProgressBar Grid.Row="0" Grid.Column="0"
+                   IsVisible="{Binding IsLoading}"
+                   IsIndeterminate="True"
+                   Height="2"
+                   Margin="0,0,0,4" />
+
       <!-- ===== 主列 ===== -->
       <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
 

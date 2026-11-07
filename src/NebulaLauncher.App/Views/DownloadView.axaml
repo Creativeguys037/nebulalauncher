@@ -104,6 +104,25 @@
       </Grid>
     </controls:GlassPanel>
 
+    <!-- 错误条：Row1 右侧，高 32/圆角 8/宽度 ≤ Row1 一半（契约 §8） -->
+    <Border Grid.Row="1"
+            IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}"
+            Height="32"
+            CornerRadius="{DynamicResource Radius.Sm}"
+            Background="{DynamicResource Status.Danger.Soft}"
+            BorderBrush="{DynamicResource Status.Danger}"
+            BorderThickness="1"
+            Padding="12,0"
+            VerticalAlignment="Top"
+            MaxWidth="400"
+            HorizontalAlignment="Right">
+      <TextBlock Text="{Binding ErrorText}"
+                 FontSize="{DynamicResource FontSize.Caption}"
+                 Foreground="{DynamicResource Status.Danger}"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+    </Border>
+
     <!-- Row1：参数栏。默认收起为 0 高（票面结构树：折叠态 Row2 多 48）。
          展开时一行：下载源 + 并发 + 限速。三个值都是只读展示，改设置去设置页——
          下载页里的可编辑参数是这次重制前的旧形态，常驻 300 宽在 1024 档下是纯损失。 -->
@@ -142,9 +161,16 @@
 
     <!-- Row2：任务框。玻璃框内唯一滚动（UI-STRUCTURE §7）。 -->
     <controls:GlassPanel Grid.Row="2" Padding="0">
-      <Grid RowDefinitions="*,Auto">
+      <Grid RowDefinitions="Auto,*,Auto">
 
-        <ScrollViewer Grid.Row="0"
+        <!-- 加载态：细条压在框顶，不占行高（契约 §8） -->
+        <ProgressBar Grid.Row="0"
+                     IsVisible="{Binding IsLoading}"
+                     IsIndeterminate="True"
+                     Height="2"
+                     Margin="1,1,1,0" />
+
+        <ScrollViewer Grid.Row="1"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto"
                       IsVisible="{Binding HasLauncherTasks}">

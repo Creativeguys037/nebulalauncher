@@ -82,6 +82,8 @@ public partial class HomeViewModel : PageViewModelBase
 
     private bool _instancesLoaded;
     private string _subtitle = string.Empty;
+
+    [ObservableProperty]
     private bool _isLoading;
 
     /// <summary>是否已订阅 <see cref="IAccountService.AccountsChanged"/>；订阅只挂在页面激活期间。</summary>
@@ -642,12 +644,12 @@ public partial class HomeViewModel : PageViewModelBase
 
     private async Task LoadAsync()
     {
-        if (_isLoading)
+        if (IsLoading)
         {
             return;
         }
 
-        _isLoading = true;
+        IsLoading = true;
         ErrorText = null;
         try
         {
@@ -667,7 +669,7 @@ public partial class HomeViewModel : PageViewModelBase
         }
         finally
         {
-            _isLoading = false;
+            IsLoading = false;
         }
     }
 

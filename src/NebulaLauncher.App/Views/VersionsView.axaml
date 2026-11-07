@@ -193,7 +193,25 @@
         <!-- 工具条第二行：筛选 chip。只在「已安装」视图有意义（远程清单里没有加载器概念）。 -->
         <!-- 三列 Auto：chip 组按自然宽度、计数占剩余、右侧动作贴边。
              第一列若写 * 会把 StackPanel 撑满整行，chip 在其中的可用宽度被算成 0，出现文字重叠。 -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Height="48">
+        <!-- 错误条：Row1 右侧，高 32/圆角 8（契约 §8） -->
+    <Border Grid.Row="1"
+            IsVisible="{Binding ErrorText, Converter={x:Static conv:Converters.HasValue}}"
+            Height="32"
+            CornerRadius="{DynamicResource Radius.Sm}"
+            Background="{DynamicResource Status.Danger.Soft}"
+            BorderBrush="{DynamicResource Status.Danger}"
+            BorderThickness="1"
+            Padding="12,0"
+            VerticalAlignment="Top"
+            MaxWidth="400"
+            HorizontalAlignment="Right">
+      <TextBlock Text="{Binding ErrorText}"
+                 FontSize="{DynamicResource FontSize.Caption}"
+                 Foreground="{DynamicResource Status.Danger}"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+    </Border>
+<Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Height="48">
           <StackPanel Orientation="Horizontal"
                       Spacing="8"
                       HorizontalAlignment="Left"
