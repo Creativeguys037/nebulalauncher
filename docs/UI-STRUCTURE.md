@@ -292,7 +292,7 @@ D4 的实测值来自 #106 轮核对（2026-11-06）：`Classes="card"` 在 12 �
 
 | 票 | 页面 | 样板文件 | 状态 |
 |---|---|---|---|
-| #86 | 首页 | `home-glass.html` | 定版（样板 topbar 见 D1）；该文件在工作树里已被别的改动删除，需要时用 `git show HEAD:.oil-ui/nebula-2/explore/home-glass.html` 取回 |
+| #86 | 首页 | `home-glass.html` | 定版（样板 topbar 见 D1） |
 | #87 | 版本页 | `versions-glass.html` | 定版（样板 topbar 见 D1） |
 | #88 / #89 | 实例详情：概览 / 世界 / 整合包 | `instance-detail-glass.html` | 本轮补齐 |
 | #90 | 内容·模组 | `mods-glass.html` | 本轮补齐 |
