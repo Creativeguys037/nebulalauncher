@@ -990,7 +990,7 @@
     </Grid>
 
     <!-- ==================== 删除确认浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsConfirmOpen}">
       <Border Classes="card"
               Width="400"
@@ -1029,7 +1029,7 @@
     </Border>
 
     <!-- ==================== 实例删除确认浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsInstanceConfirmOpen}">
       <Border Classes="card"
               Width="420"
@@ -1077,7 +1077,7 @@
       </Border>
     </Border>
     <!-- ==================== 重命名浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsRenameOpen}">
       <Border Classes="card"
               Width="400"
@@ -1114,7 +1114,7 @@
     </Border>
 
     <!-- ==================== 图标选择浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsIconPickerOpen}">
       <Border Classes="card"
               Width="438"
@@ -1169,7 +1169,7 @@
     </Border>
 
     <!-- ==================== 清理浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsCleanupOpen}">
       <Border Classes="card"
               Width="440"
@@ -1224,7 +1224,7 @@
     </Border>
 
     <!-- ==================== 彻底删除确认浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsPurgeConfirmOpen}">
       <Border Classes="card"
               Width="420"
@@ -1265,7 +1265,7 @@
     </Border>
 
     <!-- ==================== 深度修复确认浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsRepairConfirmOpen}">
       <Border Classes="card"
               Width="430"
@@ -1296,7 +1296,7 @@
     </Border>
 
     <!-- ==================== 完整备注浮层 ==================== -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsNotesOpen}">
       <Border Classes="card"
               Width="440"
@@ -1332,7 +1332,7 @@
 
     <!-- ==================== 版本组件浮层 ==================== -->
     <!-- 只读安装清单做 mtime 比对：不联网、不改文件。修复入口复用版本页已有的快速修复。 -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsComponentsOpen}">
       <Border Classes="card"
               Width="620"

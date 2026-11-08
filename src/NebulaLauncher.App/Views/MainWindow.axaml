@@ -292,7 +292,7 @@
     <!-- ==================== 退出下载确认 ====================
          PCL2 的 FormMain.EndProgram 在还有下载任务时弹「还有下载任务尚未完成，是否确定退出？」。
          放在窗口级：它不属于任何页面，下载可能来自安装、模组更新或整合包导入。 -->
-    <Border Background="{DynamicResource Surface.Sunken}"
+    <Border Background="{DynamicResource Surface.Scrim}"
             IsVisible="{Binding IsExitDownloadConfirmOpen}">
       <Border Classes="card"
               Width="420"

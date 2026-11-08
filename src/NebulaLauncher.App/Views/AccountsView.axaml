@@ -384,7 +384,7 @@
     <!-- ============ 第三方验证表单（浮层） ============ -->
     <Panel IsVisible="{Binding IsAuthlibFormOpen}">
       <!-- 遮罩单独一层：Opacity 放在 Panel 上会把表单卡片一起变透明 -->
-      <Border Background="{DynamicResource Surface.Base}" Opacity="0.78" />
+      <Border Background="{DynamicResource Surface.Scrim}" />
 
       <Border Classes="card"
               MaxWidth="560"

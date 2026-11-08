@@ -186,7 +186,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 4. **详情与列表并列**，不叠、不做抽屉；关详情后选中行不丢。
 5. **卡片嵌套最多 2 层**，外层 20 内层 12 圆角；hero 28 / 内层 20。
 6. **玻璃只在 L2**：外壳、页面主卡、浮层。列表行内部、输入框、日志区一律实心或内凹。
-7. **浮层单实例**：`DialogOverlay` 由页面 host 持有，同时只有一个；遮罩用令牌 `Surface.Scrim`（`#66000000`，黑 40%，两套主题共用，见 `src/NebulaLauncher.App/Themes/Tokens.axaml:301`），**不要用 `Surface.Base` / `Surface.Sunken` 这类不透明底冒充遮罩**。
+7. **浮层单实例**：`DialogOverlay` 由页面 host 持有，同时只有一个；遮罩用令牌 `Surface.Scrim`（`#66000000`，黑 40%，两套主题共用，见 `src/NebulaLauncher.App/Themes/Tokens.axaml:476`），**不要用 `Surface.Base` / `Surface.Sunken` 这类不透明底冒充遮罩**。
 8. **危险动作下沉**：`Button.danger` 不与主行动相邻；删除/覆盖/还原二次确认写清影响范围。
 9. **空态必须给下一步动作**，不是一段说明文字。
 10. **进度不走弹窗**：行内进度 + 可关闭结果条（成功 N / 失败 M）。
@@ -277,7 +277,7 @@ Row2高 = 画布高 − Row0 − Row1 − Row3 − 12 × (可见行数 − 1)
 | D2 | 首页根仍是整页 `ScrollViewer`（`src/NebulaLauncher.App/Views/HomeView.axaml:31`） | #86 虽已关票，但整页滚动未解决 | **已修（#106）**：根改 `Grid RowDefinitions="Auto,*" RowSpacing="12"`，Hero 卡留在 Row0 固定，其余进 Row1 玻璃框 |
 | D3 | 服务器页根曾是整页 `ScrollViewer` | 已由 #106 拆除滚动、#95 重做页面 | **已修（#106 + #95）**：根 `Grid RowDefinitions="Auto,Auto,*,Auto"`，Row0 工具条玻璃框 / Row1 提示条与表单（塌 0）/ Row2 列表行 72 / Row3 导入结果条 44 |
 | D4 | 12 页共 110 处 `Border.card` 仍是实心（`Surface.CardSolid`） | 待 #105 换 `GlassPanel` | **范围已缩小（#106）**：12 页的 Row2 内容框已全部是 `GlassPanel`；剩下的 `Border.card` 是列表行、详情列、参数卡这类 L3 内容，按 §6 规则 6 不该玻璃化。剩余是否还有该玻璃化的 L2 承载层，待 #105 复核后回填 |
-| D5 | 退出下载确认浮层用不透明 `Surface.Sunken` 当遮罩（`src/NebulaLauncher.App/Views/MainWindow.axaml:243`），不是 `Surface.Scrim` 黑 40% | 违反 §6 规则 7；遮罩会整片盖住下层而不是压暗 | 未修 |
+| D5 | 退出下载确认浮层用不透明 `Surface.Sunken` 当遮罩（`src/NebulaLauncher.App/Views/MainWindow.axaml:295`），不是 `Surface.Scrim` 黑 40% | 违反 §6 规则 7；遮罩会整片盖住下层而不是压暗 | **已修（#82）**：全仓实测同类违反 12 处，统一改 `Surface.Scrim`——`MainWindow.axaml:295`、`SettingsView.axaml:1820`、`AccountsView.axaml:387`（原 `Surface.Base` + `Opacity="0.78"` 遮罩子层，Opacity 已删）、`VersionsView.axaml` 九处浮层（993 / 1032 / 1080 / 1117 / 1172 / 1227 / 1268 / 1299 / 1335）。`AppTheme_PageContractTests.FullScreenOverlays_UseScrimBackground` 钉住契约：Is*Open 浮层容器不得用不透明底，实例设置 / 换加载器 / 回收站这类内嵌面板按「无居中卡」判据排除 |
 | D6 | 设置页票面（#96 / #97 / #98）写「Section 卡用 `GlassPanel`」，实际按 §6 规则 6 应为 **L3 实心卡** | Row2 已经是玻璃主卡，Section 再套玻璃就触犯禁止清单 17；样板里 Section 用白底实心（`.sec` / `.aboutcard` / `.entrycard`） | 已裁决：按契约执行，`GlassPanel` 只用在 Row2 |
 | D7 | 皮肤页紧凑档预览区高 320 → **200**（宽 260、预览列 300 不变） | 紧凑 Row2 只有 369，320 + 名称 + 冷却 + 操作行物理放不下；按 §4.1 第 3 条「缩高度不缩宽度」处理 | 已裁决，写进 §4.1 |
 | D8 | **世界独立页已由详情面板取代（#89），但文件仍在树里** | `src/NebulaLauncher.App/Views/WorldsView.axaml`（682 行）、`WorldsView.axaml.cs`（154 行）、`src/NebulaLauncher.App/ViewModels/WorldsViewModel.cs`（1582 行）现在没有任何导航键可达，`MainWindowViewModel.cs:534/623` 的两处 `WorldsViewModel` 分支也是死路径——世界与整合包已迁入 `InstanceDetailPane` 的分区（`InstanceWorldsSectionViewModel` / `InstanceModpacksSectionViewModel`） | 待清理（单独一次提交，不与功能改动混在一起） |
