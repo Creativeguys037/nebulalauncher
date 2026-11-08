@@ -32,7 +32,7 @@
 .titlebar .ww{margin-left:auto;display:flex;align-items:center;gap:4px}
 .stagecol{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
 /* 页面栅格：Auto,Auto,*,Auto + RowSpacing 12，根不滚动 */
-.page{
+.page{margin-left:4px;
   flex:1 1 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;
   gap:12px;min-height:0;
 }
@@ -40,7 +40,7 @@
 .prow0{height:40px;display:flex;align-items:center;gap:14px;min-width:0}
 .prow1{height:48px;display:flex;align-items:center;gap:12px;min-width:0}
 .prow3{height:44px;display:flex;align-items:center;gap:10px;min-width:0}
-.statusbar{
+.statusbar{margin-left:4px;
   flex:0 0 41px;display:flex;align-items:center;justify-content:space-between;
   font-size:11px;color:var(--ink-3);border-top:1px solid rgba(10,13,20,.08);
 }
@@ -150,9 +150,6 @@
 /* 批量条里的危险动作：ghost 底 + 危险色文字，不用实心主色 */
 .btn.dang{color:#B03A2E;border-color:rgba(192,57,43,.34)}
 .btn.dang:hover{background:#fff;border-color:rgba(192,57,43,.6)}
-/* 危险动作下沉：与批量主行动拉开间距 + 危险色（契约规则 8 / 禁止清单 18） */
-.btn.dang{margin-left:14px;color:#B03A2E;border-color:rgba(192,57,43,.34)}
-.btn.dang:hover{background:#fff;border-color:rgba(192,57,43,.6)}
 /* TitleBar 三键：实现里 Background=Transparent、图标 Stroke=Text.Secondary，样板不另加白底。 */
 .tab36 a,.tgls a{cursor:pointer}
 
@@ -251,7 +248,7 @@
 
         <!-- Row2（* = 509）：模组列表框 GlassPanel → 内部唯一滚动（行高 56，宽屏 8 行） -->
         <section class="panebox glass">
-          <div class="scroll dim">
+          <div class="scroll">
             <div class="rows">
 
               <div class="row mrow sel">

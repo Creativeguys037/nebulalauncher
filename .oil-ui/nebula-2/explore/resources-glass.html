@@ -29,7 +29,7 @@
 .titlebar .ww{margin-left:auto;display:flex;align-items:center;gap:4px}
 .stagecol{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
 /* 页面栅格：Auto,Auto,*,Auto + RowSpacing 12，根不滚动 */
-.page{
+.page{margin-left:4px;
   flex:1 1 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;
   gap:12px;min-height:0;
 }
@@ -37,7 +37,7 @@
 .prow0{height:40px;display:flex;align-items:center;gap:14px;min-width:0}
 .prow1{height:48px;display:flex;align-items:center;gap:12px;min-width:0}
 .prow3{height:44px;display:flex;align-items:center;gap:10px;min-width:0}
-.statusbar{
+.statusbar{margin-left:4px;
   flex:0 0 41px;display:flex;align-items:center;justify-content:space-between;
   font-size:11px;color:var(--ink-3);border-top:1px solid rgba(10,13,20,.08);
 }
@@ -141,8 +141,6 @@
 .rrow .badge{height:20px;display:inline-flex;align-items:center;padding:0 8px;font-size:9.5px;flex:0 0 auto}
 .rrow .ract{opacity:.85;transition:opacity 140ms var(--ease)}
 .rrow:hover .ract{opacity:1}
-/* 框内滚动底部渐隐：第 10 行只露 24px，用一层白雾收口，避免读成「被裁掉半行」 */
-.pane-fade{position:absolute;left:8px;right:8px;bottom:8px;height:44px;pointer-events:none;z-index:2;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.86) 34%,rgba(255,255,255,.98) 62%,#fff 100%)}
 .cnt{font-size:11px;color:var(--ink-3);position:relative;z-index:1}
 .linkb{font-family:inherit;font-size:11px;font-weight:600;color:var(--blue);background:transparent;border:0;cursor:pointer;padding:0 2px}
 .linkb.mute{color:var(--ink-3);font-weight:600}
@@ -374,7 +372,6 @@
 
             </div>
           </div>
-          <div class="pane-fade"></div>
         </section>
 
         <!-- Row3（44）：批量条（选中 > 0 时出现，本屏唯一主行动 = 启用） -->

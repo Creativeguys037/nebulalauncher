@@ -30,7 +30,7 @@
 .titlebar .ww{margin-left:auto;display:flex;align-items:center;gap:4px}
 .stagecol{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
 /* 页面栅格：Auto,Auto,*,Auto + RowSpacing 12，根不滚动 */
-.page{
+.page{margin-left:4px;
   flex:1 1 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;
   gap:12px;min-height:0;
 }
@@ -38,7 +38,7 @@
 .prow0{height:40px;display:flex;align-items:center;gap:14px;min-width:0}
 .prow1{height:48px;display:flex;align-items:center;gap:12px;min-width:0}
 .prow3{height:44px;display:flex;align-items:center;gap:10px;min-width:0}
-.statusbar{
+.statusbar{margin-left:4px;
   flex:0 0 41px;display:flex;align-items:center;justify-content:space-between;
   font-size:11px;color:var(--ink-3);border-top:1px solid rgba(10,13,20,.08);
 }
@@ -145,7 +145,6 @@
 .p3d .floor{position:absolute;left:50%;bottom:34px;width:128px;height:22px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(11,63,204,.30),transparent 78%)}
 .p3d .fig{width:86px;height:150px;position:relative;z-index:1}
 .p3d .hint{position:absolute;left:10px;bottom:10px;font-size:9px;font-weight:600;letter-spacing:.03em;color:var(--ink-3);background:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.95);border-radius:7px;padding:3px 7px;z-index:2}
-.p3d .live{position:absolute;right:10px;top:10px;z-index:2}
 .pinfo{margin-top:14px;min-width:0}
 .pinfo b{display:block;font-size:15px;font-weight:800;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pinfo span{display:block;font-size:10px;color:var(--ink-3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -154,8 +153,6 @@
 .pcool b{margin-left:auto;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--ink)}
 .pacts{margin-top:auto;padding-top:12px;display:flex;align-items:center;gap:6px;border-top:1px solid rgba(10,13,20,.07)}
 .pacts .btn.sm{height:34px;padding:0 16px}
-/* 框内滚动底部渐隐：网格第 3 行只露 69px，用白雾收口 */
-.pane-fade{position:absolute;left:8px;right:8px;bottom:8px;height:36px;pointer-events:none;z-index:2;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.72) 40%,rgba(255,255,255,.92) 100%)}
 /* TitleBar 三键：实现里 Background=Transparent、图标 Stroke=Text.Secondary，样板不另加白底。 */
 
 /* 紧凑档 1024×660：网格列 582 − 16 = 566 → 3 列；预览列仍 300，不缩 */
@@ -168,7 +165,6 @@
   .pinfo{margin-top:10px}
   .pinfo b{font-size:14px}
   .pacts .btn.sm{padding:0 12px}
-  .pane-fade{height:48px}
 }
 </style>
 </head>
@@ -338,7 +334,6 @@
 
               </div>
             </div>
-            <div class="pane-fade"></div>
           </section>
 
           <!-- 列 1：预览卡（GlassPanel，固定 300，不覆盖网格） -->
