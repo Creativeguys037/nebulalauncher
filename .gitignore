@@ -6,6 +6,11 @@ pub/
 TestResults/
 .vs/
 
+# 临时构建副本（.build-fix/.build-probe 之类的一次性验证检出）与
+# DSH 沙箱 ACL 恢复备份（.acl-recovery/），都是本机临时物，不进仓库
+.build-*/
+.acl-recovery/
+
 # IDE / 用户配置
 *.user
 *.suo
